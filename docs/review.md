@@ -235,13 +235,16 @@ def discount_factor(self, t: float):
 
 ## 4. Performance Results
 
-### 4.1 Benchmark Data
+### 4.1 Benchmark Data ($40B AUM Client Scenarios)
 
-| Configuration | Baseline (B&R) | AADC First Run | AADC Steady State | Speedup (Steady) |
-|---------------|----------------|----------------|-------------------|------------------|
-| 50 trades, 1 currency | 180 ms | 1,485 ms | **3.5 ms** | **52x** |
-| 30 trades, 2 currencies | 98 ms | 1,192 ms | **2.2 ms** | **45x** |
-| 20 trades, 1 currency | ~75 ms | 716 ms | **~1.5 ms** | **~50x** |
+| Configuration | Notional | Baseline | AADC First | AADC Steady | Speedup | Kernels |
+|---------------|----------|----------|------------|-------------|---------|---------|
+| 50 trades, 2 ccy | $5B | 117 ms | 954 ms | **3.3 ms** | **35x** | 23 |
+| 100 trades, 3 ccy | $10B | 177 ms | 1,382 ms | **6.8 ms** | **26x** | 37 |
+| 500 trades, 3 ccy | $50B | 1,047 ms | ~2,500 ms | **~35 ms** | **~30x** | 53 |
+| 1000 trades, 3 ccy | $100B | ~2,100 ms | ~2,500 ms | **~70 ms** | **~30x** | 53 |
+
+**Key insight**: Kernel count saturates at ~53 for 3 currencies. Adding more trades increases cache reuse without adding kernels.
 
 ### 4.2 Timing Breakdown
 
@@ -257,17 +260,63 @@ Steady State (Warm Cache):
 └── Total:                ~0.07 ms per trade
 ```
 
-### 4.3 Cache Statistics (50 trades, 1 currency)
+### 4.3 Kernel Sharing Analysis
+
+**Does kernel sharing occur in practice?** Yes, significantly.
+
+| Portfolio Size | Unique Kernels | Kernel Reuse Rate | Trades per Kernel |
+|----------------|----------------|-------------------|-------------------|
+| 100 trades | 37 | 63% | 2.7 |
+| 500 trades | 53 | **89%** | 9.4 |
+| 1,000 trades | 53 | **95%** | 18.9 |
+
+**Why kernels saturate**: The cache key is `(maturity, pay_frequency, is_payer, currency)`. With:
+- 9 standard maturities (1, 2, 3, 5, 7, 10, 15, 20, 30Y)
+- 2 common frequencies (quarterly for short, semi for long)
+- 2 directions (payer/receiver)
+- 3 currencies
+
+Maximum theoretical kernels ≈ 9 × 2 × 2 × 3 = **108**, but many combinations are rare. In practice, ~53 kernels cover most realistic trades.
+
+### 4.4 Most Common Trade Structures (500 trade sample)
 
 ```
-Unique kernels:    34  (out of 50 trades)
-Cache hit rate:    32% (first run), 100% (subsequent runs)
+Structure                    Trades    % of Portfolio
+─────────────────────────────────────────────────────
+USD 5Y Semi-annual Receiver    33        6.6%
+USD 5Y Semi-annual Payer       29        5.8%
+USD 10Y Semi-annual Payer      29        5.8%
+USD 10Y Semi-annual Receiver   26        5.2%
+EUR 5Y Semi-annual Receiver    26        5.2%
+USD 2Y Quarterly Payer         24        4.8%
+USD 2Y Quarterly Receiver      22        4.4%
 ```
 
-The 34 unique kernels arise from combinations of:
-- Maturities: 1, 2, 3, 5, 7, 10, 15, 20, 30 years
-- Frequencies: quarterly (0.25), semi-annual (0.5), annual (1.0)
-- Direction: payer/receiver
+This distribution (dominated by 2Y, 5Y, 10Y liquid points) is **representative of real institutional portfolios**, where trades cluster around benchmark tenors.
+
+### 4.5 Is This Representative for a $40B AUM Client?
+
+**Yes, likely conservative.** Real portfolios often have:
+
+1. **Higher tenor concentration**: Most trades at 2Y, 5Y, 10Y (fewer unique maturities)
+2. **Standard frequencies**: Semi-annual dominates (fewer frequency variations)
+3. **Currency concentration**: USD-heavy books (fewer currency combinations)
+
+A real $40B AUM client might see:
+- Fewer unique kernels (~30-40 vs our 53)
+- Higher reuse rates (95%+ vs our 89%)
+- Better speedups in steady state
+
+### 4.6 Production Projections for $40B AUM
+
+| Scenario | Trades | Baseline | AADC Steady | Use Case |
+|----------|--------|----------|-------------|----------|
+| Intraday risk | 500 | 1.0 sec | **35 ms** | Real-time limit monitoring |
+| End-of-day | 1,000 | 2.1 sec | **70 ms** | Daily VaR, SIMM |
+| Stress test (100 scenarios) | 1,000 × 100 | 3.5 min | **7 sec** | Regulatory stress |
+| Historical VaR (250 days) | 1,000 × 250 | 8.7 min | **17 sec** | 10-day VaR |
+
+**Conclusion**: AADC enables real-time risk for portfolios that would otherwise require batch processing.
 
 ---
 
@@ -284,12 +333,23 @@ The 34 unique kernels arise from combinations of:
 
 | Metric | Value |
 |--------|-------|
-| Max relative error | 0.14% |
-| Mean relative error | ~0.05% |
+| Max relative error | 0.048% (at 1bp bump) |
+| Mean relative error | ~0.02% |
 
-**Expected**: AAD gives exact analytical derivatives. Finite difference has truncation error O(bump_size) and numerical noise. The 0.14% difference is consistent with FD error at 1bp bump.
+### 5.3 FD Truncation Error Verification
 
-### 5.3 Sensitivity Convention
+To confirm the delta difference is FD truncation error (not an AAD bug), we tested with varying bump sizes:
+
+| Bump Size | Max Abs Error | Max Rel Error | Scaling |
+|-----------|---------------|---------------|---------|
+| 0.1 bp | $3,279 | 0.0048% | - |
+| 1.0 bp | $32,778 | 0.048% | 10.0x |
+| 10.0 bp | $326,818 | 0.48% | 9.97x |
+| 100.0 bp | $3,174,145 | 4.65% | 9.71x |
+
+**Conclusion**: Error scales linearly with bump size (10x bump → 10x error), confirming FD truncation error. AAD provides exact derivatives.
+
+### 5.4 Sensitivity Convention
 
 Both methods compute the same quantity:
 
@@ -298,7 +358,18 @@ Baseline:  delta = (PV_bumped - PV_base) / bump_size  →  d(PV)/d(rate)
 AADC:      delta = adjoint derivative                 →  d(PV)/d(rate)
 ```
 
-To convert to DV01 (dollar value of 1bp move): multiply by 0.0001.
+### 5.5 Par Swap Validation
+
+Verified that par swaps (fixed rate = par rate) price to zero:
+
+| Maturity | Frequency | Par Rate | PV | Status |
+|----------|-----------|----------|-----|--------|
+| 1Y | Semi | 5.063% | $0.00 | PASS |
+| 5Y | Semi | 5.063% | $0.00 | PASS |
+| 10Y | Semi | 5.063% | $0.00 | PASS |
+| 30Y | Semi | 5.063% | $0.00 | PASS |
+
+All 10 test cases passed (combinations of 1Y, 2Y, 5Y, 10Y, 30Y with semi-annual and annual frequencies).
 
 ---
 
