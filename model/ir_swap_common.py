@@ -147,6 +147,35 @@ class GreeksResult:
     num_bumps: int  # Total number of bump scenarios (0 for AAD)
 
 
+@dataclass
+class ExtendedGreeksResult:
+    """
+    Extended Greeks result including gamma, cross-gamma, and theta.
+
+    Required for SIMM curvature risk and P&L explain.
+    """
+    prices: np.ndarray
+
+    # IR Delta: d(PV)/d(rate) - (num_trades x num_currencies x num_tenors)
+    ir_delta: np.ndarray
+
+    # IR Gamma (diagonal): d²(PV)/d(rate)² - (num_trades x num_currencies x num_tenors)
+    # Used for SIMM curvature risk
+    ir_gamma: np.ndarray
+
+    # IR Cross-Gamma: d²(PV)/d(rate_i)d(rate_j) - (num_trades x num_currencies x num_tenors x num_tenors)
+    # Off-diagonal second derivatives
+    ir_cross_gamma: np.ndarray
+
+    # Theta: d(PV)/dt - time decay per day (num_trades)
+    theta: np.ndarray
+
+    currencies: List[str]
+    tenor_labels: List[str]
+    eval_time: float
+    num_evals: int
+
+
 # =============================================================================
 # Data Generation
 # =============================================================================

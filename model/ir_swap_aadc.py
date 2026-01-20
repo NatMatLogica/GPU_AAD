@@ -23,13 +23,13 @@ from pathlib import Path
 
 # Import shared classes
 from model.ir_swap_common import (
-    MarketData, IRSwap, PricingResult, GreeksResult,
+    MarketData, IRSwap, PricingResult, GreeksResult, ExtendedGreeksResult,
     TENOR_LABELS, TENOR_YEARS, NUM_TENORS, BUMP_SIZE,
     generate_market_data, generate_trades, generate_crif, measure_memory
 )
 
 # Version
-MODEL_VERSION = "1.2.0"  # Added kernel caching for production-level performance
+MODEL_VERSION = "1.3.0"  # Added extended Greeks (gamma, cross-gamma, theta)
 MODEL_NAME = "ir_swap_aadc_py"
 
 # Try to import AADC
@@ -444,6 +444,179 @@ def price_with_greeks(
         num_evals=num_trades,  # One eval per trade
         num_sensitivities=num_sensitivities,
         num_bumps=0,  # No bumps needed with AAD!
+    )
+
+
+def compute_extended_greeks(
+    trades: List[IRSwap],
+    market_data: Dict[str, MarketData],
+    gamma_bump: float = 0.0001,  # 1bp for gamma calculation
+) -> ExtendedGreeksResult:
+    """
+    Compute extended Greeks including gamma, cross-gamma, and theta.
+
+    Gamma and cross-gamma are computed using finite differences on AAD deltas.
+    Theta is computed by shifting time by 1 day.
+
+    Args:
+        trades: List of IR swaps
+        market_data: Dict of currency -> MarketData
+        gamma_bump: Bump size for gamma calculation (default 1bp)
+
+    Returns:
+        ExtendedGreeksResult with delta, gamma, cross-gamma, and theta
+    """
+    if not AADC_AVAILABLE:
+        raise RuntimeError("AADC not available")
+
+    num_trades = len(trades)
+    currencies = list(market_data.keys())
+    num_currencies = len(currencies)
+    ccy_to_idx = {ccy: i for i, ccy in enumerate(currencies)}
+
+    start_time = time.perf_counter()
+
+    # Arrays for results
+    prices = np.zeros(num_trades)
+    ir_delta = np.zeros((num_trades, num_currencies, NUM_TENORS))
+    ir_gamma = np.zeros((num_trades, num_currencies, NUM_TENORS))
+    ir_cross_gamma = np.zeros((num_trades, num_currencies, NUM_TENORS, NUM_TENORS))
+    theta = np.zeros(num_trades)
+
+    # Step 1: Base case - get prices and deltas
+    base_result = price_with_greeks(trades, market_data)
+    prices = base_result.prices.copy()
+    ir_delta = base_result.ir_delta.copy()
+
+    # Step 2: Compute gamma (d²PV/dr²) using central difference on delta
+    # Gamma_i = (Delta_i(r+h) - Delta_i(r-h)) / (2h)
+    for ccy_idx, ccy in enumerate(currencies):
+        market = market_data[ccy]
+
+        for tenor_idx in range(NUM_TENORS):
+            # Bump up
+            bumped_up = market.bump_curve(tenor_idx, gamma_bump)
+            market_up = {c: (bumped_up if c == ccy else market_data[c]) for c in currencies}
+            result_up = price_with_greeks(trades, market_up)
+
+            # Bump down
+            bumped_down = market.bump_curve(tenor_idx, -gamma_bump)
+            market_down = {c: (bumped_down if c == ccy else market_data[c]) for c in currencies}
+            result_down = price_with_greeks(trades, market_down)
+
+            # Gamma = (delta_up - delta_down) / (2 * bump)
+            for trade_idx, swap in enumerate(trades):
+                if swap.currency == ccy:
+                    delta_up = result_up.ir_delta[trade_idx, ccy_idx, tenor_idx]
+                    delta_down = result_down.ir_delta[trade_idx, ccy_idx, tenor_idx]
+                    ir_gamma[trade_idx, ccy_idx, tenor_idx] = (delta_up - delta_down) / (2 * gamma_bump)
+
+    # Step 3: Compute cross-gamma (d²PV/dr_i dr_j) for adjacent tenors
+    # Cross-gamma is important for yield curve twist risk
+    for ccy_idx, ccy in enumerate(currencies):
+        market = market_data[ccy]
+
+        for i in range(NUM_TENORS):
+            for j in range(i + 1, min(i + 3, NUM_TENORS)):  # Only compute for nearby tenors
+                # Mixed partial: (PV(+i,+j) - PV(+i,-j) - PV(-i,+j) + PV(-i,-j)) / (4*h²)
+                bumped_pp = market.bump_curve(i, gamma_bump)
+                bumped_pp = MarketData(
+                    currency=ccy,
+                    valuation_date=bumped_pp.valuation_date,
+                    discount_tenors=bumped_pp.discount_tenors,
+                    discount_rates=bumped_pp.discount_rates.copy(),
+                    forward_tenors=bumped_pp.forward_tenors,
+                    forward_rates=bumped_pp.forward_rates.copy(),
+                )
+                bumped_pp.discount_rates[j] += gamma_bump
+                bumped_pp.forward_rates[j] += gamma_bump
+
+                bumped_pm = market.bump_curve(i, gamma_bump)
+                bumped_pm = MarketData(
+                    currency=ccy,
+                    valuation_date=bumped_pm.valuation_date,
+                    discount_tenors=bumped_pm.discount_tenors,
+                    discount_rates=bumped_pm.discount_rates.copy(),
+                    forward_tenors=bumped_pm.forward_tenors,
+                    forward_rates=bumped_pm.forward_rates.copy(),
+                )
+                bumped_pm.discount_rates[j] -= gamma_bump
+                bumped_pm.forward_rates[j] -= gamma_bump
+
+                bumped_mp = market.bump_curve(i, -gamma_bump)
+                bumped_mp = MarketData(
+                    currency=ccy,
+                    valuation_date=bumped_mp.valuation_date,
+                    discount_tenors=bumped_mp.discount_tenors,
+                    discount_rates=bumped_mp.discount_rates.copy(),
+                    forward_tenors=bumped_mp.forward_tenors,
+                    forward_rates=bumped_mp.forward_rates.copy(),
+                )
+                bumped_mp.discount_rates[j] += gamma_bump
+                bumped_mp.forward_rates[j] += gamma_bump
+
+                bumped_mm = market.bump_curve(i, -gamma_bump)
+                bumped_mm = MarketData(
+                    currency=ccy,
+                    valuation_date=bumped_mm.valuation_date,
+                    discount_tenors=bumped_mm.discount_tenors,
+                    discount_rates=bumped_mm.discount_rates.copy(),
+                    forward_tenors=bumped_mm.forward_tenors,
+                    forward_rates=bumped_mm.forward_rates.copy(),
+                )
+                bumped_mm.discount_rates[j] -= gamma_bump
+                bumped_mm.forward_rates[j] -= gamma_bump
+
+                # Price under each scenario
+                from model.ir_swap_pricer import price_swap
+                for trade_idx, swap in enumerate(trades):
+                    if swap.currency == ccy:
+                        pv_pp = price_swap(swap, bumped_pp)
+                        pv_pm = price_swap(swap, bumped_pm)
+                        pv_mp = price_swap(swap, bumped_mp)
+                        pv_mm = price_swap(swap, bumped_mm)
+
+                        cross_gamma = (pv_pp - pv_pm - pv_mp + pv_mm) / (4 * gamma_bump * gamma_bump)
+                        ir_cross_gamma[trade_idx, ccy_idx, i, j] = cross_gamma
+                        ir_cross_gamma[trade_idx, ccy_idx, j, i] = cross_gamma  # Symmetric
+
+    # Step 4: Compute theta (time decay per day)
+    # Theta = (PV(t+1day) - PV(t)) / 1day
+    from model.ir_swap_pricer import price_swap
+    day_fraction = 1.0 / 365.0
+
+    for trade_idx, swap in enumerate(trades):
+        ccy = swap.currency
+        market = market_data[ccy]
+
+        # Create time-shifted swap (reduce maturity by 1 day)
+        if swap.maturity > day_fraction:
+            shifted_swap = IRSwap(
+                trade_id=swap.trade_id,
+                currency=swap.currency,
+                notional=swap.notional,
+                fixed_rate=swap.fixed_rate,
+                maturity=swap.maturity - day_fraction,
+                pay_frequency=swap.pay_frequency,
+                is_payer=swap.is_payer,
+            )
+            pv_shifted = price_swap(shifted_swap, market)
+            theta[trade_idx] = pv_shifted - prices[trade_idx]  # PV change for +1 day
+        else:
+            theta[trade_idx] = -prices[trade_idx]  # Swap expires, full PV decay
+
+    eval_time = time.perf_counter() - start_time
+
+    return ExtendedGreeksResult(
+        prices=prices,
+        ir_delta=ir_delta,
+        ir_gamma=ir_gamma,
+        ir_cross_gamma=ir_cross_gamma,
+        theta=theta,
+        currencies=currencies,
+        tenor_labels=TENOR_LABELS,
+        eval_time=eval_time,
+        num_evals=num_trades,
     )
 
 
