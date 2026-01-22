@@ -334,6 +334,7 @@ def price_with_greeks(
     trades: List[IRSwap],
     market_data: Dict[str, MarketData],
     use_cache: bool = True,
+    num_threads: int = 1,
 ) -> GreeksResult:
     """
     Price all trades and compute IR Delta via AAD (AADC).
@@ -349,6 +350,7 @@ def price_with_greeks(
         trades: List of IR swaps to price
         market_data: Dict of currency -> MarketData
         use_cache: Whether to use kernel caching (default True)
+        num_threads: Number of AADC threads for parallel evaluation (default 4)
 
     Returns:
         GreeksResult with prices, deltas, and timing
@@ -375,7 +377,7 @@ def price_with_greeks(
     first_run_time = 0.0
 
     # Create AADC workers for parallel evaluation
-    workers = aadc.ThreadPool(1)  # Single-threaded for now
+    workers = aadc.ThreadPool(num_threads)
 
     # Process each trade - with kernel caching
     for trade_idx, swap in enumerate(trades):
@@ -444,6 +446,211 @@ def price_with_greeks(
         num_evals=num_trades,  # One eval per trade
         num_sensitivities=num_sensitivities,
         num_bumps=0,  # No bumps needed with AAD!
+    )
+
+
+# =============================================================================
+# V2: Batched Kernel Approach (Single kernel for entire portfolio)
+# =============================================================================
+
+# Global cache for batched portfolio kernel
+_portfolio_kernel_cache = {}
+
+
+def record_portfolio_kernel(
+    trades: List[IRSwap],
+    market_data: Dict[str, MarketData],
+    num_threads: int = 4,
+) -> Tuple:
+    """
+    Record a single AADC kernel for the entire portfolio.
+
+    This is the "start of day" operation - done once, then reused for
+    all intraday evaluations with different market data.
+
+    Args:
+        trades: List of all trades (fixed for the day)
+        market_data: Market data (structure only, values will change)
+        num_threads: Number of threads for evaluation
+
+    Returns:
+        Tuple of (funcs, rate_handles, pv_outputs, trade_ccy_map, workers)
+    """
+    if not AADC_AVAILABLE:
+        raise RuntimeError("AADC not available")
+
+    currencies = list(market_data.keys())
+    num_trades = len(trades)
+    ccy_to_idx = {ccy: i for i, ccy in enumerate(currencies)}
+
+    funcs = aadc.Functions()
+    funcs.start_recording()
+
+    # Create rate inputs for all currencies (differentiable)
+    rate_handles = {}  # {(ccy_idx, tenor_idx): handle}
+    aadc_rates = {}    # {ccy: list of aadc rates}
+
+    for ccy_idx, ccy in enumerate(currencies):
+        market = market_data[ccy]
+        aadc_rates[ccy] = []
+        for tenor_idx in range(NUM_TENORS):
+            rate = aadc.idouble(float(market.discount_rates[tenor_idx]))
+            handle = rate.mark_as_input()
+            rate_handles[(ccy_idx, tenor_idx)] = handle
+            aadc_rates[ccy].append(rate)
+
+    # Create AADC market data objects for each currency
+    # We need to inject pre-created AADC rates into the market data objects
+    aadc_markets = {}
+    for ccy in currencies:
+        market = market_data[ccy]
+        aadc_mkt = AADCMarketData(market)
+        # Override with pre-created rates (bypass setup_aadc_inputs)
+        aadc_mkt._discount_rates = aadc_rates[ccy]
+        aadc_mkt._forward_rates = aadc_rates[ccy]
+        aadc_markets[ccy] = aadc_mkt
+
+    # Price all trades and mark outputs
+    pv_outputs = []
+    trade_ccy_indices = []
+
+    for trade_idx, swap in enumerate(trades):
+        ccy = swap.currency
+        ccy_idx = ccy_to_idx.get(ccy)
+
+        if ccy_idx is None or ccy not in aadc_markets:
+            # Currency not in market data - skip
+            pv = aadc.idouble(0.0)
+        else:
+            market = aadc_markets[ccy]
+            pv = price_swap_aadc(swap, market)
+
+        pv_output = pv.mark_as_output()
+        pv_outputs.append(pv_output)
+        trade_ccy_indices.append(ccy_idx if ccy_idx is not None else -1)
+
+    funcs.stop_recording()
+
+    # Create thread pool
+    workers = aadc.ThreadPool(num_threads)
+
+    return (funcs, rate_handles, pv_outputs, trade_ccy_indices, currencies, workers)
+
+
+def evaluate_portfolio_kernel(
+    kernel_data: Tuple,
+    market_data: Dict[str, MarketData],
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Evaluate the pre-recorded portfolio kernel with new market data.
+
+    This is the fast intraday operation - single kernel evaluation
+    gives all prices and sensitivities.
+
+    Args:
+        kernel_data: Tuple from record_portfolio_kernel
+        market_data: Current market data values
+
+    Returns:
+        Tuple of (prices, ir_delta)
+    """
+    funcs, rate_handles, pv_outputs, trade_ccy_indices, currencies, workers = kernel_data
+
+    num_trades = len(pv_outputs)
+    num_currencies = len(currencies)
+    ccy_to_idx = {ccy: i for i, ccy in enumerate(currencies)}
+
+    # Build inputs dict with current market rates
+    inputs = {}
+    for (ccy_idx, tenor_idx), handle in rate_handles.items():
+        ccy = currencies[ccy_idx]
+        market = market_data[ccy]
+        inputs[handle] = float(market.discount_rates[tenor_idx])
+
+    # Build request: each PV needs derivatives only w.r.t. its own currency's rates
+    request = {}
+    for trade_idx, pv_output in enumerate(pv_outputs):
+        trade_ccy_idx = trade_ccy_indices[trade_idx]
+        if trade_ccy_idx >= 0:
+            # Only request derivatives for this trade's currency
+            trade_rate_handles = [rate_handles[(trade_ccy_idx, tenor_idx)] for tenor_idx in range(NUM_TENORS)]
+            request[pv_output] = trade_rate_handles
+        else:
+            request[pv_output] = []
+
+    # Single evaluation call!
+    results = aadc.evaluate(funcs, request, inputs, workers)
+
+    # Extract prices
+    prices = np.zeros(num_trades)
+    for trade_idx, pv_output in enumerate(pv_outputs):
+        prices[trade_idx] = float(results[0][pv_output])
+
+    # Extract sensitivities
+    ir_delta = np.zeros((num_trades, num_currencies, NUM_TENORS))
+    for trade_idx, pv_output in enumerate(pv_outputs):
+        trade_ccy_idx = trade_ccy_indices[trade_idx]
+        if trade_ccy_idx >= 0:
+            # Only extract sensitivities for trade's own currency
+            for tenor_idx in range(NUM_TENORS):
+                handle = rate_handles[(trade_ccy_idx, tenor_idx)]
+                ir_delta[trade_idx, trade_ccy_idx, tenor_idx] = float(results[1][pv_output][handle])
+
+    return prices, ir_delta
+
+
+def price_with_greeks_v2(
+    trades: List[IRSwap],
+    market_data: Dict[str, MarketData],
+    num_threads: int = 4,
+    kernel_data: Tuple = None,
+) -> GreeksResult:
+    """
+    V2: Price all trades using a single batched kernel.
+
+    This approach records ONE kernel for the entire portfolio, then
+    evaluates it with a single call. Much faster for repeated evaluations
+    with changed market data (intraday scenario).
+
+    Args:
+        trades: List of IR swaps to price
+        market_data: Dict of currency -> MarketData
+        num_threads: Number of threads for parallel evaluation
+        kernel_data: Pre-recorded kernel (if None, records new kernel)
+
+    Returns:
+        GreeksResult with prices, deltas, and timing
+    """
+    if not AADC_AVAILABLE:
+        raise RuntimeError("AADC not available")
+
+    currencies = list(market_data.keys())
+    num_trades = len(trades)
+
+    # Record kernel if not provided
+    recording_time = 0.0
+    if kernel_data is None:
+        record_start = time.perf_counter()
+        kernel_data = record_portfolio_kernel(trades, market_data, num_threads)
+        recording_time = time.perf_counter() - record_start
+
+    # Evaluate kernel
+    eval_start = time.perf_counter()
+    prices, ir_delta = evaluate_portfolio_kernel(kernel_data, market_data)
+    eval_time = time.perf_counter() - eval_start
+
+    return GreeksResult(
+        prices=prices,
+        ir_delta=ir_delta,
+        currencies=currencies,
+        tenor_labels=TENOR_LABELS,
+        eval_time=eval_time,
+        first_run_time=recording_time + eval_time,
+        steady_state_time=eval_time,
+        recording_time=recording_time,
+        num_evals=1,  # Single kernel evaluation!
+        num_sensitivities=num_trades * NUM_TENORS,
+        num_bumps=0,
     )
 
 

@@ -387,3 +387,90 @@ python benchmark_simm.py --trades 1000 --threads 8
 | Output | Price + Greeks | Margin by risk class |
 | Scaling | Trades × Scenarios | Trades × Risk Factors |
 | AADC Use | Price → Greeks | Sensitivities → Margin Greeks |
+
+
+---
+
+## xVA Scripting Language Assessment
+
+### Reference Implementation
+Location: `/home/natashamanito/Scripting Language/AADC-xVA-prototype`
+Source: https://github.com/matlogica/AADC-xVA-prototype
+
+### Architecture Overview
+
+The xVA prototype implements a **declarative contract DSL** with three core abstractions:
+
+| Abstraction | Purpose | Key Files |
+|-------------|---------|-----------|
+| **Observable** | Lazy-evaluated market data expressions | `observable.py` |
+| **Contract** | Compositional trade structures | `contract.py` |
+| **Analytics** | Pricing & risk engines | `analytics.py`, `analytics_aadc.py` |
+
+### Key Design Patterns
+
+```
+Contract Definition (Declarative)
+    swap = fixed_leg(...) - float_leg(...)
+    swaption = Option(call_decision, swap, None)
+           ↓
+Expression Graph (Lazy)
+    Observation(LIBOR, date) + 0.002 → ObsOp('+', [obs, 0.002])
+           ↓
+Market Injection
+    update_observables(contract, market) → fills .value attributes
+           ↓
+AADC Recording
+    Single kernel for price + all Greeks
+```
+
+### Relevance to ISDA-SIMM
+
+| Aspect | Current ISDA-SIMM | xVA Scripting | Assessment |
+|--------|-------------------|---------------|------------|
+| Product Definition | Imperative (`IRSwap` dataclass) | Declarative DSL | ⚠️ More abstraction |
+| AADC Integration | Per-trade kernel | Compatible | ✅ Same patterns |
+| CRIF Generation | Direct from Greeks | Needs adapter | ⚠️ Extra translation |
+| Margin Calculation | Aggregation engine | Out of scope | ➖ Not applicable |
+
+### Recommendation
+
+| Timeframe | Action | Rationale |
+|-----------|--------|-----------|
+| **Now** | **Don't integrate** | Current implementation works, adding abstraction increases complexity without immediate benefit |
+| **When adding swaptions** | **Consider adoption** | `rates.py` has `bermudan_cancellable()`, `physical_swaption()`, `cash_settled_swaption()` already implemented |
+| **When building XVA** | **Strong candidate** | Framework designed specifically for CVA/DVA/FVA via regression and AAD |
+
+### Where This Becomes Valuable
+
+1. **Multi-Product Future**: Swaptions, Bermudans, exotics already have structure definitions in `rates.py`
+2. **XVA Calculations**: Longstaff-Schwartz regression, path-wise sensitivities, smooth approximations for AAD
+3. **Unified Product Catalog**: One contract definition → pricing, CRIF, XVA exposure
+
+### Integration Path (If Needed Later)
+
+```python
+# 1. Define products using DSL
+swap_contract = rates.swap(
+    effective_date, termination_date, notional, rate,
+    currency, index_id
+)
+
+# 2. Add CRIF adapter
+def contract_to_crif(contract, market) -> List[CRIFRecord]:
+    """Extract SIMM sensitivities from Contract."""
+    # Record AADC kernel from contract
+    # Evaluate with market data
+    # Map to CRIF format (tenor buckets, risk types)
+    pass
+
+# 3. Rest of SIMM pipeline unchanged
+crif = contract_to_crif(swap_contract, market)
+margin = calculate_simm_margin(crif)
+```
+
+### Bottom Line
+
+**For ISDA-SIMM alone**: Not needed. Current `ir_swap_aadc.py` achieves 30-50x speedup without additional abstraction.
+
+**For multi-model platform** (pricing + SIMM + XVA): Natural foundation. Investment in unified contract DSL pays off when same product definition drives multiple analytics engines.

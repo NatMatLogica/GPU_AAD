@@ -421,6 +421,7 @@ Current implementation uses identical discount and forward curves. Production wo
 | `model/ir_swap_common.py` | 285 | Shared data structures, CRIF generation |
 | `model/ir_swap_pricer.py` | 786 | Baseline bump-and-revalue implementation |
 | `model/ir_swap_aadc.py` | 842 | AADC implementation with kernel caching |
+| `model/margin_analysis.py` | 520 | Stress margin and incremental margin analysis |
 | `common/logger.py` | 342 | Execution logging infrastructure |
 | `docs/aadc_integration_plan.md` | 320 | Original design document |
 
@@ -449,3 +450,63 @@ Current implementation uses identical discount and forward curves. Production wo
 1. Portfolio structure is relatively stable (kernel cache benefit)
 2. Multiple risk recalculations per day (amortize recording cost)
 3. Delta accuracy within 0.2% is acceptable (or use as fast approximation)
+
+---
+
+## 9. Margin Analysis Capabilities
+
+### 9.1 Stress Margin (`model/margin_analysis.py`)
+
+Apply shocks to SIMM inputs and recalculate margin. Useful for understanding margin sensitivity to market moves.
+
+**Predefined scenarios**:
+| Scenario | Description |
+|----------|-------------|
+| `parallel_up_100bp` | Parallel rate shift +100bp |
+| `parallel_down_100bp` | Parallel rate shift -100bp |
+| `steepener_50bp` | Curve steepening (2y -25bp, 10y +25bp, 30y +50bp) |
+| `flattener_50bp` | Curve flattening (inverse of steepener) |
+| `vol_up_25pct` | Volatility shock +25% |
+| `credit_widen_50pct` | Credit spreads widen 50% |
+| `crisis_scenario` | Crisis: rates +200bp, vol +50%, credit +100% |
+
+**Usage**:
+```python
+from model.margin_analysis import compute_stress_margin_suite
+results = compute_stress_margin_suite(crif)
+# Returns: StressMarginResult with base/stressed margin and change
+```
+
+### 9.2 Incremental Margin
+
+Calculate marginal contribution of each trade to portfolio margin. Identifies:
+- **Margin-additive trades**: Adding risk, increasing margin
+- **Margin-offsetting trades**: Providing netting benefit, reducing margin
+
+**Usage**:
+```python
+from model.margin_analysis import compute_all_incremental_margins
+results = compute_all_incremental_margins(trades, greeks, top_n=10)
+# Returns: List of IncrementalMarginResult sorted by |incremental margin|
+```
+
+### 9.3 What-If Analysis
+
+Simulate margin impact of adding or removing trades:
+
+```python
+from model.margin_analysis import compute_whatif_add_trades, compute_whatif_remove_trades
+
+# Add new trades
+result = compute_whatif_add_trades(existing_trades, existing_greeks, new_trades, new_greeks)
+
+# Remove trades
+result = compute_whatif_remove_trades(trades, greeks, ['SWAP_000001', 'SWAP_000002'])
+# Returns: WhatIfResult with current margin, new margin, and change
+```
+
+### 9.4 Operational Notes
+
+**Cache warmup strategy**: Generate canonical trade set (~53 kernels for 3 currencies) at start of day. New intraday trades/RFQs will compile small kernels quickly.
+
+**Performance**: Stress margin and incremental margin leverage the fast AADC pricing, enabling real-time what-if analysis.

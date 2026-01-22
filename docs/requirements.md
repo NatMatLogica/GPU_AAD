@@ -154,8 +154,10 @@ The following dimensions need to be varied in margin optimization:
 | SIMM calculation | ✓ | ✓ | - |
 | AAD sensitivities | ✓ | ✓ | - |
 | Gamma/Curvature | ✓ | ✓ | - |
+| Stress margin | ✓ | ✓ | - |
+| Incremental margin | ✓ | ✓ | - |
+| What-if analysis | ✓ | ✓ | - |
 | Swaptions | ✗ | ✓ | **Gap** |
-| Stress margin | ✗ | ✓ | **Gap** |
 | Multi-custodian | ✗ | ✓ | **Gap** |
 | Allocation optimization | ✗ | ✓ | **Gap** |
 | QuantLib integration | ✗ | ✓ | **Gap** |
@@ -169,10 +171,10 @@ The following dimensions need to be varied in margin optimization:
 - ✓ SIMM integration
 - ✓ Validation framework
 
-### Phase 2: Stress & Scenarios
-- Stress margin (shock SIMM inputs)
-- Scenario generation framework
-- Portfolio-level what-if
+### Phase 2: Stress & Scenarios (Implemented)
+- ✓ Stress margin (shock SIMM inputs) - `model/margin_analysis.py`
+- ✓ Scenario generation framework (7 predefined scenarios)
+- ✓ Portfolio-level what-if (incremental margin, add/remove trades)
 
 ### Phase 3: Multi-Entity
 - Multi-custodian modeling

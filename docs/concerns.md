@@ -113,13 +113,13 @@ where CVR_i = (PV_up - PV) + (PV_down - PV)
 
 ---
 
-## 7. Operational Concerns (Not Addressed)
+## 7. Operational Concerns (Partially Addressed)
 
 ### Cache Management
-- **Warm-up strategy**: How to pre-warm cache on startup?
+- **Warm-up strategy**: ✅ Approach defined - generate canonical trade set (~53 kernels for 3 currencies) at start of day. New intraday trades/RFQs will have small kernels with fast compilation time.
 - **Eviction policy**: No LRU or memory-based eviction
-- **DR/Failover**: Cache lost on restart, need re-warming
-- **Cache persistence**: Could serialize kernels to disk?
+- **DR/Failover**: Cache lost on restart, need re-warming (mitigated by fast warmup)
+- **Cache persistence**: Could serialize kernels to disk (not implemented)
 
 ### Monitoring
 - **Cache hit rate metrics**: Not exposed
@@ -143,7 +143,7 @@ where CVR_i = (PV_up - PV) + (PV_down - PV)
 ### Model Risk
 - **Model validation**: No independent validation
 - **Back-testing**: No historical comparison
-- **Sensitivity analysis**: No parameter stress testing
+- **Sensitivity analysis**: ✅ Stress margin implemented (`model/margin_analysis.py`) - 7 predefined scenarios including parallel shifts, steepening/flattening, vol/credit shocks, and crisis scenario
 
 ---
 
