@@ -95,6 +95,19 @@ Load from `Weights_and_Corr/` directory:
 - Logs results to execution log
 
 
+## File Organization (Critical)
+
+**All project files must remain within this project directory.** Never create files in the home directory or outside the project tree. This includes source code, data, weights/correlations, CRIF inputs, benchmark results, and documentation.
+
+**Rules:**
+- All model implementations go in `model/` (one file per variant: `simm_baseline.py`, `simm_aadc.py`, etc.).
+- Shared SIMM logic (aggregation, weighting) goes in `model/simm_common.py` or `src/`.
+- CRIF input data goes in `CRIF/`.
+- SIMM parameters (weights, correlations) go in `Weights_and_Corr/`.
+- Execution logs go in `data/execution_log.csv`.
+- Test CRIF samples go in `data/crif_samples/`.
+- Never duplicate model logic across files. Shared functions belong in `simm_common.py`.
+
 ## Code Structure
 
 ```

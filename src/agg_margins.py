@@ -71,9 +71,9 @@ class SIMM:
         crif = self.crif[(self.crif['ProductClass'] == product_class)]
         dict_results = self.simm_risk_class(crif)
 
-        df_main = pd.DataFrame(columns=['Risk Class','Risk Measure', 'SIMM_RiskMeasure'])
-        df_risk_class = pd.DataFrame(columns=['Risk Class','SIMM_RiskClass'])
-        
+        main_parts = []
+        risk_class_parts = []
+
         for risk_class in dict_results:
             dic_sensiType = dict_results[risk_class]
             df_local_sensiType = pd.DataFrame(dic_sensiType.items(), columns=['Risk Measure', 'SIMM_RiskMeasure'])
@@ -81,15 +81,13 @@ class SIMM:
 
             values_list = list(dic_sensiType.values())
             if values_list != [0]*len(values_list):
-                df_main = pd.concat([df_main, df_local_sensiType])
-                      
-            IM_risk_class = sum(list(df_local_sensiType['SIMM_RiskMeasure']))
-            df_local_riskType = pd.DataFrame({'Risk Class': [risk_class], 'SIMM_RiskClass': [IM_risk_class]})
+                main_parts.append(df_local_sensiType)
 
-            df_local_riskType = df_local_riskType.round(2)
-            df_risk_class = pd.concat([df_risk_class, df_local_riskType])
-        
-        df_main = df_main.round(2)
+            IM_risk_class = sum(list(df_local_sensiType['SIMM_RiskMeasure']))
+            risk_class_parts.append({'Risk Class': risk_class, 'SIMM_RiskClass': round(IM_risk_class, 2)})
+
+        df_main = pd.concat(main_parts, ignore_index=True).round(2) if main_parts else pd.DataFrame(columns=['Risk Class','Risk Measure', 'SIMM_RiskMeasure'])
+        df_risk_class = pd.DataFrame(risk_class_parts)
 
         df_outerJoin = pd.merge(df_risk_class, df_main, left_on='Risk Class', right_on='Risk Class', how='outer')
         df_outerJoin['Product Class'] = product_class
