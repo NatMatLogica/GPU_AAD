@@ -20,15 +20,30 @@ Your task is to implement and benchmark SIMM calculations with strict performanc
 - **Curvature**: Second-order sensitivity (gamma-like)
 - **BaseCorr**: Base correlation risk (CreditQ only)
 
-### SIMM Formula Structure
+### SIMM Formula Structure (with intra-bucket correlations)
 ```
-SIMM = sqrt(sum over risk classes of (K_r^2 + sum_{r≠s} γ_rs * S_r * S_s))
+Per risk class (with intra-bucket correlation):
+K_r = sqrt(Σ_i Σ_j ρ_ij × WS_i × WS_j)
 
 Where:
-- K_r = margin for risk class r
-- S_r = net sensitivity for risk class r
-- γ_rs = correlation between risk classes
+- WS_i = w_i × s_i (weighted sensitivity)
+- w_i = risk weight (currency-specific for IR)
+- ρ_ij = intra-bucket correlation (12×12 matrix for IR tenors)
+
+Total IM (with cross-risk-class correlation):
+IM = sqrt(Σ_r Σ_s ψ_rs × K_r × K_s)
+
+Where:
+- ψ_rs = cross-risk-class correlation (6×6 matrix)
 ```
+
+**Implementation Status (v2.6.0):**
+- ✅ IR tenor correlations (12×12 matrix from v2_6.py)
+- ✅ Currency-specific IR weights (regular/low/high volatility)
+- ✅ Cross-risk-class correlations (ψ matrix)
+- ✅ Iterative gradient refresh during reallocation (solves stale gradient problem)
+- ⚠️ Vega/Curvature risk measures (not yet implemented)
+- ⚠️ Concentration thresholds (not yet implemented)
 
 ### Tenor Buckets (IR Delta)
 - 2w, 1m, 3m, 6m, 1y, 2y, 3y, 5y, 10y, 15y, 20y, 30y

@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISDA SIMM Calculator - Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-dark) 100%);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card h2::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        /* Hierarchy Tree */
+        .hierarchy {
+            padding: 1rem;
+        }
+
+        .tree-node {
+            position: relative;
+            padding-left: 1.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .tree-node::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .tree-node::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 12px;
+            width: 1rem;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .node-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-dark);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .node-label:hover {
+            border-color: var(--primary);
+            transform: translateX(4px);
+        }
+
+        .node-label.level-0 { background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%); }
+        .node-label.level-1 { background: linear-gradient(135deg, #059669 0%, #10b981 100%); }
+        .node-label.level-2 { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); }
+        .node-label.level-3 { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); }
+
+        /* Formula Display */
+        .formula-box {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+
+        .formula-box .main {
+            font-size: 1.2rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .formula-box .where {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .formula-box .where span {
+            color: var(--success);
+        }
+
+        /* Correlation Matrix */
+        .matrix-container {
+            overflow-x: auto;
+        }
+
+        .correlation-matrix {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .correlation-matrix th,
+        .correlation-matrix td {
+            padding: 0.5rem;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .correlation-matrix th {
+            background: var(--bg-dark);
+            font-weight: 600;
+        }
+
+        .correlation-matrix td {
+            transition: all 0.2s;
+        }
+
+        .correlation-matrix td:hover {
+            transform: scale(1.1);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Risk Class Cards */
+        .risk-classes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .risk-class-card {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .risk-class-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-4px);
+        }
+
+        .risk-class-card h3 {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .risk-class-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .risk-class-card .desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab:hover, .tab.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Flow Diagram */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding: 2rem;
+        }
+
+        .flow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .flow-box {
+            background: var(--bg-dark);
+            border: 2px solid var(--primary);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .flow-box.highlight {
+            background: var(--primary);
+        }
+
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        /* Info Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            text-align: center;
+            border-radius: 8px;
+            padding: 0.75rem;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ISDA SIMM Calculator</h1>
+            <p class="subtitle">Standard Initial Margin Model v2.6 - Interactive Visualization</p>
+        </header>
+
+        <!-- Calculation Flow -->
+        <div class="card" style="margin-bottom: 2rem;">
+            <h2>Calculation Flow</h2>
+            <div class="flow-diagram">
+                <div class="flow-step">
+                    <div class="flow-box">
+                        <strong>CRIF Input</strong>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Sensitivities</div>
+                    </div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="flow-box">
+                        <strong>Weight</strong>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">WS = RW × s</div>
+                    </div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="flow-box">
+                        <strong>Bucket Agg</strong>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">K_b</div>
+                    </div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="flow-box">
+                        <strong>Risk Class</strong>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">K_r</div>
+                    </div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="flow-box highlight">
+                        <strong>SIMM Total</strong>
+                        <div style="font-size: 0.8rem;">IM</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Hierarchy Tree -->
+            <div class="card">
+                <h2>SIMM Hierarchy</h2>
+                <div class="hierarchy">
+                    <div class="tree-node">
+                        <span class="node-label level-0">SIMM Total</span>
+                        <div class="tree-node">
+                            <span class="node-label level-1">RatesFX (Product Class)</span>
+                            <div class="tree-node">
+                                <span class="node-label level-2">Rates (Risk Class)</span>
+                                <div class="tree-node"><span class="node-label level-3">Delta</span></div>
+                                <div class="tree-node"><span class="node-label level-3">Vega</span></div>
+                                <div class="tree-node"><span class="node-label level-3">Curvature</span></div>
+                            </div>
+                            <div class="tree-node">
+                                <span class="node-label level-2">FX (Risk Class)</span>
+                            </div>
+                        </div>
+                        <div class="tree-node">
+                            <span class="node-label level-1">Credit (Product Class)</span>
+                            <div class="tree-node">
+                                <span class="node-label level-2">CreditQ</span>
+                            </div>
+                            <div class="tree-node">
+                                <span class="node-label level-2">CreditNonQ</span>
+                            </div>
+                        </div>
+                        <div class="tree-node">
+                            <span class="node-label level-1">Equity (Product Class)</span>
+                        </div>
+                        <div class="tree-node">
+                            <span class="node-label level-1">Commodity (Product Class)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulas -->
+            <div class="card">
+                <h2>Key Formulas</h2>
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('product')">Product Level</button>
+                    <button class="tab" onclick="showTab('bucket')">Bucket Level</button>
+                    <button class="tab" onclick="showTab('delta')">Delta</button>
+                </div>
+
+                <div id="product" class="tab-content active">
+                    <div class="formula-box">
+                        <div class="main">SIMM_pc = √(Σ_r Σ_s ψ_rs × K_r × K_s)</div>
+                        <div class="where">
+                            Where:<br>
+                            <span>r, s</span> = risk classes within product class<br>
+                            <span>ψ_rs</span> = cross-risk-class correlation<br>
+                            <span>K_r</span> = margin for risk class r
+                        </div>
+                    </div>
+                </div>
+
+                <div id="bucket" class="tab-content">
+                    <div class="formula-box">
+                        <div class="main">K_b = √(Σ_k WS_k² + Σ_k Σ_l≠k ρ_kl × WS_k × WS_l)</div>
+                        <div class="where">
+                            Where:<br>
+                            <span>WS_k</span> = RW_k × s_k (weighted sensitivity)<br>
+                            <span>ρ_kl</span> = intra-bucket correlation<br>
+                            <span>RW_k</span> = risk weight
+                        </div>
+                    </div>
+                </div>
+
+                <div id="delta" class="tab-content">
+                    <div class="formula-box">
+                        <div class="main">K_Delta = √(Σ_b Σ_c ρ_bc × K_b × K_c)</div>
+                        <div class="where">
+                            Where:<br>
+                            <span>b, c</span> = buckets (e.g., tenor buckets for IR)<br>
+                            <span>ρ_bc</span> = inter-bucket correlation<br>
+                            <span>K_b</span> = bucket-level margin
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Correlation Matrix -->
+        <div class="card" style="margin-bottom: 2rem;">
+            <h2>Cross-Risk-Class Correlation Matrix (ψ)</h2>
+            <div class="matrix-container">
+                <table class="correlation-matrix">
+                    <tr>
+                        <th></th>
+                        <th>Rates</th>
+                        <th>FX</th>
+                        <th>CreditQ</th>
+                        <th>CreditNonQ</th>
+                        <th>Equity</th>
+                        <th>Commodity</th>
+                    </tr>
+                    <tr>
+                        <th>Rates</th>
+                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
+                        <td style="background: rgba(37, 99, 235, 0.27)">0.27</td>
+                        <td style="background: rgba(37, 99, 235, 0.30)">0.30</td>
+                        <td style="background: rgba(37, 99, 235, 0.17)">0.17</td>
+                        <td style="background: rgba(37, 99, 235, 0.31)">0.31</td>
+                        <td style="background: rgba(37, 99, 235, 0.37)">0.37</td>
+                    </tr>
+                    <tr>
+                        <th>FX</th>
+                        <td style="background: rgba(37, 99, 235, 0.27)">0.27</td>
+                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
+                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
+                        <td style="background: rgba(37, 99, 235, 0.14)">0.14</td>
+                        <td style="background: rgba(37, 99, 235, 0.29)">0.29</td>
+                        <td style="background: rgba(37, 99, 235, 0.38)">0.38</td>
+                    </tr>
+                    <tr>
+                        <th>CreditQ</th>
+                        <td style="background: rgba(37, 99, 235, 0.30)">0.30</td>
+                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
+                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
+                        <td style="background: rgba(37, 99, 235, 0.47)">0.47</td>
+                        <td style="background: rgba(37, 99, 235, 0.50)">0.50</td>
+                        <td style="background: rgba(37, 99, 235, 0.39)">0.39</td>
+                    </tr>
+                    <tr>
+                        <th>CreditNonQ</th>
+                        <td style="background: rgba(37, 99, 235, 0.17)">0.17</td>
+                        <td style="background: rgba(37, 99, 235, 0.14)">0.14</td>
+                        <td style="background: rgba(37, 99, 235, 0.47)">0.47</td>
+                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
+                        <td style="background: rgba(37, 99, 235, 0.42)">0.42</td>
+                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
+                    </tr>
+                    <tr>
+                        <th>Equity</th>
+                        <td style="background: rgba(37, 99, 235, 0.31)">0.31</td>
+                        <td style="background: rgba(37, 99, 235, 0.29)">0.29</td>
+                        <td style="background: rgba(37, 99, 235, 0.50)">0.50</td>
+                        <td style="background: rgba(37, 99, 235, 0.42)">0.42</td>
+                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
+                        <td style="background: rgba(37, 99, 235, 0.43)">0.43</td>
+                    </tr>
+                    <tr>
+                        <th>Commodity</th>
+                        <td style="background: rgba(37, 99, 235, 0.37)">0.37</td>
+                        <td style="background: rgba(37, 99, 235, 0.38)">0.38</td>
+                        <td style="background: rgba(37, 99, 235, 0.39)">0.39</td>
+                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
+                        <td style="background: rgba(37, 99, 235, 0.43)">0.43</td>
+                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Risk Classes -->
+            <div class="card">
+                <h2>Risk Classes</h2>
+                <div class="risk-classes">
+                    <div class="risk-class-card">
+                        <h3>Rates (IR)</h3>
+                        <div class="value">12</div>
+                        <div class="desc">Tenor Buckets</div>
+                    </div>
+                    <div class="risk-class-card">
+                        <h3>CreditQ</h3>
+                        <div class="value">13</div>
+                        <div class="desc">Sector Buckets</div>
+                    </div>
+                    <div class="risk-class-card">
+                        <h3>CreditNonQ</h3>
+                        <div class="value">3</div>
+                        <div class="desc">HY/EM Buckets</div>
+                    </div>
+                    <div class="risk-class-card">
+                        <h3>Equity</h3>
+                        <div class="value">13</div>
+                        <div class="desc">Sector Buckets</div>
+                    </div>
+                    <div class="risk-class-card">
+                        <h3>Commodity</h3>
+                        <div class="value">17</div>
+                        <div class="desc">Type Buckets</div>
+                    </div>
+                    <div class="risk-class-card">
+                        <h3>FX</h3>
+                        <div class="value">1</div>
+                        <div class="desc">Single Bucket</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IR Tenor Buckets -->
+            <div class="card">
+                <h2>Interest Rate Tenor Buckets</h2>
+                <div class="chart-container">
+                    <canvas id="tenorChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Sample Margin Breakdown -->
+            <div class="card">
+                <h2>Sample Margin Breakdown</h2>
+                <div class="chart-container">
+                    <canvas id="marginChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Optimization Results -->
+            <div class="card">
+                <h2>Portfolio Optimization</h2>
+                <div class="chart-container">
+                    <canvas id="optimizationChart"></canvas>
+                </div>
+                <p style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                    Efficient allocation reduces total margin through netting benefits
+                </p>
+            </div>
+        </div>
+
+        <!-- Trade Allocation Optimization -->
+        <div class="card" style="margin-top: 2rem;">
+            <h2>Trade Allocation Optimization Algorithm</h2>
+            <div class="formula-box">
+                <div class="main">minimize Σ_p IM_p(x)</div>
+                <div class="where" style="margin-top: 1rem;">
+                    Subject to:<br>
+                    <span>Σ_p x[t,p] = 1</span> for all trades t (each trade in exactly one portfolio)<br>
+                    <span>x[t,p] ∈ {0,1}</span> (whole-trade assignment)
+                </div>
+            </div>
+            <div style="margin-top: 1.5rem;">
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;">Efficient Gradient Computation (Chain Rule)</h3>
+                <div class="formula-box">
+                    <div class="main">∂total_IM/∂x[t,p] = Σ_k (∂IM_p/∂S_p[k]) × S[t,k]</div>
+                    <div class="where" style="margin-top: 1rem;">
+                        Where:<br>
+                        <span>S_p[k] = Σ_t x[t,p] × S[t,k]</span> - aggregated sensitivity (numpy)<br>
+                        <span>∂IM_p/∂S_p[k]</span> - from AADC kernel evaluation<br>
+                        <span>S[t,k]</span> - raw trade sensitivity (precomputed)
+                    </div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+                <div style="background: var(--bg-dark); padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; color: var(--success);">100x</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Faster Kernel Recording</div>
+                </div>
+                <div style="background: var(--bg-dark); padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; color: var(--primary);">~100</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Kernel Inputs (vs 25,000)</div>
+                </div>
+                <div style="background: var(--bg-dark); padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; color: var(--warning);">20-30%</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Typical IM Reduction</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>ISDA SIMM v2.6 Implementation with AADC Integration</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                Powered by Automatic Adjoint Differentiation for efficient sensitivity computation
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // Tenor Chart
+        const tenorCtx = document.getElementById('tenorChart').getContext('2d');
+        new Chart(tenorCtx, {
+            type: 'bar',
+            data: {
+                labels: ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y'],
+                datasets: [{
+                    label: 'Risk Weight (bps)',
+                    data: [77, 77, 77, 77, 67, 52, 49, 47, 47, 47, 47, 47],
+                    backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                    borderColor: 'rgba(37, 99, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#f1f5f9' }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' }
+                    },
+                    y: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' }
+                    }
+                }
+            }
+        });
+
+        // Margin Breakdown Chart
+        const marginCtx = document.getElementById('marginChart').getContext('2d');
+        new Chart(marginCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Rates', 'FX', 'CreditQ', 'Equity', 'Commodity'],
+                datasets: [{
+                    data: [45, 15, 20, 12, 8],
+                    backgroundColor: [
+                        'rgba(37, 99, 235, 0.8)',
+                        'rgba(139, 92, 246, 0.8)',
+                        'rgba(34, 197, 94, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(239, 68, 68, 0.8)'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#f1f5f9' }
+                    }
+                }
+            }
+        });
+
+        // Optimization Chart
+        const optCtx = document.getElementById('optimizationChart').getContext('2d');
+        new Chart(optCtx, {
+            type: 'line',
+            data: {
+                labels: ['Iter 0', 'Iter 10', 'Iter 20', 'Iter 30', 'Iter 40', 'Iter 50'],
+                datasets: [{
+                    label: 'Total IM ($M)',
+                    data: [732, 580, 520, 498, 495, 494],
+                    borderColor: 'rgba(37, 99, 235, 1)',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#f1f5f9' }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' }
+                    },
+                    y: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

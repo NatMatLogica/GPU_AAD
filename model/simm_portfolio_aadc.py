@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 # Version
-MODEL_VERSION = "2.4.0"
+MODEL_VERSION = "2.6.0"  # Iterative gradient refresh during reallocation
 MODEL_NAME = "simm_portfolio_aadc_py"
 
 # Ensure project root is on path
@@ -66,6 +66,16 @@ from common.portfolio import (
     SIMM_RISK_CLASSES, LOG_FILE,
 )
 
+# Import ISDA SIMM v2.6 parameters for correlations and weights
+from Weights_and_Corr.v2_6 import (
+    ir_corr,  # 12x12 IR tenor correlation matrix
+    reg_vol_rw, low_vol_rw, high_vol_rw,  # Currency-specific IR weights
+    reg_vol_ccy_bucket, low_vol_ccy_bucket,  # Currency volatility buckets
+    inflation_rw, inflation_corr,  # Inflation parameters
+    sub_curves_corr,  # Correlation between sub-curves of same currency
+    equity_corr, commodity_corr, fx_vega_corr,  # Other risk class correlations
+)
+
 # Try to import AADC
 try:
     import aadc
@@ -84,13 +94,96 @@ PSI_MATRIX = np.array([
     [0.14, 0.37, 0.15, 0.39, 0.35, 1.00],  # FX
 ])
 
-# Simplified risk weights for AADC SIMM kernel
+# Simplified risk weights for AADC SIMM kernel (legacy - now using v2_6 params)
 IR_RISK_WEIGHTS = np.array([
     77, 77, 68, 56, 52, 50, 51, 52, 50, 51, 51, 64
 ], dtype=float)
 FX_RISK_WEIGHT = 8.4
 EQUITY_RISK_WEIGHT = 25.0
 INFLATION_RISK_WEIGHT = 63.0
+
+# SIMM tenor list (order matches ir_corr matrix)
+SIMM_TENOR_LIST = ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
+SIMM_TENOR_TO_IDX = {t: i for i, t in enumerate(SIMM_TENOR_LIST)}
+
+# Build numpy IR correlation matrix from v2_6 data
+IR_CORR_MATRIX = np.array(ir_corr)  # 12x12
+
+def _get_ir_tenor_index(label1: str) -> int:
+    """Map Label1 (e.g., '3m', '5y') to IR tenor index (0-11)."""
+    label_lower = str(label1).lower().strip()
+    return SIMM_TENOR_TO_IDX.get(label_lower, 6)  # Default to ~3y if not found
+
+
+def _get_ir_correlation(tenor1: str, tenor2: str) -> float:
+    """Get IR intra-bucket correlation between two tenors."""
+    idx1 = _get_ir_tenor_index(tenor1)
+    idx2 = _get_ir_tenor_index(tenor2)
+    return IR_CORR_MATRIX[idx1, idx2]
+
+
+def _get_ir_risk_weight_v26(currency: str, tenor: str) -> float:
+    """Get ISDA v2.6 currency-specific IR risk weight."""
+    tenor_lower = str(tenor).lower().strip()
+    currency_upper = str(currency).upper().strip()
+
+    if currency_upper in reg_vol_ccy_bucket:
+        return reg_vol_rw.get(tenor_lower, 50.0)
+    elif currency_upper in low_vol_ccy_bucket:
+        return low_vol_rw.get(tenor_lower, 15.0)
+    else:
+        # High volatility currencies
+        return high_vol_rw.get(tenor_lower, 100.0)
+
+
+def _get_intra_correlation(risk_class: str, risk_type1: str, risk_type2: str,
+                           label1_1: str, label1_2: str, bucket: str = None) -> float:
+    """
+    Get intra-bucket correlation for same risk class.
+
+    For IR: Uses 12x12 tenor correlation matrix from ISDA SIMM v2.6.
+    For Equity/Commodity: Uses single correlation value per bucket.
+    For FX: Assumes 0.5 vega correlation.
+    """
+    if risk_class == "Rates":
+        # IR Delta: tenor-based correlations
+        if risk_type1 == "Risk_Inflation" or risk_type2 == "Risk_Inflation":
+            if risk_type1 == risk_type2:
+                return 1.0  # Same inflation curve
+            return inflation_corr  # Inflation vs IR curve
+        elif risk_type1 == "Risk_IRCurve" and risk_type2 == "Risk_IRCurve":
+            # Same currency, potentially different tenors or sub-curves
+            # Sub-curve correlation is 0.993, tenor correlation from matrix
+            tenor_corr = _get_ir_correlation(label1_1, label1_2)
+            # If different sub-curves (Label2), multiply by sub_curves_corr
+            # For now, we don't track Label2 in the kernel, use tenor corr only
+            return tenor_corr
+        else:
+            return 1.0  # Same risk type
+
+    elif risk_class == "Equity":
+        # Equity intra-bucket correlation depends on bucket
+        try:
+            bucket_int = int(bucket) if bucket else 0
+        except ValueError:
+            bucket_int = 0
+        return equity_corr.get(bucket_int, 0.25)
+
+    elif risk_class == "Commodity":
+        try:
+            bucket_int = int(bucket) if bucket else 0
+        except ValueError:
+            bucket_int = 0
+        return commodity_corr.get(bucket_int, 0.5)
+
+    elif risk_class == "FX":
+        return fx_vega_corr  # 0.5 for FX
+
+    elif risk_class in ("CreditQ", "CreditNonQ"):
+        # Credit has complex correlation structure; simplified to 0.5 for same bucket
+        return 0.5
+
+    return 1.0  # Default: perfectly correlated
 
 
 # =============================================================================
@@ -936,27 +1029,61 @@ def _get_risk_weight(risk_type: str, bucket: str) -> float:
     return 50.0
 
 
-def record_simm_kernel(group_crif: pd.DataFrame):
+def record_simm_kernel(group_crif: pd.DataFrame, use_correlations: bool = True):
     """
     Record AADC kernel for SIMM margin computation.
 
+    Args:
+        group_crif: DataFrame with CRIF sensitivities (RiskType, Qualifier, Bucket, Label1, Amount)
+        use_correlations: If True, apply ISDA intra-bucket correlations; if False, use sum-of-squares
+
     Returns:
         (funcs, sens_handles, im_output, recording_time)
+
+    ISDA SIMM Formula:
+        K_r = sqrt(Σ_i Σ_j ρ_ij × WS_i × WS_j)
+        IM = sqrt(Σ_r Σ_s ψ_rs × K_r × K_s)
+
+    Where:
+        - WS_i = RiskWeight_i × Sensitivity_i
+        - ρ_ij = intra-bucket correlation (from ir_corr for IR, equity_corr for Equity, etc.)
+        - ψ_rs = cross-risk-class correlation (from PSI_MATRIX)
     """
     n = len(group_crif)
     risk_class_order = SIMM_RISK_CLASSES
 
+    # Pre-extract CRIF metadata for correlation lookups
     crif_risk_classes = []
+    crif_risk_types = []
+    crif_labels = []
+    crif_buckets = []
+    crif_qualifiers = []
     crif_weights = []
+
     for _, row in group_crif.iterrows():
-        rc = _map_risk_type_to_class(row["RiskType"])
-        rw = _get_risk_weight(row["RiskType"], str(row.get("Bucket", "")))
+        rt = row["RiskType"]
+        rc = _map_risk_type_to_class(rt)
+        qualifier = str(row.get("Qualifier", ""))
+        bucket = str(row.get("Bucket", ""))
+        label1 = str(row.get("Label1", ""))
+
+        # Get risk weight (use v2.6 currency-specific for IR if available)
+        if rt == "Risk_IRCurve" and qualifier and label1:
+            rw = _get_ir_risk_weight_v26(qualifier, label1)
+        else:
+            rw = _get_risk_weight(rt, bucket)
+
         crif_risk_classes.append(rc)
+        crif_risk_types.append(rt)
+        crif_labels.append(label1)
+        crif_buckets.append(bucket)
+        crif_qualifiers.append(qualifier)
         crif_weights.append(rw)
 
     record_start = time.perf_counter()
 
     with aadc.record_kernel() as funcs:
+        # Mark sensitivities as inputs
         sens_inputs = []
         sens_handles = []
         for i in range(n):
@@ -965,19 +1092,51 @@ def record_simm_kernel(group_crif: pd.DataFrame):
             sens_inputs.append(s)
             sens_handles.append(handle)
 
+        # Compute risk class margins with intra-bucket correlations
         risk_class_margins = []
         for rc in risk_class_order:
             rc_indices = [i for i in range(n) if crif_risk_classes[i] == rc]
             if not rc_indices:
                 risk_class_margins.append(aadc.idouble(0.0))
                 continue
-            ws_sq_sum = aadc.idouble(0.0)
+
+            # Compute weighted sensitivities: WS_i = w_i * s_i
+            ws_list = []
             for i in rc_indices:
-                ws = sens_inputs[i] * crif_weights[i]
-                ws_sq_sum = ws_sq_sum + ws * ws
-            k_r = np.sqrt(ws_sq_sum)
+                ws_i = sens_inputs[i] * crif_weights[i]
+                ws_list.append(ws_i)
+
+            # Compute K_r² = Σ_i Σ_j ρ_ij × WS_i × WS_j
+            k_sq = aadc.idouble(0.0)
+            num_in_rc = len(rc_indices)
+
+            if use_correlations and num_in_rc > 1:
+                # Apply ISDA intra-bucket correlations
+                for i_local in range(num_in_rc):
+                    for j_local in range(num_in_rc):
+                        i_global = rc_indices[i_local]
+                        j_global = rc_indices[j_local]
+
+                        # Get correlation between these two sensitivities
+                        rho_ij = _get_intra_correlation(
+                            rc,
+                            crif_risk_types[i_global],
+                            crif_risk_types[j_global],
+                            crif_labels[i_global],
+                            crif_labels[j_global],
+                            crif_buckets[i_global] if crif_buckets[i_global] == crif_buckets[j_global] else None
+                        )
+
+                        k_sq = k_sq + rho_ij * ws_list[i_local] * ws_list[j_local]
+            else:
+                # Simplified: sum of squares (no correlations)
+                for ws_i in ws_list:
+                    k_sq = k_sq + ws_i * ws_i
+
+            k_r = np.sqrt(k_sq)
             risk_class_margins.append(k_r)
 
+        # Cross-risk-class aggregation: IM = sqrt(Σ_r Σ_s ψ_rs × K_r × K_s)
         simm_sq = aadc.idouble(0.0)
         for i in range(6):
             for j in range(6):
@@ -1031,17 +1190,30 @@ def compute_im_gradient_aadc(
 # =============================================================================
 
 def estimate_marginal_impact(trade_crif: pd.DataFrame, group_crif: pd.DataFrame,
-                              group_gradient: np.ndarray) -> float:
+                              group_gradient: np.ndarray, group_im: float = None) -> float:
     """
     Estimate the marginal impact of adding a trade's sensitivities to a group
     using the group's existing dIM/ds gradient (first-order Taylor approximation).
 
     For each sensitivity in the trade's CRIF, find the matching entry in the
     group's CRIF (same RiskType + Qualifier + Bucket + Label1). If found,
-    use that entry's gradient. If not found, use a conservative estimate
-    based on the risk weight.
+    use that entry's gradient. If not found, use a principled estimate
+    derived from SIMM structure.
+
+    Args:
+        trade_crif: CRIF for the trade to add
+        group_crif: Current CRIF for the group
+        group_gradient: dIM/ds gradient array from AADC
+        group_im: Current IM for the group (optional, used for new factor estimate)
 
     Returns estimated change in group IM from adding this trade.
+
+    For new (uncorrelated) risk factors, the marginal impact is derived from SIMM structure:
+        K_r_new² = K_r² + (rw * s)²    (assuming no correlation)
+        ΔK_r ≈ (rw * s)² / (2 * K_r)   (first-order Taylor)
+        ΔIM ≈ (ψ * K_r * ΔK_r) / IM    (chain rule through cross-RC aggregation)
+
+    For large K_r and IM, this simplifies to: ΔIM ≈ (rw * s)² / (2 * IM)
     """
     if group_crif.empty or len(group_gradient) == 0:
         # No existing sensitivities in group; estimate via standalone IM
@@ -1050,6 +1222,10 @@ def estimate_marginal_impact(trade_crif: pd.DataFrame, group_crif: pd.DataFrame,
         # Compute standalone SIMM for the trade
         _, standalone_im, _ = run_simm(trade_crif)
         return standalone_im
+
+    # Get group IM if not provided (for new factor estimation)
+    if group_im is None or group_im <= 0:
+        group_im = 1e6  # Default to $1M if unknown (conservative)
 
     impact = 0.0
     for _, trade_row in trade_crif.iterrows():
@@ -1068,11 +1244,28 @@ def estimate_marginal_impact(trade_crif: pd.DataFrame, group_crif: pd.DataFrame,
             idx_in_group = group_crif.index.get_loc(matching_indices[0])
             impact += group_gradient[idx_in_group] * sensitivity
         else:
-            # No matching risk factor in group; use risk weight as standalone estimate
-            rw = _get_risk_weight(trade_row["RiskType"], str(trade_row.get("Bucket", "")))
-            # Marginal standalone contribution: rw * |s| / sqrt(existing_IM)
-            # Approximation for new uncorrelated risk factor
-            impact += abs(rw * sensitivity) * 0.01  # Conservative small fraction
+            # No matching risk factor in group
+            # For new uncorrelated factor: ΔIM ≈ (rw * s)² / (2 * IM)
+            # This derives from SIMM structure: new factor adds standalone K_r contribution
+            rt = trade_row["RiskType"]
+            qualifier = str(trade_row.get("Qualifier", ""))
+            label1 = str(trade_row.get("Label1", ""))
+            bucket = str(trade_row.get("Bucket", ""))
+
+            # Use v2.6 weights where applicable
+            if rt == "Risk_IRCurve" and qualifier and label1:
+                rw = _get_ir_risk_weight_v26(qualifier, label1)
+            else:
+                rw = _get_risk_weight(rt, bucket)
+
+            # Principled estimate for uncorrelated new factor
+            # ΔIM ≈ (rw * s)² / (2 * IM), sign matches sensitivity sign
+            weighted_sens_sq = (rw * abs(sensitivity)) ** 2
+            delta_im = weighted_sens_sq / (2 * group_im + 1e-10)
+
+            # Apply sign: if sensitivity is positive, IM typically increases
+            impact += np.sign(sensitivity) * delta_im
+
     return impact
 
 
@@ -1087,6 +1280,7 @@ def reallocate_trades(
     market: MarketEnvironment,
     num_threads: int,
     num_portfolios: int,
+    refresh_gradients: bool = True,
 ) -> Tuple[Dict, float]:
     """
     Reallocate N trades to minimize total SIMM using gradient info.
@@ -1095,8 +1289,15 @@ def reallocate_trades(
     1. Rank all trades by absolute Euler contribution (highest first)
     2. For top N trades, estimate marginal impact on each other group
     3. Move each trade to the group where its marginal impact is lowest
-    4. Recompute SIMM for affected groups using AADC
-    5. Compare recomputed total vs gradient-based estimate
+    4. (v2.6.0) After each move, refresh gradients for affected groups (if refresh_gradients=True)
+    5. Recompute SIMM for affected groups using AADC
+    6. Compare recomputed total vs gradient-based estimate
+
+    Args:
+        refresh_gradients: If True, recompute gradients after each move decision.
+                          This uses AADC's fast evaluation (~1ms per portfolio) to
+                          ensure subsequent move decisions use accurate gradients.
+                          Default True for better allocation quality.
 
     Returns:
         (realloc_result_dict, realloc_time_sec)
@@ -1128,13 +1329,21 @@ def reallocate_trades(
     moves = []
     new_group_ids = group_ids.copy()
 
+    # Working state that gets updated after each move (v2.6.0)
+    # This solves the stale gradient problem: gradients are refreshed after each move
+    current_group_crifs = {g: crif.copy() for g, crif in group_crifs.items()}
+    current_group_gradients = {g: grad.copy() if isinstance(grad, np.ndarray) else np.array([])
+                               for g, grad in group_gradients.items()}
+    current_group_ims = dict(group_ims)
+    gradient_refresh_count = 0
+
     for trade_id, from_group, old_contrib in trades_to_move:
         trade_idx = trade_id_to_idx.get(trade_id)
         if trade_idx is None:
             continue
 
-        # Get this trade's CRIF rows from the source group
-        from_crif = group_crifs.get(from_group, pd.DataFrame())
+        # Get this trade's CRIF rows from the source group (use current state)
+        from_crif = current_group_crifs.get(from_group, pd.DataFrame())
         if from_crif.empty:
             continue
         trade_crif = from_crif[from_crif["TradeID"] == trade_id].copy()
@@ -1145,17 +1354,32 @@ def reallocate_trades(
         _, trade_standalone_im, _ = run_simm(trade_crif)
 
         # Estimate marginal impact on each candidate group (signed)
+        # Use CURRENT state (gradients may have been refreshed after previous moves)
+        current_from_im = current_group_ims.get(from_group, 0.0)
+        current_from_gradient = current_group_gradients.get(from_group, np.array([]))
+
+        # Recompute old_contrib using current gradient (may differ from initial)
+        if len(current_from_gradient) > 0:
+            # Compute Euler contribution with current gradient
+            current_old_contrib = estimate_marginal_impact(
+                trade_crif, from_crif, current_from_gradient, current_from_im
+            )
+        else:
+            current_old_contrib = old_contrib
+
         best_group = from_group
-        best_abs_impact = abs(old_contrib)  # staying put = current contribution
-        best_signed_impact = old_contrib
+        best_abs_impact = abs(current_old_contrib)  # staying put = current contribution
+        best_signed_impact = current_old_contrib
 
         for candidate_group in range(num_portfolios):
             if candidate_group == from_group:
                 continue
-            cand_crif = group_crifs.get(candidate_group, pd.DataFrame())
-            cand_gradient = group_gradients.get(candidate_group, np.array([]))
+            # Use CURRENT state (v2.6.0 - gradients refreshed after each move)
+            cand_crif = current_group_crifs.get(candidate_group, pd.DataFrame())
+            cand_gradient = current_group_gradients.get(candidate_group, np.array([]))
+            cand_im = current_group_ims.get(candidate_group, 0.0)
 
-            impact = estimate_marginal_impact(trade_crif, cand_crif, cand_gradient)
+            impact = estimate_marginal_impact(trade_crif, cand_crif, cand_gradient, cand_im)
 
             if abs(impact) < best_abs_impact:
                 best_abs_impact = abs(impact)
@@ -1163,9 +1387,41 @@ def reallocate_trades(
                 best_group = candidate_group
 
         if best_group != from_group:
-            moves.append((trade_id, from_group, best_group, old_contrib,
+            moves.append((trade_id, from_group, best_group, current_old_contrib,
                           best_signed_impact, trade_standalone_im))
             new_group_ids[trade_idx] = best_group
+
+            # v2.6.0: Update CRIF state and refresh gradients for affected groups
+            if refresh_gradients:
+                # Update CRIF state: remove trade from source, add to destination
+                current_group_crifs[from_group] = from_crif[
+                    from_crif["TradeID"] != trade_id
+                ].copy()
+                if best_group in current_group_crifs and not current_group_crifs[best_group].empty:
+                    current_group_crifs[best_group] = pd.concat([
+                        current_group_crifs[best_group], trade_crif
+                    ], ignore_index=True)
+                else:
+                    current_group_crifs[best_group] = trade_crif.copy()
+
+                # Refresh gradients for affected groups using AADC (~1ms each)
+                for affected_group in [from_group, best_group]:
+                    affected_crif = current_group_crifs.get(affected_group, pd.DataFrame())
+                    if affected_crif.empty or len(affected_crif) == 0:
+                        current_group_gradients[affected_group] = np.array([])
+                        current_group_ims[affected_group] = 0.0
+                    else:
+                        try:
+                            gradient, im_val, _, _ = compute_im_gradient_aadc(
+                                affected_crif, num_threads
+                            )
+                            current_group_gradients[affected_group] = gradient
+                            current_group_ims[affected_group] = im_val
+                            gradient_refresh_count += 1
+                        except Exception as e:
+                            # If AADC fails, keep old gradient (degraded accuracy)
+                            print(f"    Warning: gradient refresh failed for group {affected_group}: {e}")
+                            pass
 
     if not moves:
         elapsed = time.perf_counter() - realloc_start
@@ -1260,6 +1516,8 @@ def reallocate_trades(
     print(f"    Quadratic estimate:  {estimated_total_im:>18,.2f}")
     print(f"    Estimate rel error:  {rel_error*100:.4f}%")
     print(f"    Estimate matches:    {'YES' if matches else 'NO'} (< 10% tolerance)")
+    if refresh_gradients:
+        print(f"    Gradient refreshes:  {gradient_refresh_count:>18} (v2.6.0 iterative)")
     print(f"    Reallocation time:   {elapsed:.3f} s")
     print()
 
@@ -1409,13 +1667,19 @@ def main():
     realloc_result = None
     realloc_time = 0.0
     if n_reallocate is not None and n_reallocate > 0:
+        refresh_gradients = not getattr(args, 'no_refresh_gradients', False)
         print(f"Reallocation: moving up to {n_reallocate} trades using gradient info...")
+        if refresh_gradients:
+            print("  (v2.6.0: iterative gradient refresh enabled)")
+        else:
+            print("  (gradient refresh disabled - using stale gradients)")
         realloc_result, realloc_time = reallocate_trades(
             n_reallocate,
             trades, group_ids,
             group_crifs, group_gradients, group_ims,
             group_contributions,
             market, num_threads, num_portfolios,
+            refresh_gradients=refresh_gradients,
         )
 
     # Full optimization (if requested)

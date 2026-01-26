@@ -82,6 +82,8 @@ def parse_common_args(description: str) -> argparse.Namespace:
                         help="Number of threads")
     parser.add_argument("--reallocate", type=int, default=None,
                         help="Number of trades to reallocate using gradient info (AADC only)")
+    parser.add_argument("--no-refresh-gradients", action="store_true",
+                        help="Disable iterative gradient refresh during reallocation (v2.6.0 default: enabled)")
     parser.add_argument("--optimize", action="store_true",
                         help="Run full allocation optimization (AADC only)")
     parser.add_argument("--method", type=str, default="auto",

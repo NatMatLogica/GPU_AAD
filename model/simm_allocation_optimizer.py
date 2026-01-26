@@ -56,13 +56,40 @@ import time
 from typing import Dict, List, Tuple, Optional
 
 # Version
-MODULE_VERSION = "2.0.0"  # Efficient: small kernel (K inputs) + chain rule gradient
+MODULE_VERSION = "2.1.0"  # Efficient kernel + ISDA v2.6 intra-bucket correlations
 
 try:
     import aadc
     AADC_AVAILABLE = True
 except ImportError:
     AADC_AVAILABLE = False
+
+# Import ISDA SIMM v2.6 parameters for correlations and weights
+try:
+    import sys
+    from pathlib import Path
+    PROJECT_ROOT = Path(__file__).parent.parent
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from Weights_and_Corr.v2_6 import (
+        ir_corr,  # 12x12 IR tenor correlation matrix
+        reg_vol_rw, low_vol_rw, high_vol_rw,  # Currency-specific IR weights
+        reg_vol_ccy_bucket, low_vol_ccy_bucket,  # Currency volatility buckets
+        inflation_rw, inflation_corr,  # Inflation parameters
+        equity_corr, commodity_corr, fx_vega_corr,  # Other risk class correlations
+    )
+    SIMM_PARAMS_AVAILABLE = True
+except ImportError:
+    SIMM_PARAMS_AVAILABLE = False
+
+# SIMM tenor list (order matches ir_corr matrix)
+SIMM_TENOR_LIST = ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y']
+SIMM_TENOR_TO_IDX = {t: i for i, t in enumerate(SIMM_TENOR_LIST)}
+
+# Build numpy IR correlation matrix from v2_6 data
+if SIMM_PARAMS_AVAILABLE:
+    IR_CORR_MATRIX = np.array(ir_corr)  # 12x12
+else:
+    IR_CORR_MATRIX = np.eye(12)  # Fallback to identity
 
 
 # =============================================================================
@@ -168,6 +195,77 @@ def _get_risk_weight(risk_type: str, bucket: str) -> float:
     return 50.0
 
 
+def _get_ir_risk_weight_v26(currency: str, tenor: str) -> float:
+    """Get ISDA v2.6 currency-specific IR risk weight."""
+    if not SIMM_PARAMS_AVAILABLE:
+        return 50.0
+    tenor_lower = str(tenor).lower().strip()
+    currency_upper = str(currency).upper().strip()
+
+    if currency_upper in reg_vol_ccy_bucket:
+        return reg_vol_rw.get(tenor_lower, 50.0)
+    elif currency_upper in low_vol_ccy_bucket:
+        return low_vol_rw.get(tenor_lower, 15.0)
+    else:
+        return high_vol_rw.get(tenor_lower, 100.0)
+
+
+def _get_ir_tenor_index(label1: str) -> int:
+    """Map Label1 (e.g., '3m', '5y') to IR tenor index (0-11)."""
+    label_lower = str(label1).lower().strip()
+    return SIMM_TENOR_TO_IDX.get(label_lower, 6)  # Default to ~3y
+
+
+def _get_ir_correlation(tenor1: str, tenor2: str) -> float:
+    """Get IR intra-bucket correlation between two tenors."""
+    idx1 = _get_ir_tenor_index(tenor1)
+    idx2 = _get_ir_tenor_index(tenor2)
+    return IR_CORR_MATRIX[idx1, idx2]
+
+
+def _get_intra_correlation(risk_class: str, risk_type1: str, risk_type2: str,
+                           label1_1: str, label1_2: str, bucket: str = None) -> float:
+    """
+    Get intra-bucket correlation for same risk class.
+
+    For IR: Uses 12x12 tenor correlation matrix from ISDA SIMM v2.6.
+    For Equity/Commodity: Uses single correlation value per bucket.
+    """
+    if not SIMM_PARAMS_AVAILABLE:
+        return 1.0  # Fallback to perfectly correlated
+
+    if risk_class == "Rates":
+        if risk_type1 == "Risk_Inflation" or risk_type2 == "Risk_Inflation":
+            if risk_type1 == risk_type2:
+                return 1.0
+            return inflation_corr
+        elif risk_type1 == "Risk_IRCurve" and risk_type2 == "Risk_IRCurve":
+            return _get_ir_correlation(label1_1, label1_2)
+        return 1.0
+
+    elif risk_class == "Equity":
+        try:
+            bucket_int = int(bucket) if bucket else 0
+        except ValueError:
+            bucket_int = 0
+        return equity_corr.get(bucket_int, 0.25)
+
+    elif risk_class == "Commodity":
+        try:
+            bucket_int = int(bucket) if bucket else 0
+        except ValueError:
+            bucket_int = 0
+        return commodity_corr.get(bucket_int, 0.5)
+
+    elif risk_class == "FX":
+        return fx_vega_corr
+
+    elif risk_class in ("CreditQ", "CreditNonQ"):
+        return 0.5
+
+    return 1.0
+
+
 # Cross-risk-class correlation matrix (psi) - ISDA SIMM v2.6/v2.7
 # Order: Rates, CreditQ, CreditNonQ, Equity, Commodity, FX
 _PSI_MATRIX = np.array([
@@ -186,32 +284,52 @@ _RISK_CLASS_ORDER = ['Rates', 'CreditQ', 'CreditNonQ', 'Equity', 'Commodity', 'F
 # EFFICIENT Small Kernel + Chain Rule (NEW - O(K) inputs)
 # =============================================================================
 
-def _get_factor_metadata(risk_factors: List[Tuple]) -> Tuple[List[str], np.ndarray]:
+def _get_factor_metadata(risk_factors: List[Tuple]) -> Tuple[List[str], np.ndarray, List[str], List[str], List[str]]:
     """
-    Extract risk class and weight for each risk factor.
+    Extract risk class, weight, and metadata for each risk factor.
 
     Args:
         risk_factors: List of (RiskType, Qualifier, Bucket, Label1) tuples
 
     Returns:
-        (factor_risk_classes, factor_weights) where:
+        (factor_risk_classes, factor_weights, factor_risk_types, factor_labels, factor_buckets) where:
         - factor_risk_classes: List of risk class names for each factor
         - factor_weights: numpy array of risk weights
+        - factor_risk_types: List of RiskType strings
+        - factor_labels: List of Label1 (tenor) strings
+        - factor_buckets: List of Bucket strings
     """
     factor_risk_classes = []
     factor_weights = []
-    for rt, _, bucket, _ in risk_factors:
+    factor_risk_types = []
+    factor_labels = []
+    factor_buckets = []
+
+    for rt, qualifier, bucket, label1 in risk_factors:
         rc = _map_risk_type_to_class(rt)
-        rw = _get_risk_weight(rt, bucket)
+        # Use v2.6 currency-specific weights for IR if available
+        if rt == "Risk_IRCurve" and qualifier and label1 and SIMM_PARAMS_AVAILABLE:
+            rw = _get_ir_risk_weight_v26(qualifier, label1)
+        else:
+            rw = _get_risk_weight(rt, bucket)
+
         factor_risk_classes.append(rc)
         factor_weights.append(rw)
-    return factor_risk_classes, np.array(factor_weights)
+        factor_risk_types.append(rt)
+        factor_labels.append(label1)
+        factor_buckets.append(bucket)
+
+    return factor_risk_classes, np.array(factor_weights), factor_risk_types, factor_labels, factor_buckets
 
 
 def record_single_portfolio_simm_kernel(
     K: int,
     factor_risk_classes: List[str],
     factor_weights: np.ndarray,
+    factor_risk_types: List[str] = None,
+    factor_labels: List[str] = None,
+    factor_buckets: List[str] = None,
+    use_correlations: bool = True,
 ) -> Tuple['aadc.Functions', List[int], int]:
     """
     Record AADC kernel: K aggregated sensitivities → single portfolio IM.
@@ -223,9 +341,9 @@ def record_single_portfolio_simm_kernel(
 
     Algorithm:
     1. Mark S_p[k] as inputs (K differentiable values, ~100)
-    2. Apply ISDA SIMM aggregation:
+    2. Apply ISDA SIMM aggregation with intra-bucket correlations:
        - For each risk class rc:
-         K_rc = sqrt(Σ_{k∈rc} (w_k * S_p[k])²)
+         K_rc = sqrt(Σ_{k∈rc} Σ_{l∈rc} ρ_kl * WS_k * WS_l)
        - IM_p = sqrt(Σ_i Σ_j ψ[i,j] * K_i * K_j)
     3. Mark IM_p as output
 
@@ -233,12 +351,24 @@ def record_single_portfolio_simm_kernel(
         K: Number of risk factors
         factor_risk_classes: List of risk class names for each factor
         factor_weights: Array of risk weights for each factor
+        factor_risk_types: List of RiskType strings (for correlation lookup)
+        factor_labels: List of Label1/tenor strings (for correlation lookup)
+        factor_buckets: List of Bucket strings (for correlation lookup)
+        use_correlations: If True, apply ISDA intra-bucket correlations
 
     Returns:
         (funcs, sensitivity_handles, im_output)
     """
     if not AADC_AVAILABLE:
         raise RuntimeError("AADC is required for allocation optimization")
+
+    # Provide defaults for backwards compatibility
+    if factor_risk_types is None:
+        factor_risk_types = ["Risk_IRCurve"] * K
+    if factor_labels is None:
+        factor_labels = ["5y"] * K
+    if factor_buckets is None:
+        factor_buckets = [""] * K
 
     with aadc.record_kernel() as funcs:
         # Mark aggregated sensitivities as differentiable inputs (K values)
@@ -250,7 +380,8 @@ def record_single_portfolio_simm_kernel(
             sens_handles.append(handle)
             agg_sens.append(s_k)
 
-        # Compute risk class margins: K_rc = sqrt(Σ_{k∈rc} (w_k * S_p[k])²)
+        # Compute risk class margins with intra-bucket correlations
+        # K_rc = sqrt(Σ_{k∈rc} Σ_{l∈rc} ρ_kl * WS_k * WS_l)
         risk_class_margins = []
 
         for rc in _RISK_CLASS_ORDER:
@@ -259,12 +390,39 @@ def record_single_portfolio_simm_kernel(
                 risk_class_margins.append(aadc.idouble(0.0))
                 continue
 
-            ws_sq_sum = aadc.idouble(0.0)
+            # Compute weighted sensitivities
+            ws_list = []
             for k in rc_indices:
-                ws = agg_sens[k] * float(factor_weights[k])
-                ws_sq_sum = ws_sq_sum + ws * ws
+                ws_k = agg_sens[k] * float(factor_weights[k])
+                ws_list.append(ws_k)
 
-            k_r = np.sqrt(ws_sq_sum)
+            # Apply correlations: K² = Σ_k Σ_l ρ_kl × WS_k × WS_l
+            k_sq = aadc.idouble(0.0)
+            num_in_rc = len(rc_indices)
+
+            if use_correlations and num_in_rc > 1 and SIMM_PARAMS_AVAILABLE:
+                for i_local in range(num_in_rc):
+                    for j_local in range(num_in_rc):
+                        i_global = rc_indices[i_local]
+                        j_global = rc_indices[j_local]
+
+                        # Get correlation between these two risk factors
+                        rho_ij = _get_intra_correlation(
+                            rc,
+                            factor_risk_types[i_global],
+                            factor_risk_types[j_global],
+                            factor_labels[i_global],
+                            factor_labels[j_global],
+                            factor_buckets[i_global] if factor_buckets[i_global] == factor_buckets[j_global] else None
+                        )
+
+                        k_sq = k_sq + rho_ij * ws_list[i_local] * ws_list[j_local]
+            else:
+                # Simplified: sum of squares (no correlations)
+                for ws_k in ws_list:
+                    k_sq = k_sq + ws_k * ws_k
+
+            k_r = np.sqrt(k_sq)
             risk_class_margins.append(k_r)
 
         # Cross-risk-class aggregation: IM_p = sqrt(Σ_i Σ_j ψ[i,j] * K_i * K_j)
@@ -1032,13 +1190,16 @@ def reallocate_trades_optimal(
     else:
         # Gradient descent method using EFFICIENT small kernel + chain rule
         # Step 3: Get factor metadata and record SMALL kernel (O(K) inputs)
-        factor_risk_classes, factor_weights = _get_factor_metadata(risk_factors)
+        factor_risk_classes, factor_weights, factor_risk_types, factor_labels, factor_buckets = _get_factor_metadata(risk_factors)
 
         if verbose:
             print(f"  Recording efficient kernel (K={K} inputs, NOT T×P={T*P})...")
+            print(f"  Using ISDA v2.6 correlations: {SIMM_PARAMS_AVAILABLE}")
 
         funcs, sens_handles, im_output = record_single_portfolio_simm_kernel(
-            K, factor_risk_classes, factor_weights
+            K, factor_risk_classes, factor_weights,
+            factor_risk_types, factor_labels, factor_buckets,
+            use_correlations=True
         )
 
         if verbose:
