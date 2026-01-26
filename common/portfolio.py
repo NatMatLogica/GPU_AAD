@@ -52,6 +52,13 @@ LOG_COLUMNS = [
     "im_after_realloc",
     "im_realloc_estimate",
     "realloc_estimate_matches",
+    # Optimization (optional, empty when not used)
+    "optimize_method",
+    "optimize_time_sec",
+    "optimize_initial_im",
+    "optimize_final_im",
+    "optimize_trades_moved",
+    "optimize_converged",
     "status",
 ]
 
@@ -75,6 +82,19 @@ def parse_common_args(description: str) -> argparse.Namespace:
                         help="Number of threads")
     parser.add_argument("--reallocate", type=int, default=None,
                         help="Number of trades to reallocate using gradient info (AADC only)")
+    parser.add_argument("--optimize", action="store_true",
+                        help="Run full allocation optimization (AADC only)")
+    parser.add_argument("--method", type=str, default="gradient_descent",
+                        choices=["gradient_descent", "greedy"],
+                        help="Optimization method (default: gradient_descent)")
+    parser.add_argument("--allow-partial", action="store_true",
+                        help="Allow partial trade allocation across portfolios")
+    parser.add_argument("--max-iters", type=int, default=100,
+                        help="Maximum optimization iterations (default: 100)")
+    parser.add_argument("--lr", type=float, default=1e-12,
+                        help="Learning rate for gradient descent (default: 1e-12)")
+    parser.add_argument("--tol", type=float, default=1e-6,
+                        help="Convergence tolerance (default: 1e-6)")
     return parser.parse_args()
 
 
@@ -329,6 +349,12 @@ def build_log_rows(
             "im_after_realloc": res.get("im_after_realloc", ""),
             "im_realloc_estimate": res.get("im_realloc_estimate", ""),
             "realloc_estimate_matches": res.get("realloc_estimate_matches", ""),
+            "optimize_method": res.get("optimize_method", ""),
+            "optimize_time_sec": res.get("optimize_time_sec", ""),
+            "optimize_initial_im": res.get("optimize_initial_im", ""),
+            "optimize_final_im": res.get("optimize_final_im", ""),
+            "optimize_trades_moved": res.get("optimize_trades_moved", ""),
+            "optimize_converged": res.get("optimize_converged", ""),
             "status": "success",
         }
         log_rows.append(row)
@@ -355,6 +381,12 @@ def build_log_rows(
         "im_after_realloc": totals.get("im_after_realloc", ""),
         "im_realloc_estimate": totals.get("im_realloc_estimate", ""),
         "realloc_estimate_matches": totals.get("realloc_estimate_matches", ""),
+        "optimize_method": totals.get("optimize_method", ""),
+        "optimize_time_sec": totals.get("optimize_time_sec", ""),
+        "optimize_initial_im": totals.get("optimize_initial_im", ""),
+        "optimize_final_im": totals.get("optimize_final_im", ""),
+        "optimize_trades_moved": totals.get("optimize_trades_moved", ""),
+        "optimize_converged": totals.get("optimize_converged", ""),
         "status": "success",
     }
     log_rows.append(agg_row)

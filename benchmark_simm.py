@@ -40,6 +40,15 @@ def parse_args():
                         help="Skip baseline run (use existing log)")
     parser.add_argument("--skip-aadc", action="store_true",
                         help="Skip AADC run (use existing log)")
+    parser.add_argument("--optimize", action="store_true",
+                        help="Run full allocation optimization (AADC only)")
+    parser.add_argument("--method", type=str, default="gradient_descent",
+                        choices=["gradient_descent", "greedy"],
+                        help="Optimization method (default: gradient_descent)")
+    parser.add_argument("--allow-partial", action="store_true",
+                        help="Allow partial trade allocation across portfolios")
+    parser.add_argument("--max-iters", type=int, default=100,
+                        help="Maximum optimization iterations (default: 100)")
     return parser.parse_args()
 
 
@@ -159,8 +168,14 @@ def main():
         print("#  RUNNING AADC (automatic adjoint differentiation)")
         print("#" * 80)
         print()
+        aadc_args = args_list.copy()
+        if args.optimize:
+            aadc_args.extend(["--optimize", "--method", args.method])
+            if args.allow_partial:
+                aadc_args.append("--allow-partial")
+            aadc_args.extend(["--max-iters", str(args.max_iters)])
         import model.simm_portfolio_aadc as aadc_mod
-        run_model(aadc_mod, args_list)
+        run_model(aadc_mod, aadc_args)
     else:
         print("[Skipping AADC]")
 

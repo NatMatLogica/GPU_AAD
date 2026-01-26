@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 # Version
-MODEL_VERSION = "2.2.0"
+MODEL_VERSION = "2.4.0"
 MODEL_NAME = "simm_portfolio_aadc_py"
 
 # Ensure project root is on path
@@ -766,6 +766,41 @@ def compute_crif_aadc(
     return crif_df, recording_time, eval_time
 
 
+def compute_trade_crif_standalone(
+    trade,
+    market: MarketEnvironment,
+    num_threads: int = 1,
+) -> pd.DataFrame:
+    """
+    Compute CRIF for a single trade independently using AADC.
+
+    This is a thin wrapper around compute_crif_aadc() for single-trade use.
+    Returns a DataFrame with columns: TradeID, ProductClass, RiskType,
+    Qualifier, Bucket, Label1, Label2, Amount, AmountCurrency, AmountUSD
+    """
+    crif_df, _, _ = compute_crif_aadc([trade], market, num_threads)
+    return crif_df
+
+
+def precompute_all_trade_crifs(
+    trades: list,
+    market: MarketEnvironment,
+    num_threads: int,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Precompute CRIF for all trades independently.
+
+    Returns Dict[trade_id, crif_df] for O(1) lookup during allocation optimization.
+    Each crif_df contains sensitivities for that trade only.
+    """
+    trade_crifs = {}
+    for trade in trades:
+        crif_df, _, _ = compute_crif_aadc([trade], market, num_threads)
+        if not crif_df.empty:
+            trade_crifs[trade.trade_id] = crif_df
+    return trade_crifs
+
+
 def _get_market_value_for_handle(trade, meta, market: MarketEnvironment) -> float:
     """Get the actual market value corresponding to a CRIF handle."""
     risk_type = meta["risk_type"]
@@ -1025,7 +1060,7 @@ def reallocate_trades(
     if not trades_to_move:
         return {}, time.perf_counter() - realloc_start
 
-    # Track moves: (trade_id, from_group, to_group, old_contrib, estimated_new_contrib)
+    # Track moves: (trade_id, from_group, to_group, old_contrib, signed_impact, standalone_im)
     moves = []
     new_group_ids = group_ids.copy()
 
@@ -1042,9 +1077,13 @@ def reallocate_trades(
         if trade_crif.empty:
             continue
 
-        # Estimate marginal impact on each candidate group
+        # Compute standalone SIMM for this trade (used in quadratic estimate)
+        _, trade_standalone_im, _ = run_simm(trade_crif)
+
+        # Estimate marginal impact on each candidate group (signed)
         best_group = from_group
-        best_impact = abs(old_contrib)  # staying put = current contribution
+        best_abs_impact = abs(old_contrib)  # staying put = current contribution
+        best_signed_impact = old_contrib
 
         for candidate_group in range(num_portfolios):
             if candidate_group == from_group:
@@ -1054,12 +1093,14 @@ def reallocate_trades(
 
             impact = estimate_marginal_impact(trade_crif, cand_crif, cand_gradient)
 
-            if abs(impact) < best_impact:
-                best_impact = abs(impact)
+            if abs(impact) < best_abs_impact:
+                best_abs_impact = abs(impact)
+                best_signed_impact = impact
                 best_group = candidate_group
 
         if best_group != from_group:
-            moves.append((trade_id, from_group, best_group, old_contrib, best_impact))
+            moves.append((trade_id, from_group, best_group, old_contrib,
+                          best_signed_impact, trade_standalone_im))
             new_group_ids[trade_idx] = best_group
 
     if not moves:
@@ -1073,21 +1114,28 @@ def reallocate_trades(
             "matches": True,
         }, elapsed
 
-    # Compute estimated new total IM (gradient-based)
-    # For each group, adjust IM by removing/adding trade contributions
+    # Compute estimated new total IM using quadratic formula.
+    # SIMM = sqrt(s^T M s), so after adding/removing Δs:
+    #   IM_new = sqrt(IM² ± 2*IM*marginal_impact + standalone²)
+    # where standalone = SIMM of the moved trade alone.
+    # This is exact for a single risk factor and second-order accurate in general.
     estimated_group_ims = dict(group_ims)
-    for trade_id, from_group, to_group, old_contrib, new_impact in moves:
-        # Remove trade contribution from source group (first-order estimate)
-        estimated_group_ims[from_group] = max(0.0, estimated_group_ims[from_group] - old_contrib)
-        # Add estimated contribution to target group
-        sign = 1.0 if new_impact >= 0 else -1.0
-        estimated_group_ims[to_group] = estimated_group_ims[to_group] + abs(new_impact)
+    for trade_id, from_group, to_group, old_contrib, signed_impact, standalone_im in moves:
+        # Source group: remove trade (quadratic correction)
+        im_from = estimated_group_ims[from_group]
+        im_from_sq = im_from ** 2 - 2.0 * im_from * old_contrib + standalone_im ** 2
+        estimated_group_ims[from_group] = np.sqrt(max(0.0, im_from_sq))
+
+        # Target group: add trade (quadratic correction, signed impact)
+        im_to = estimated_group_ims[to_group]
+        im_to_sq = im_to ** 2 + 2.0 * im_to * signed_impact + standalone_im ** 2
+        estimated_group_ims[to_group] = np.sqrt(max(0.0, im_to_sq))
 
     estimated_total_im = sum(estimated_group_ims.values())
 
     # Recompute SIMM for affected groups using AADC
     affected_groups = set()
-    for _, from_g, to_g, _, _ in moves:
+    for _, from_g, to_g, _, _, _ in moves:
         affected_groups.add(from_g)
         affected_groups.add(to_g)
 
@@ -1138,14 +1186,14 @@ def reallocate_trades(
     # Print reallocation summary
     print()
     print(f"  Reallocation Summary ({n_available} trades considered, {len(moves)} moved):")
-    print(f"    {'TradeID':<20} {'From':>5} {'To':>5} {'Old Contrib':>15} {'Est. New Impact':>15}")
-    print(f"    {'-'*65}")
-    for trade_id, from_g, to_g, old_c, new_i in moves:
-        print(f"    {trade_id:<20} {from_g:>5} {to_g:>5} {old_c:>15,.2f} {new_i:>15,.2f}")
+    print(f"    {'TradeID':<20} {'From':>5} {'To':>5} {'Old Contrib':>18} {'Signed Impact':>18} {'Standalone IM':>18}")
+    print(f"    {'-'*90}")
+    for trade_id, from_g, to_g, old_c, signed_i, standalone in moves:
+        print(f"    {trade_id:<20} {from_g:>5} {to_g:>5} {old_c:>18,.2f} {signed_i:>18,.2f} {standalone:>18,.2f}")
     print()
     print(f"    Total IM before:     {im_before:>18,.2f}")
     print(f"    Total IM after:      {recomputed_total_im:>18,.2f}")
-    print(f"    Gradient estimate:   {estimated_total_im:>18,.2f}")
+    print(f"    Quadratic estimate:  {estimated_total_im:>18,.2f}")
     print(f"    Estimate rel error:  {rel_error*100:.4f}%")
     print(f"    Estimate matches:    {'YES' if matches else 'NO'} (< 10% tolerance)")
     print(f"    Reallocation time:   {elapsed:.3f} s")
@@ -1306,6 +1354,43 @@ def main():
             market, num_threads, num_portfolios,
         )
 
+    # Full optimization (if requested)
+    opt_result = None
+    if args.optimize:
+        from model.simm_allocation_optimizer import reallocate_trades_optimal
+
+        # Convert group_ids to allocation matrix
+        T = len(trades)
+        initial_allocation = np.zeros((T, num_portfolios))
+        for t, g in enumerate(group_ids):
+            initial_allocation[t, g] = 1.0
+
+        print(f"\nFull Optimization (method={args.method})...")
+        opt_result = reallocate_trades_optimal(
+            trades, market, num_portfolios,
+            initial_allocation=initial_allocation,
+            num_threads=num_threads,
+            allow_partial=args.allow_partial,
+            method=args.method,
+            max_iters=args.max_iters,
+            lr=args.lr,
+            tol=args.tol,
+            verbose=True,
+        )
+
+        # Print optimization summary
+        print()
+        print(f"Optimization Summary:")
+        print(f"  Method:              {args.method}")
+        print(f"  Iterations:          {opt_result['num_iterations']} ({'converged' if opt_result['converged'] else 'max iters'})")
+        print(f"  Initial IM:          ${opt_result['initial_im']:>18,.2f}")
+        print(f"  Optimized IM:        ${opt_result['final_im']:>18,.2f}")
+        reduction = (1.0 - opt_result['final_im'] / opt_result['initial_im']) * 100 if opt_result['initial_im'] > 0 else 0.0
+        print(f"  Reduction:           {reduction:.1f}%")
+        print(f"  Trades moved:        {opt_result['trades_moved']} of {len(trades)}")
+        print(f"  Optimization time:   {opt_result['elapsed_time']:.3f} s")
+        print()
+
     # Print results table
     totals = print_results_table(group_results, num_trades_actual)
 
@@ -1325,6 +1410,25 @@ def main():
             res["im_realloc_estimate"] = realloc_result.get("im_estimate", "")
             res["realloc_estimate_matches"] = realloc_result.get("matches", "")
 
+    # Add optimization info to totals (if used)
+    if opt_result is not None:
+        totals["optimize_method"] = args.method
+        totals["optimize_time_sec"] = opt_result['elapsed_time']
+        totals["optimize_initial_im"] = opt_result['initial_im']
+        totals["optimize_final_im"] = opt_result['final_im']
+        totals["optimize_trades_moved"] = opt_result['trades_moved']
+        totals["optimize_converged"] = opt_result['converged']
+        totals["optimize_iterations"] = opt_result['num_iterations']
+
+        # Also add to each group result for per-group log rows
+        for res in group_results:
+            res["optimize_method"] = args.method
+            res["optimize_time_sec"] = opt_result['elapsed_time']
+            res["optimize_initial_im"] = opt_result['initial_im']
+            res["optimize_final_im"] = opt_result['final_im']
+            res["optimize_trades_moved"] = opt_result['trades_moved']
+            res["optimize_converged"] = opt_result['converged']
+
     # Timing summary
     total_time = totals["total_crif_time"] + totals["total_simm_time"] + totals["total_grad_time"]
     print(f"Timing Summary (AADC):")
@@ -1334,6 +1438,10 @@ def main():
     if realloc_result is not None:
         print(f"  Reallocation:      {realloc_time:.3f} s ({realloc_result.get('n_moves', 0)} trades moved)")
         total_time += realloc_time
+    if opt_result is not None:
+        opt_time = opt_result['elapsed_time']
+        print(f"  Optimization:      {opt_time:.3f} s ({opt_result['num_iterations']} iterations, {opt_result['trades_moved']} trades moved)")
+        total_time += opt_time
     print(f"  Total:             {total_time:.3f} s")
     print()
 
