@@ -84,15 +84,15 @@ def parse_common_args(description: str) -> argparse.Namespace:
                         help="Number of trades to reallocate using gradient info (AADC only)")
     parser.add_argument("--optimize", action="store_true",
                         help="Run full allocation optimization (AADC only)")
-    parser.add_argument("--method", type=str, default="gradient_descent",
-                        choices=["gradient_descent", "greedy"],
-                        help="Optimization method (default: gradient_descent)")
+    parser.add_argument("--method", type=str, default="auto",
+                        choices=["auto", "gradient_descent", "greedy"],
+                        help="Optimization method: auto (picks based on size), gradient_descent, greedy")
     parser.add_argument("--allow-partial", action="store_true",
                         help="Allow partial trade allocation across portfolios")
     parser.add_argument("--max-iters", type=int, default=100,
                         help="Maximum optimization iterations (default: 100)")
-    parser.add_argument("--lr", type=float, default=1e-12,
-                        help="Learning rate for gradient descent (default: 1e-12)")
+    parser.add_argument("--lr", type=float, default=None,
+                        help="Learning rate for gradient descent (default: auto-computed from gradient scale)")
     parser.add_argument("--tol", type=float, default=1e-6,
                         help="Convergence tolerance (default: 1e-6)")
     return parser.parse_args()

@@ -575,10 +575,41 @@ def generate_market_environment(currencies: List[str], seed: int = 42) -> Market
 
 
 def generate_trades_by_type(trade_type: str, num_trades: int,
-                            currencies: List[str], seed: int = 42) -> list:
-    """Generate random trades of a given type."""
+                            currencies: List[str], seed: int = 42,
+                            avg_maturity: float = None, maturity_spread: float = None) -> list:
+    """Generate random trades of a given type.
+
+    Args:
+        trade_type: Type of trade (ir_swap, equity_option, etc.)
+        num_trades: Number of trades to generate
+        currencies: List of currencies to use
+        seed: Random seed
+        avg_maturity: Average maturity in years (None = use default random selection)
+        maturity_spread: Spread around average maturity (None = use default)
+    """
     rng = np.random.default_rng(seed)
     trades = []
+
+    # Default maturity choices by trade type
+    default_maturities = {
+        'ir_swap': [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0],
+        'equity_option': [0.25, 0.5, 1.0, 2.0, 3.0, 5.0],
+        'fx_option': [0.25, 0.5, 1.0, 2.0, 3.0],
+        'inflation_swap': [2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0],
+        'xccy_swap': [2.0, 3.0, 5.0, 7.0, 10.0],
+    }
+
+    def get_maturity(trade_type_key: str) -> float:
+        """Get maturity based on parameters or defaults."""
+        if avg_maturity is not None:
+            # Use specified average and spread
+            spread = maturity_spread if maturity_spread is not None else 1.0
+            min_mat = max(0.25, avg_maturity - spread)
+            max_mat = min(30.0, avg_maturity + spread)
+            return min_mat + rng.random() * (max_mat - min_mat)
+        else:
+            # Use default random selection from predefined values
+            return rng.choice(default_maturities.get(trade_type_key, [5.0]))
 
     for i in range(num_trades):
         trade_id = f"{trade_type.upper()}_{i:06d}"
@@ -590,7 +621,7 @@ def generate_trades_by_type(trade_type: str, num_trades: int,
                 currency=ccy,
                 notional=rng.choice([1e6, 5e6, 10e6, 50e6, 100e6]),
                 fixed_rate=0.01 + rng.random() * 0.04,
-                maturity=rng.choice([1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0]),
+                maturity=get_maturity('ir_swap'),
                 frequency=rng.choice([1, 2, 4]),
                 payer=bool(rng.integers(2)),
             ))
@@ -601,7 +632,7 @@ def generate_trades_by_type(trade_type: str, num_trades: int,
                 currency=ccy,
                 notional=rng.choice([1e6, 5e6, 10e6]),
                 strike=100.0 * (0.8 + rng.random() * 0.4),
-                maturity=rng.choice([0.25, 0.5, 1.0, 2.0, 3.0, 5.0]),
+                maturity=get_maturity('equity_option'),
                 dividend_yield=0.01 + rng.random() * 0.03,
                 is_call=bool(rng.integers(2)),
                 equity_bucket=int(rng.integers(12)),
@@ -619,7 +650,7 @@ def generate_trades_by_type(trade_type: str, num_trades: int,
                 currency=dom,
                 notional=rng.choice([1e6, 5e6, 10e6]),
                 strike=1.08 * (0.9 + rng.random() * 0.2),
-                maturity=rng.choice([0.25, 0.5, 1.0, 2.0, 3.0]),
+                maturity=get_maturity('fx_option'),
                 is_call=bool(rng.integers(2)),
                 domestic_ccy=dom,
                 foreign_ccy=fgn,
@@ -631,7 +662,7 @@ def generate_trades_by_type(trade_type: str, num_trades: int,
                 currency=ccy,
                 notional=rng.choice([1e6, 5e6, 10e6, 50e6]),
                 fixed_rate=0.015 + rng.random() * 0.02,
-                maturity=rng.choice([2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0]),
+                maturity=get_maturity('inflation_swap'),
             ))
 
         elif trade_type == "xccy_swap":
@@ -649,7 +680,7 @@ def generate_trades_by_type(trade_type: str, num_trades: int,
                 fgn_notional=dom_not / fx,
                 dom_fixed_rate=0.02 + rng.random() * 0.02,
                 fgn_fixed_rate=0.01 + rng.random() * 0.02,
-                maturity=rng.choice([2.0, 3.0, 5.0, 7.0, 10.0]),
+                maturity=get_maturity('xccy_swap'),
                 frequency=rng.choice([1, 2, 4]),
                 exchange_notional=True,
                 domestic_ccy=dom,

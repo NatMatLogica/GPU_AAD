@@ -246,13 +246,12 @@ class TestAADCIntegration:
             ('Risk_FX', 'EURUSD', '', ''),
         ]
 
-        funcs, x_handles, S_handles, im_output = record_allocation_im_kernel(
+        funcs, x_handles, im_output, _ = record_allocation_im_kernel(
             S, risk_factors, num_portfolios=2
         )
 
         assert funcs is not None
         assert len(x_handles) == 4  # 2 trades x 2 portfolios
-        assert len(S_handles) == 4  # 2 trades x 2 risk factors
         assert im_output is not None
 
     def test_gradient_computation(self):
@@ -268,13 +267,13 @@ class TestAADCIntegration:
             ('Risk_FX', 'EURUSD', '', ''),
         ]
 
-        funcs, x_handles, S_handles, im_output = record_allocation_im_kernel(
+        funcs, x_handles, im_output, _ = record_allocation_im_kernel(
             S, risk_factors, num_portfolios=2
         )
 
         allocation = np.array([[0.5, 0.5], [0.5, 0.5]])
         gradient, total_im = compute_allocation_gradient(
-            funcs, x_handles, S_handles, im_output, S, allocation, num_threads=1
+            funcs, x_handles, None, im_output, S, allocation, num_threads=1
         )
 
         assert gradient.shape == (2, 2)
@@ -293,14 +292,14 @@ class TestAADCIntegration:
             ('Risk_FX', 'EURUSD', '', ''),
         ]
 
-        funcs, x_handles, S_handles, im_output = record_allocation_im_kernel(
+        funcs, x_handles, im_output, _ = record_allocation_im_kernel(
             S, risk_factors, num_portfolios=2
         )
 
         allocation = np.array([[0.6, 0.4], [0.3, 0.7]])
 
         max_rel_error, aadc_grad, fd_grad = verify_allocation_gradient(
-            funcs, x_handles, S_handles, im_output, S, allocation, num_threads=1
+            funcs, x_handles, im_output, S, allocation, num_threads=1
         )
 
         assert max_rel_error < 1e-3, f"Gradient mismatch: max rel error = {max_rel_error}"
@@ -324,7 +323,7 @@ class TestAADCIntegration:
             ('Risk_FX', 'EURUSD', '', ''),
         ]
 
-        funcs, x_handles, S_handles, im_output = record_allocation_im_kernel(
+        funcs, x_handles, im_output, _ = record_allocation_im_kernel(
             S, risk_factors, num_portfolios=2
         )
 
@@ -332,18 +331,18 @@ class TestAADCIntegration:
         initial_allocation = np.array([[1.0, 0.0], [1.0, 0.0], [1.0, 0.0]])
 
         _, initial_im = compute_allocation_gradient(
-            funcs, x_handles, S_handles, im_output, S, initial_allocation, num_threads=1
+            funcs, x_handles, None, im_output, S, initial_allocation, num_threads=1
         )
 
         # Run optimization
         final_allocation, im_history, num_iters = optimize_allocation_gradient_descent(
-            funcs, x_handles, S_handles, im_output, S,
+            funcs, x_handles, None, im_output, S,
             initial_allocation, num_threads=1,
             max_iters=50, lr=1e-10, tol=1e-6, verbose=False
         )
 
         _, final_im = compute_allocation_gradient(
-            funcs, x_handles, S_handles, im_output, S, final_allocation, num_threads=1
+            funcs, x_handles, None, im_output, S, final_allocation, num_threads=1
         )
 
         # Optimization should not make things worse

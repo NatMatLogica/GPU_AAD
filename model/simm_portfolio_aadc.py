@@ -792,12 +792,76 @@ def precompute_all_trade_crifs(
 
     Returns Dict[trade_id, crif_df] for O(1) lookup during allocation optimization.
     Each crif_df contains sensitivities for that trade only.
+
+    Optimized: Batches trades by structure type for efficient kernel reuse.
     """
+    workers = aadc.ThreadPool(num_threads)
     trade_crifs = {}
+
+    # Group trades by structure key for batched evaluation
+    from collections import defaultdict
+    trades_by_structure = defaultdict(list)
     for trade in trades:
-        crif_df, _, _ = compute_crif_aadc([trade], market, num_threads)
-        if not crif_df.empty:
-            trade_crifs[trade.trade_id] = crif_df
+        key = _get_trade_structure_key(trade)
+        trades_by_structure[key].append(trade)
+
+    # Cache kernels
+    kernel_cache = {}
+
+    # Process each structure group
+    for structure_key, group_trades in trades_by_structure.items():
+        # Record kernel once for this structure (using first trade as template)
+        if structure_key not in kernel_cache:
+            result = record_pricing_kernel(group_trades[0], market)
+            kernel_cache[structure_key] = result
+
+        funcs, all_handles, pv_output, crif_meta, nodiff_inputs = kernel_cache[structure_key]
+
+        # Batch evaluate all trades in this group
+        batch_size = len(group_trades)
+
+        # Build batched inputs - each handle maps to array of values
+        inputs = {}
+        diff_handles = []
+
+        for meta in crif_meta:
+            h = meta["handle"]
+            diff_handles.append(h)
+            # Get value for each trade in batch
+            vals = np.array([_get_market_value_for_handle(t, meta, market) for t in group_trades])
+            inputs[h] = vals
+
+        # Add non-differentiable inputs (same for all trades of same structure)
+        for h, val in nodiff_inputs.items():
+            inputs[h] = np.full(batch_size, float(val))
+
+        request = {pv_output: diff_handles}
+        results = aadc.evaluate(funcs, request, inputs, workers)
+
+        # Extract CRIF for each trade in batch
+        for batch_idx, trade in enumerate(group_trades):
+            crif_rows = []
+            for meta in crif_meta:
+                h = meta["handle"]
+                deriv = float(results[1][pv_output][h][batch_idx])
+                sensitivity = deriv * meta["scale"]
+
+                if abs(sensitivity) > 1e-10:
+                    crif_rows.append({
+                        "TradeID": trade.trade_id,
+                        "RiskType": meta["risk_type"],
+                        "Qualifier": meta["qualifier"],
+                        "Bucket": meta["bucket"],
+                        "Label1": meta.get("label1", ""),
+                        "Label2": meta.get("label2", ""),
+                        "Amount": sensitivity,
+                        "AmountCurrency": meta.get("currency", "USD"),
+                        "AmountUSD": sensitivity,
+                    })
+
+            if crif_rows:
+                trade_crifs[trade.trade_id] = pd.DataFrame(crif_rows)
+
     return trade_crifs
 
 

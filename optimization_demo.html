@@ -1,0 +1,2414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMM Trade Allocation Optimizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-size: 0.8em;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group input, .control-group select {
+            padding: 8px 12px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #2a2a4a;
+            color: #fff;
+            font-size: 1em;
+            min-width: 120px;
+        }
+
+        .trade-types-group {
+            min-width: 200px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 10px;
+            background: #2a2a4a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-label:hover {
+            border-color: #4fc3f7;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            min-width: auto;
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            padding: 0;
+            accent-color: #4fc3f7;
+        }
+
+        .checkbox-label input[type="checkbox"]:checked + span {
+            color: #4fc3f7;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            color: #1a1a2e;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(79, 195, 247, 0.4);
+        }
+
+        .btn-secondary {
+            background: #444;
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: #555;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4fc3f7;
+            margin-bottom: 5px;
+        }
+
+        .stat-value.positive {
+            color: #66bb6a;
+        }
+
+        .stat-value.negative {
+            color: #ef5350;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4fc3f7, #29b6f6);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .optimization-note {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(255, 167, 38, 0.1);
+            border-left: 3px solid #ffa726;
+            border-radius: 4px;
+            font-size: 0.8em;
+            color: #ffa726;
+        }
+
+        /* Portfolio Containers */
+        .portfolios-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            min-height: 400px;
+        }
+
+        .portfolio {
+            flex: 1;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 15px;
+            min-height: 350px;
+            position: relative;
+            border: 2px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .portfolio.highlight {
+            border-color: #4fc3f7;
+        }
+
+        .portfolio-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .portfolio-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #4fc3f7;
+        }
+
+        .portfolio-im {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .portfolio-im .value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .trades-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            min-height: 200px;
+            align-content: flex-start;
+        }
+
+        /* Trade Cards */
+        .trade {
+            background: linear-gradient(135deg, #2d2d5a, #252550);
+            border-radius: 8px;
+            padding: 10px;
+            width: calc(50% - 5px);
+            min-width: 100px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            border: 1px solid #444;
+        }
+
+        .trade:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            border-color: #4fc3f7;
+        }
+
+        .trade.moving {
+            position: fixed;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(79, 195, 247, 0.5);
+            border-color: #4fc3f7;
+        }
+
+        .trade.highlight-move {
+            animation: pulse 0.5s ease-in-out;
+            border-color: #66bb6a;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .trade-id {
+            font-size: 0.75em;
+            color: #4fc3f7;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .trade-type {
+            font-size: 0.7em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .trade-im {
+            font-size: 0.8em;
+            color: #aaa;
+        }
+
+        .trade-im .value {
+            color: #66bb6a;
+            font-weight: 600;
+        }
+
+        /* Trade type colors */
+        .trade.type-IRSwap { border-left: 3px solid #4fc3f7; }
+        .trade.type-EquityOption { border-left: 3px solid #ab47bc; }
+        .trade.type-FXOption { border-left: 3px solid #ffa726; }
+        .trade.type-InflationSwap { border-left: 3px solid #66bb6a; }
+        .trade.type-XCCYSwap { border-left: 3px solid #ef5350; }
+
+        /* Animation Controls */
+        .animation-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 20px;
+        }
+
+        .speed-control input {
+            width: 100px;
+        }
+
+        /* IM Chart */
+        .chart-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 1em;
+            color: #aaa;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .im-chart {
+            height: 150px;
+            position: relative;
+            border-left: 1px solid #444;
+            border-bottom: 1px solid #444;
+        }
+
+        .chart-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .chart-point {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #4fc3f7;
+            border-radius: 50%;
+            transform: translate(-50%, 50%);
+            transition: all 0.3s ease;
+        }
+
+        .chart-path {
+            fill: none;
+            stroke: #4fc3f7;
+            stroke-width: 2;
+        }
+
+        .chart-area {
+            fill: rgba(79, 195, 247, 0.1);
+        }
+
+        /* Movement Log */
+        .movement-log {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .movement-log h3 {
+            color: #aaa;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+
+        .movement-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+        }
+
+        .movement-entry .arrow {
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+
+        .movement-entry .trade-name {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .movement-entry .portfolio-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .portfolio-badge.from {
+            background: rgba(239, 83, 80, 0.2);
+            color: #ef5350;
+        }
+
+        .portfolio-badge.to {
+            background: rgba(102, 187, 106, 0.2);
+            color: #66bb6a;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #4fc3f7;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .portfolios-container {
+                flex-direction: column;
+            }
+
+            .trade {
+                width: 100%;
+            }
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: #1a1a2e;
+            border: 1px solid #4fc3f7;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.8em;
+            z-index: 1001;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        /* Details Sections */
+        .details-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .details-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .details-header h3 {
+            color: #aaa;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+
+        .toggle-icon {
+            color: #4fc3f7;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .details-content {
+            padding: 0 20px 20px;
+        }
+
+        /* Risk Summary Tables */
+        .risk-tables {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .risk-table-card {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .risk-table-card h5 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .risk-table-card table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .risk-table-card th, .risk-table-card td {
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        .risk-table-card th {
+            color: #888;
+            font-weight: normal;
+            text-transform: uppercase;
+            font-size: 0.8em;
+        }
+
+        .risk-table-card td.value {
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .risk-table-card .total-row {
+            font-weight: bold;
+            color: #4fc3f7;
+            border-top: 2px solid #4fc3f7;
+        }
+
+        /* CRIF Table */
+        .crif-section {
+            margin-top: 20px;
+        }
+
+        .crif-section h4 {
+            color: #aaa;
+            margin-bottom: 15px;
+        }
+
+        .crif-filter {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .crif-filter label {
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        .crif-filter select {
+            padding: 6px 10px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #2a2a4a;
+            color: #fff;
+            font-size: 0.85em;
+        }
+
+        .crif-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .crif-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+        }
+
+        .crif-table th {
+            position: sticky;
+            top: 0;
+            background: #1a1a2e;
+            color: #888;
+            font-weight: normal;
+            text-transform: uppercase;
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 2px solid #4fc3f7;
+        }
+
+        .crif-table td {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+        }
+
+        .crif-table tr:hover {
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        .crif-table .num {
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .crif-table .positive { color: #66bb6a; }
+        .crif-table .negative { color: #ef5350; }
+
+        /* Calculation Details */
+        .calc-explanation {
+            margin-bottom: 20px;
+        }
+
+        .calc-explanation h4 {
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .formula-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 15px;
+            border-left: 3px solid #4fc3f7;
+        }
+
+        .formula-box p {
+            margin: 8px 0;
+            font-family: 'Times New Roman', serif;
+            font-size: 1.1em;
+        }
+
+        .formula-note {
+            color: #888;
+            font-size: 0.85em !important;
+            font-style: italic;
+        }
+
+        .calc-tables {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 15px;
+        }
+
+        /* Parameters Grid */
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .params-section h4 {
+            color: #aaa;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .params-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .params-table th, .params-table td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        .params-table th {
+            background: rgba(0,0,0,0.3);
+            color: #888;
+            font-weight: normal;
+        }
+
+        .params-table td.num {
+            text-align: right;
+            font-family: monospace;
+            color: #4fc3f7;
+        }
+
+        .correlation-matrix {
+            grid-column: span 2;
+        }
+
+        .correlation-matrix table {
+            font-size: 0.8em;
+        }
+
+        .correlation-matrix td, .correlation-matrix th {
+            text-align: center;
+            padding: 6px;
+            min-width: 60px;
+        }
+
+        .correlation-matrix .diag {
+            background: rgba(79, 195, 247, 0.2);
+            font-weight: bold;
+        }
+
+        .risk-summary h4, .crif-section h4 {
+            color: #aaa;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Large dataset mode */
+        .large-dataset-notice {
+            background: rgba(255, 167, 38, 0.1);
+            border: 1px solid #ffa726;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .large-dataset-notice .icon {
+            font-size: 2em;
+        }
+
+        .large-dataset-notice .text {
+            flex: 1;
+        }
+
+        .large-dataset-notice .text h4 {
+            color: #ffa726;
+            margin-bottom: 5px;
+        }
+
+        .large-dataset-notice .text p {
+            color: #aaa;
+            font-size: 0.9em;
+            margin: 0;
+        }
+
+        /* Summary view for large datasets */
+        .portfolio-summary {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .portfolio-summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .portfolio-summary-header h4 {
+            color: #4fc3f7;
+            margin: 0;
+        }
+
+        .portfolio-summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .summary-stat {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .summary-stat .value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+
+        .summary-stat .label {
+            font-size: 0.75em;
+            color: #888;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+
+        .trade-type-breakdown {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .trade-type-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            background: rgba(79, 195, 247, 0.1);
+            color: #4fc3f7;
+        }
+
+        /* Animation progress for large datasets */
+        .optimization-running {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .optimization-running .big-spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #4fc3f7;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .optimization-running h3 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+        }
+
+        .optimization-running p {
+            color: #888;
+        }
+
+        .live-stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .live-stat {
+            text-align: center;
+        }
+
+        .live-stat .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .live-stat .label {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        /* Chart marker for current iteration */
+        #chartMarker {
+            filter: drop-shadow(0 0 4px rgba(255, 167, 38, 0.8));
+            transition: all 0.15s ease;
+        }
+
+        /* Highlight completed state */
+        .portfolio-summary.completed {
+            animation: pulse-green 0.5s ease;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: none; }
+            50% { box-shadow: 0 0 20px rgba(102, 187, 106, 0.5); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SIMM Trade Allocation Optimizer</h1>
+        <p class="subtitle">Minimize Initial Margin through optimal portfolio allocation</p>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="control-group">
+                <label>Number of Trades</label>
+                <input type="number" id="numTrades" min="3" max="1000" value="10">
+            </div>
+            <div class="control-group">
+                <label>Portfolios</label>
+                <input type="number" id="numPortfolios" min="2" max="20" value="3">
+            </div>
+            <div class="control-group">
+                <label>Avg Maturity (Y)</label>
+                <input type="number" id="avgMaturity" min="0.5" max="30" step="0.5" value="5">
+            </div>
+            <div class="control-group">
+                <label>Maturity Spread (Y)</label>
+                <input type="number" id="maturitySpread" min="0" max="10" step="0.5" value="1">
+            </div>
+            <div class="control-group trade-types-group">
+                <label>Trade Types</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="type_ir_swap" value="ir_swap" checked>
+                        <span>IR Swap</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="type_equity_option" value="equity_option">
+                        <span>Equity Option</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="type_fx_option" value="fx_option">
+                        <span>FX Option</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="type_inflation_swap" value="inflation_swap">
+                        <span>Inflation Swap</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="type_xccy_swap" value="xccy_swap">
+                        <span>XCCY Swap</span>
+                    </label>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="runOptimization">
+                Run Optimization
+            </button>
+            <button class="btn btn-secondary" id="loadSample">
+                Load Sample Data
+            </button>
+        </div>
+
+        <!-- Stats Panel -->
+        <div class="stats-panel">
+            <div class="stat-card">
+                <div class="stat-value" id="initialIM">-</div>
+                <div class="stat-label">Initial Total IM</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="currentIM">-</div>
+                <div class="stat-label">Current Total IM</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="finalIM">-</div>
+                <div class="stat-label">Final Total IM</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value positive" id="reduction">-</div>
+                <div class="stat-label">IM Reduction</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="tradesMoved">-</div>
+                <div class="stat-label">Trades Moved</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="iterations">-</div>
+                <div class="stat-label">Iterations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="maturityInfo">-</div>
+                <div class="stat-label">Avg Maturity</div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-header">
+                <span>Optimization Progress</span>
+                <span id="progressText">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div id="optimizationNote" class="optimization-note" style="display: none;">
+                Note: Real optimization uses continuous allocation fractions. IM may change before trades visually move.
+            </div>
+        </div>
+
+        <!-- Animation Controls -->
+        <div class="animation-controls">
+            <button class="btn btn-secondary" id="playPause" disabled>
+                Play Animation
+            </button>
+            <button class="btn btn-secondary" id="stepBack" disabled>
+                Step Back
+            </button>
+            <button class="btn btn-secondary" id="stepForward" disabled>
+                Step Forward
+            </button>
+            <button class="btn btn-secondary" id="reset" disabled>
+                Reset
+            </button>
+            <button class="btn btn-secondary" id="playProgress" disabled style="display: none;">
+                Play Progress
+            </button>
+            <div class="speed-control">
+                <label>Speed:</label>
+                <input type="range" id="speed" min="100" max="2000" value="500">
+            </div>
+        </div>
+
+        <!-- Portfolio Containers -->
+        <div class="portfolios-container" id="portfoliosContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Configure parameters and click "Run Optimization" or "Load Sample Data"</p>
+            </div>
+        </div>
+
+        <!-- IM Chart -->
+        <div class="chart-container">
+            <div class="chart-title">Total IM Over Iterations</div>
+            <svg class="im-chart" id="imChart" viewBox="0 0 800 150" preserveAspectRatio="none">
+                <path class="chart-area" id="chartArea"></path>
+                <path class="chart-path" id="chartPath"></path>
+            </svg>
+        </div>
+
+        <!-- Movement Log -->
+        <div class="movement-log">
+            <h3>Trade Movements</h3>
+            <div id="movementLog">
+                <p style="color: #666;">No movements yet</p>
+            </div>
+        </div>
+
+        <!-- CRIF & Calculation Details -->
+        <div class="details-section">
+            <div class="details-header" onclick="toggleDetails('crifDetails')">
+                <h3>CRIF Sensitivities & Risk Breakdown</h3>
+                <span class="toggle-icon" id="crifDetailsIcon">+</span>
+            </div>
+            <div class="details-content" id="crifDetails" style="display: none;">
+                <!-- Risk Class Summary -->
+                <div class="risk-summary">
+                    <h4>Portfolio Risk Class Breakdown</h4>
+                    <div class="risk-tables" id="riskTables"></div>
+                </div>
+
+                <!-- Trade CRIF Details -->
+                <div class="crif-section">
+                    <h4>Trade Sensitivities (CRIF Format)</h4>
+                    <div class="crif-filter">
+                        <label>Filter by Trade:</label>
+                        <select id="crifTradeFilter" onchange="filterCRIF()">
+                            <option value="all">All Trades</option>
+                        </select>
+                        <label style="margin-left: 15px;">Filter by Risk Type:</label>
+                        <select id="crifRiskFilter" onchange="filterCRIF()">
+                            <option value="all">All Risk Types</option>
+                        </select>
+                    </div>
+                    <div class="crif-table-container">
+                        <table class="crif-table" id="crifTable">
+                            <thead>
+                                <tr>
+                                    <th>TradeID</th>
+                                    <th>RiskType</th>
+                                    <th>Qualifier</th>
+                                    <th>Bucket</th>
+                                    <th>Label1</th>
+                                    <th>Amount</th>
+                                    <th>RiskWeight</th>
+                                    <th>Weighted</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crifTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- IM Calculation Details -->
+        <div class="details-section">
+            <div class="details-header" onclick="toggleDetails('calcDetails')">
+                <h3>IM Calculation Breakdown</h3>
+                <span class="toggle-icon" id="calcDetailsIcon">+</span>
+            </div>
+            <div class="details-content" id="calcDetails" style="display: none;">
+                <div class="calc-explanation">
+                    <h4>ISDA SIMM Formula</h4>
+                    <div class="formula-box">
+                        <p><strong>Per Risk Class:</strong> K<sub>r</sub> = √(Σ<sub>i</sub> (w<sub>i</sub> × s<sub>i</sub>)²)</p>
+                        <p><strong>Total IM:</strong> IM = √(Σ<sub>r,s</sub> ψ<sub>rs</sub> × K<sub>r</sub> × K<sub>s</sub>)</p>
+                        <p class="formula-note">where w<sub>i</sub> = risk weight, s<sub>i</sub> = sensitivity, ψ<sub>rs</sub> = cross-risk-class correlation</p>
+                    </div>
+                </div>
+                <div class="calc-tables" id="calcTables"></div>
+            </div>
+        </div>
+
+        <!-- Correlation Matrix -->
+        <div class="details-section">
+            <div class="details-header" onclick="toggleDetails('corrDetails')">
+                <h3>SIMM Parameters (Risk Weights & Correlations)</h3>
+                <span class="toggle-icon" id="corrDetailsIcon">+</span>
+            </div>
+            <div class="details-content" id="corrDetails" style="display: none;">
+                <div class="params-grid">
+                    <div class="params-section">
+                        <h4>IR Risk Weights by Tenor</h4>
+                        <table class="params-table">
+                            <thead><tr><th>Tenor</th><th>Weight</th></tr></thead>
+                            <tbody id="irWeightsTable"></tbody>
+                        </table>
+                    </div>
+                    <div class="params-section">
+                        <h4>Other Risk Weights</h4>
+                        <table class="params-table">
+                            <thead><tr><th>Risk Type</th><th>Weight</th></tr></thead>
+                            <tbody id="otherWeightsTable"></tbody>
+                        </table>
+                    </div>
+                    <div class="params-section correlation-matrix">
+                        <h4>Cross-Risk-Class Correlations (ψ)</h4>
+                        <table class="params-table" id="correlationMatrix"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // SIMM Parameters (ISDA v2.6)
+        const SIMM_PARAMS = {
+            irTenors: ['2W', '1M', '3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y', '15Y', '20Y', '30Y'],
+            irWeights: [77, 77, 68, 56, 52, 50, 51, 52, 50, 51, 51, 64],
+            otherWeights: {
+                'FX': 8.4,
+                'FX Vol': 4.6,
+                'Equity': 25.0,
+                'Equity Vol': 28.0,
+                'Inflation': 63.0,
+                'Credit': 85.0,
+                'Commodity': 40.0
+            },
+            riskClasses: ['Rates', 'CreditQ', 'CreditNonQ', 'Equity', 'Commodity', 'FX'],
+            psiMatrix: [
+                [1.00, 0.04, 0.04, 0.07, 0.37, 0.14],
+                [0.04, 1.00, 0.54, 0.70, 0.27, 0.37],
+                [0.04, 0.54, 1.00, 0.46, 0.24, 0.15],
+                [0.07, 0.70, 0.46, 1.00, 0.35, 0.39],
+                [0.37, 0.27, 0.24, 0.35, 1.00, 0.35],
+                [0.14, 0.37, 0.15, 0.39, 0.35, 1.00]
+            ]
+        };
+
+        // Global state
+        let demoData = null;
+        let currentStep = 0;
+        let isPlaying = false;
+        let animationTimer = null;
+
+        // DOM elements
+        const portfoliosContainer = document.getElementById('portfoliosContainer');
+        const playPauseBtn = document.getElementById('playPause');
+        const stepBackBtn = document.getElementById('stepBack');
+        const stepForwardBtn = document.getElementById('stepForward');
+        const resetBtn = document.getElementById('reset');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const speedSlider = document.getElementById('speed');
+        const movementLog = document.getElementById('movementLog');
+        const tooltip = document.getElementById('tooltip');
+
+        // Format currency
+        function formatCurrency(value) {
+            if (value >= 1e9) {
+                return '$' + (value / 1e9).toFixed(2) + 'B';
+            } else if (value >= 1e6) {
+                return '$' + (value / 1e6).toFixed(2) + 'M';
+            } else if (value >= 1e3) {
+                return '$' + (value / 1e3).toFixed(2) + 'K';
+            }
+            return '$' + value.toFixed(2);
+        }
+
+        // Format percentage
+        function formatPercent(value) {
+            return value.toFixed(1) + '%';
+        }
+
+        // Map checkbox values to display names
+        const tradeTypeMap = {
+            'ir_swap': 'IRSwap',
+            'equity_option': 'EquityOption',
+            'fx_option': 'FXOption',
+            'inflation_swap': 'InflationSwap',
+            'xccy_swap': 'XCCYSwap'
+        };
+
+        // Sample data generator (for demo without backend)
+        function generateSampleData(numTrades, numPortfolios, avgMaturity = null, maturitySpread = null) {
+            // Get parameters from inputs if not provided
+            if (avgMaturity === null) {
+                avgMaturity = parseFloat(document.getElementById('avgMaturity').value) || 5;
+            }
+            if (maturitySpread === null) {
+                maturitySpread = parseFloat(document.getElementById('maturitySpread').value) || 1;
+            }
+
+            // Get selected trade types
+            const selectedTypes = getSelectedTradeTypes().split(',').map(t => tradeTypeMap[t] || 'IRSwap');
+            const tradeTypes = selectedTypes.length > 0 ? selectedTypes : ['IRSwap'];
+            const currencies = ['USD', 'EUR', 'GBP', 'JPY'];
+
+            const trades = [];
+            for (let i = 0; i < numTrades; i++) {
+                // Generate maturity around the average with specified spread
+                // Using uniform distribution: [avgMaturity - spread, avgMaturity + spread]
+                const minMat = Math.max(0.25, avgMaturity - maturitySpread);
+                const maxMat = Math.min(30, avgMaturity + maturitySpread);
+                const maturity = minMat + Math.random() * (maxMat - minMat);
+
+                trades.push({
+                    id: `TRADE_${String(i).padStart(3, '0')}`,
+                    type: tradeTypes[Math.floor(Math.random() * tradeTypes.length)],
+                    notional: Math.random() * 100000000 + 10000000,
+                    currency: currencies[Math.floor(Math.random() * currencies.length)],
+                    maturity: maturity,
+                    standalone_im: Math.random() * 5000000000 + 100000000,
+                    initial_portfolio: Math.floor(Math.random() * numPortfolios),
+                    num_sensitivities: Math.floor(Math.random() * 20) + 5,
+                });
+            }
+
+            // Generate optimization steps - IM only changes when trades move
+            const steps = [];
+            let currentAssignments = trades.map(t => t.initial_portfolio);
+
+            // Calculate initial IM with diversification
+            function calcTotalIM(assignments) {
+                let total = 0;
+                for (let p = 0; p < numPortfolios; p++) {
+                    const pTrades = trades.filter((t, i) => assignments[i] === p);
+                    if (pTrades.length === 0) continue;
+                    // Raw sum
+                    const rawSum = pTrades.reduce((s, t) => s + t.standalone_im, 0);
+                    // Diversification benefit: sqrt(sum of squares) approximation
+                    const sqSum = pTrades.reduce((s, t) => s + t.standalone_im * t.standalone_im, 0);
+                    // Blend: more trades = more diversification
+                    const divFactor = 0.5 + 0.5 / Math.sqrt(pTrades.length);
+                    total += rawSum * divFactor;
+                }
+                return total;
+            }
+
+            let totalIM = calcTotalIM(currentAssignments);
+
+            // Plan moves: identify trades that benefit from moving
+            // For large datasets, sample a subset to keep performance reasonable
+            const maxTradesToEvaluate = Math.min(numTrades, 50);
+            const tradeIndicesToEvaluate = [];
+            for (let i = 0; i < maxTradesToEvaluate; i++) {
+                tradeIndicesToEvaluate.push(Math.floor(i * numTrades / maxTradesToEvaluate));
+            }
+
+            const plannedMoves = [];
+            tradeIndicesToEvaluate.forEach(t => {
+                const currentP = currentAssignments[t];
+                // Try each other portfolio
+                for (let p = 0; p < numPortfolios; p++) {
+                    if (p === currentP) continue;
+                    const testAssign = [...currentAssignments];
+                    testAssign[t] = p;
+                    const newIM = calcTotalIM(testAssign);
+                    if (newIM < totalIM * 0.95) { // Only move if significant improvement
+                        plannedMoves.push({
+                            tradeIdx: t,
+                            fromP: currentP,
+                            toP: p,
+                            improvement: totalIM - newIM
+                        });
+                    }
+                }
+            });
+
+            // Sort by improvement (best first)
+            plannedMoves.sort((a, b) => b.improvement - a.improvement);
+            // Take top moves (max ~30% of trades evaluated)
+            const maxMoves = Math.ceil(maxTradesToEvaluate * 0.3);
+            const selectedMoves = plannedMoves.slice(0, maxMoves);
+
+            // Spread moves across iterations
+            const totalSteps = numTrades > 15 ? 20 : 30; // Fewer steps for large datasets
+            const moveIterations = selectedMoves.map((_, i) =>
+                Math.floor((i + 1) * totalSteps / (selectedMoves.length + 1))
+            );
+
+            for (let i = 0; i < totalSteps; i++) {
+                // Check if any move happens at this iteration
+                selectedMoves.forEach((move, mi) => {
+                    if (moveIterations[mi] === i) {
+                        currentAssignments = [...currentAssignments];
+                        currentAssignments[move.tradeIdx] = move.toP;
+                        totalIM = calcTotalIM(currentAssignments);
+                    }
+                });
+
+                steps.push({
+                    iteration: i,
+                    total_im: totalIM,
+                    assignments: [...currentAssignments],
+                });
+            }
+
+            // Calculate portfolio IMs
+            function calcPortfolioIMs(assignments) {
+                const portfolioIMs = [];
+                for (let p = 0; p < numPortfolios; p++) {
+                    const pTrades = trades.filter((t, i) => assignments[i] === p);
+                    // IM with diversification benefit
+                    const rawIM = pTrades.reduce((sum, t) => sum + t.standalone_im, 0);
+                    const diversifiedIM = rawIM * (0.7 + Math.random() * 0.2);
+                    portfolioIMs.push({
+                        portfolio: p,
+                        im: diversifiedIM,
+                        trades: pTrades.length,
+                    });
+                }
+                return portfolioIMs;
+            }
+
+            const initialAssignments = trades.map(t => t.initial_portfolio);
+            const finalAssignments = steps[steps.length - 1].assignments;
+
+            // Find movements
+            const movements = [];
+            for (let i = 0; i < numTrades; i++) {
+                if (initialAssignments[i] !== finalAssignments[i]) {
+                    movements.push({
+                        trade_id: trades[i].id,
+                        from_portfolio: initialAssignments[i],
+                        to_portfolio: finalAssignments[i],
+                        standalone_im: trades[i].standalone_im,
+                    });
+                }
+            }
+
+            const initialPortfolioIMs = calcPortfolioIMs(initialAssignments);
+            const finalPortfolioIMs = calcPortfolioIMs(finalAssignments);
+            const initialTotalIM = initialPortfolioIMs.reduce((s, p) => s + p.im, 0);
+            const finalTotalIM = finalPortfolioIMs.reduce((s, p) => s + p.im, 0);
+
+            // Compute maturity stats
+            const maturities = trades.map(t => t.maturity);
+            const actualAvgMaturity = maturities.reduce((a, b) => a + b, 0) / maturities.length;
+            const minMaturity = Math.min(...maturities);
+            const maxMaturity = Math.max(...maturities);
+
+            return {
+                config: {
+                    num_trades: numTrades,
+                    num_portfolios: numPortfolios,
+                    trade_types: 'Mixed',
+                    num_risk_factors: Math.floor(Math.random() * 30) + 10,
+                    avg_maturity: Math.round(actualAvgMaturity * 100) / 100,
+                    maturity_range: [Math.round(minMaturity * 100) / 100, Math.round(maxMaturity * 100) / 100],
+                },
+                trades: trades,
+                initial_state: {
+                    assignments: initialAssignments,
+                    portfolio_ims: initialPortfolioIMs,
+                    total_im: initialTotalIM,
+                },
+                final_state: {
+                    assignments: finalAssignments,
+                    portfolio_ims: finalPortfolioIMs,
+                    total_im: finalTotalIM,
+                },
+                optimization: {
+                    num_iterations: steps.length,
+                    steps: steps,
+                    movements: movements,
+                    im_reduction_pct: (1 - finalTotalIM / initialTotalIM) * 100,
+                },
+            };
+        }
+
+        // Track if using real backend (continuous optimization)
+        let isRealBackend = false;
+        let isLargeDataset = false;
+        const LARGE_DATASET_THRESHOLD = 15;
+
+        // Initialize visualization with data
+        function initializeVisualization(data, fromBackend = false) {
+            demoData = data;
+            currentStep = 0;
+            isRealBackend = fromBackend;
+            isLargeDataset = data.config.num_trades > LARGE_DATASET_THRESHOLD;
+
+            // Show/hide optimization note
+            document.getElementById('optimizationNote').style.display = fromBackend ? 'block' : 'none';
+
+            // Update stats
+            document.getElementById('initialIM').textContent = formatCurrency(data.initial_state.total_im);
+            document.getElementById('currentIM').textContent = formatCurrency(data.initial_state.total_im);
+            document.getElementById('finalIM').textContent = formatCurrency(data.final_state.total_im);
+            document.getElementById('reduction').textContent = formatPercent(data.optimization.im_reduction_pct);
+            document.getElementById('tradesMoved').textContent = data.optimization.movements.length;
+            document.getElementById('iterations').textContent = data.optimization.num_iterations;
+
+            // Display maturity info
+            if (data.config.avg_maturity !== undefined) {
+                const range = data.config.maturity_range || [data.config.avg_maturity, data.config.avg_maturity];
+                document.getElementById('maturityInfo').textContent = `${data.config.avg_maturity.toFixed(1)}Y`;
+                document.getElementById('maturityInfo').title = `Range: ${range[0].toFixed(1)}Y - ${range[1].toFixed(1)}Y`;
+            }
+
+            if (isLargeDataset) {
+                // Large dataset mode - show summary view
+                createPortfolioSummaryView(data);
+            } else {
+                // Normal mode - show individual trade cards
+                createPortfolios(data.config.num_portfolios);
+                placeTradesInitial(data);
+            }
+
+            // Update chart
+            updateChart(data);
+
+            // Populate CRIF and calculation details
+            populateCRIFDetails(data);
+
+            // Enable controls (limited for large datasets)
+            const playProgressBtn = document.getElementById('playProgress');
+            if (isLargeDataset) {
+                // Large dataset: disable individual trade animation, show progress player
+                playPauseBtn.disabled = true;
+                stepForwardBtn.disabled = true;
+                stepBackBtn.disabled = true;
+                resetBtn.disabled = false;  // Allow reset for large datasets
+                playProgressBtn.style.display = 'inline-block';
+                playProgressBtn.disabled = false;
+            } else {
+                // Normal dataset: enable trade card animation
+                playPauseBtn.disabled = false;
+                stepForwardBtn.disabled = false;
+                stepBackBtn.disabled = true;
+                resetBtn.disabled = false;
+                playProgressBtn.style.display = 'none';
+            }
+
+            // Update movement log
+            updateMovementLog(data.optimization.movements);
+        }
+
+        // Create summary view for large datasets
+        function createPortfolioSummaryView(data) {
+            const colors = ['#4fc3f7', '#ab47bc', '#ffa726', '#66bb6a', '#ef5350'];
+            let html = '';
+
+            // Large dataset notice
+            html += `
+                <div class="large-dataset-notice">
+                    <div class="icon">📊</div>
+                    <div class="text">
+                        <h4>Large Dataset Mode</h4>
+                        <p>${data.config.num_trades} trades across ${data.config.num_portfolios} portfolios.
+                           Individual trade animations disabled for performance.
+                           See summary below and detailed breakdown in collapsible sections.</p>
+                    </div>
+                </div>
+            `;
+
+            // Summary for each portfolio - comparing initial vs final
+            html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">';
+
+            for (let p = 0; p < data.config.num_portfolios; p++) {
+                const initialP = data.initial_state.portfolio_ims.find(x => x.portfolio === p) || {im: 0, trades: 0};
+                const finalP = data.final_state.portfolio_ims.find(x => x.portfolio === p) || {im: 0, trades: 0};
+
+                // Count trade types in this portfolio
+                const pTradeIds = data.trades
+                    .map((t, i) => ({ trade: t, finalP: data.final_state.assignments[i] }))
+                    .filter(x => x.finalP === p)
+                    .map(x => x.trade);
+
+                const typeCount = {};
+                pTradeIds.forEach(t => {
+                    typeCount[t.type] = (typeCount[t.type] || 0) + 1;
+                });
+
+                const imChange = finalP.im - initialP.im;
+                const imChangeClass = imChange <= 0 ? 'positive' : 'negative';
+                const tradesChange = finalP.trades - initialP.trades;
+                const tradesChangeStr = tradesChange > 0 ? `+${tradesChange}` : tradesChange.toString();
+
+                html += `
+                    <div class="portfolio-summary">
+                        <div class="portfolio-summary-header">
+                            <h4 style="color: ${colors[p % colors.length]}">Portfolio ${p + 1}</h4>
+                            <span style="color: #888;">Final State</span>
+                        </div>
+                        <div class="portfolio-summary-stats">
+                            <div class="summary-stat">
+                                <div class="value">${finalP.trades}</div>
+                                <div class="label">Trades (${tradesChangeStr})</div>
+                            </div>
+                            <div class="summary-stat">
+                                <div class="value">${formatCurrency(finalP.im)}</div>
+                                <div class="label">Final IM</div>
+                            </div>
+                            <div class="summary-stat">
+                                <div class="value ${imChangeClass}">${formatCurrency(Math.abs(imChange))}</div>
+                                <div class="label">${imChange <= 0 ? 'Reduction' : 'Increase'}</div>
+                            </div>
+                        </div>
+                        <div class="trade-type-breakdown">
+                            ${Object.entries(typeCount).map(([type, count]) =>
+                                `<span class="trade-type-badge">${type}: ${count}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+
+            // Overall summary
+            const totalSavings = data.initial_state.total_im - data.final_state.total_im;
+            html += `
+                <div class="portfolio-summary" style="background: rgba(102, 187, 106, 0.1); margin-top: 20px;">
+                    <div class="portfolio-summary-header">
+                        <h4 style="color: #66bb6a;">Optimization Results</h4>
+                    </div>
+                    <div class="portfolio-summary-stats">
+                        <div class="summary-stat">
+                            <div class="value">${formatCurrency(data.initial_state.total_im)}</div>
+                            <div class="label">Initial Total IM</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="value">${formatCurrency(data.final_state.total_im)}</div>
+                            <div class="label">Final Total IM</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="value positive">${formatCurrency(totalSavings)}</div>
+                            <div class="label">Total Savings</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="value positive">${formatPercent(data.optimization.im_reduction_pct)}</div>
+                            <div class="label">Reduction</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="value">${data.optimization.movements.length}</div>
+                            <div class="label">Trades Moved</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="value">${data.optimization.num_iterations}</div>
+                            <div class="label">Iterations</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            portfoliosContainer.innerHTML = html;
+        }
+
+        // Create portfolio containers
+        function createPortfolios(numPortfolios) {
+            const colors = ['#4fc3f7', '#ab47bc', '#ffa726', '#66bb6a', '#ef5350'];
+            let html = '';
+
+            for (let p = 0; p < numPortfolios; p++) {
+                html += `
+                    <div class="portfolio" data-portfolio="${p}">
+                        <div class="portfolio-header">
+                            <span class="portfolio-name" style="color: ${colors[p]}">Portfolio ${p + 1}</span>
+                            <span class="portfolio-im">IM: <span class="value" id="portfolioIM${p}">-</span></span>
+                        </div>
+                        <div class="trades-area" id="tradesArea${p}"></div>
+                    </div>
+                `;
+            }
+
+            portfoliosContainer.innerHTML = html;
+        }
+
+        // Place trades in initial positions
+        function placeTradesInitial(data) {
+            // Clear all trade areas
+            for (let p = 0; p < data.config.num_portfolios; p++) {
+                document.getElementById(`tradesArea${p}`).innerHTML = '';
+            }
+
+            // Place each trade
+            data.trades.forEach((trade, index) => {
+                const portfolio = data.initial_state.assignments[index];
+                const tradeEl = createTradeElement(trade, index);
+                document.getElementById(`tradesArea${portfolio}`).appendChild(tradeEl);
+            });
+
+            // Update portfolio IMs
+            data.initial_state.portfolio_ims.forEach(p => {
+                document.getElementById(`portfolioIM${p.portfolio}`).textContent = formatCurrency(p.im);
+            });
+        }
+
+        // Create trade element
+        function createTradeElement(trade, index) {
+            const div = document.createElement('div');
+            div.className = `trade type-${trade.type}`;
+            div.dataset.tradeId = trade.id;
+            div.dataset.index = index;
+
+            div.innerHTML = `
+                <div class="trade-id">${trade.id}</div>
+                <div class="trade-type">${trade.type} | ${trade.currency}</div>
+                <div class="trade-im">IM: <span class="value">${formatCurrency(trade.standalone_im)}</span></div>
+            `;
+
+            // Tooltip on hover
+            div.addEventListener('mouseenter', (e) => showTooltip(e, trade));
+            div.addEventListener('mouseleave', hideTooltip);
+
+            return div;
+        }
+
+        // Show tooltip
+        function showTooltip(e, trade) {
+            tooltip.innerHTML = `
+                <strong>${trade.id}</strong><br>
+                Type: ${trade.type}<br>
+                Currency: ${trade.currency}<br>
+                Notional: ${formatCurrency(trade.notional)}<br>
+                Maturity: ${trade.maturity.toFixed(1)}Y<br>
+                Standalone IM: ${formatCurrency(trade.standalone_im)}<br>
+                Sensitivities: ${trade.num_sensitivities}
+            `;
+            tooltip.style.left = e.pageX + 10 + 'px';
+            tooltip.style.top = e.pageY + 10 + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        // Hide tooltip
+        function hideTooltip() {
+            tooltip.classList.remove('visible');
+        }
+
+        // Update chart
+        function updateChart(data) {
+            const steps = data.optimization.steps;
+            const svg = document.getElementById('imChart');
+            const chartPath = document.getElementById('chartPath');
+            const chartArea = document.getElementById('chartArea');
+
+            if (steps.length === 0) return;
+
+            const maxIM = Math.max(...steps.map(s => s.total_im));
+            const minIM = Math.min(...steps.map(s => s.total_im));
+            const range = maxIM - minIM || 1;
+
+            const width = 800;
+            const height = 150;
+            const padding = 10;
+
+            let pathD = '';
+            let areaD = `M ${padding} ${height - padding}`;
+
+            steps.forEach((step, i) => {
+                const x = padding + (i / (steps.length - 1 || 1)) * (width - 2 * padding);
+                const y = height - padding - ((step.total_im - minIM) / range) * (height - 2 * padding);
+
+                if (i === 0) {
+                    pathD = `M ${x} ${y}`;
+                    areaD += ` L ${x} ${y}`;
+                } else {
+                    pathD += ` L ${x} ${y}`;
+                    areaD += ` L ${x} ${y}`;
+                }
+            });
+
+            areaD += ` L ${width - padding} ${height - padding} Z`;
+
+            chartPath.setAttribute('d', pathD);
+            chartArea.setAttribute('d', areaD);
+        }
+
+        // Update movement log
+        function updateMovementLog(movements) {
+            if (movements.length === 0) {
+                movementLog.innerHTML = '<p style="color: #666;">No trade movements in optimization</p>';
+                return;
+            }
+
+            let html = '';
+            movements.forEach(m => {
+                html += `
+                    <div class="movement-entry">
+                        <span class="trade-name">${m.trade_id}</span>
+                        <span class="portfolio-badge from">P${m.from_portfolio + 1}</span>
+                        <span class="arrow">→</span>
+                        <span class="portfolio-badge to">P${m.to_portfolio + 1}</span>
+                        <span style="color: #888; margin-left: auto;">IM: ${formatCurrency(m.standalone_im)}</span>
+                    </div>
+                `;
+            });
+
+            movementLog.innerHTML = html;
+        }
+
+        // Animate to step
+        function animateToStep(stepIndex) {
+            if (!demoData || stepIndex < 0 || stepIndex >= demoData.optimization.steps.length) return;
+
+            const step = demoData.optimization.steps[stepIndex];
+            currentStep = stepIndex;
+
+            // Update progress
+            const progress = (stepIndex / (demoData.optimization.steps.length - 1)) * 100;
+            progressFill.style.width = progress + '%';
+            progressText.textContent = `Iteration ${stepIndex + 1} / ${demoData.optimization.steps.length}`;
+
+            // Update current IM
+            document.getElementById('currentIM').textContent = formatCurrency(step.total_im);
+
+            // Only animate trade cards for small datasets
+            if (!isLargeDataset) {
+                // Move trades to new positions
+                demoData.trades.forEach((trade, index) => {
+                    const newPortfolio = step.assignments[index];
+                    const tradeEl = document.querySelector(`[data-trade-id="${trade.id}"]`);
+                    if (!tradeEl) return;
+                    const portfolioEl = tradeEl.closest('.portfolio');
+                    if (!portfolioEl) return;
+                    const currentPortfolio = portfolioEl.dataset.portfolio;
+
+                    if (parseInt(currentPortfolio) !== newPortfolio) {
+                        // Animate the move
+                        moveTradeAnimated(tradeEl, newPortfolio);
+                    }
+                });
+            }
+
+            // Update button states
+            stepBackBtn.disabled = stepIndex === 0;
+            stepForwardBtn.disabled = stepIndex === demoData.optimization.steps.length - 1;
+        }
+
+        // Animate trade movement
+        function moveTradeAnimated(tradeEl, newPortfolio) {
+            const startRect = tradeEl.getBoundingClientRect();
+            const targetArea = document.getElementById(`tradesArea${newPortfolio}`);
+
+            // Add highlight
+            tradeEl.classList.add('highlight-move');
+
+            // Get current position
+            tradeEl.style.position = 'fixed';
+            tradeEl.style.left = startRect.left + 'px';
+            tradeEl.style.top = startRect.top + 'px';
+            tradeEl.style.width = startRect.width + 'px';
+            tradeEl.classList.add('moving');
+
+            // Calculate target position (approximate)
+            const targetRect = targetArea.getBoundingClientRect();
+            const targetX = targetRect.left + 10;
+            const targetY = targetRect.top + 10;
+
+            // Animate
+            requestAnimationFrame(() => {
+                tradeEl.style.left = targetX + 'px';
+                tradeEl.style.top = targetY + 'px';
+
+                // After animation, place in DOM
+                setTimeout(() => {
+                    tradeEl.style.position = '';
+                    tradeEl.style.left = '';
+                    tradeEl.style.top = '';
+                    tradeEl.style.width = '';
+                    tradeEl.classList.remove('moving');
+                    targetArea.appendChild(tradeEl);
+
+                    setTimeout(() => {
+                        tradeEl.classList.remove('highlight-move');
+                    }, 500);
+                }, 400);
+            });
+        }
+
+        // Play/Pause animation
+        function togglePlayPause() {
+            if (isPlaying) {
+                // Pause
+                isPlaying = false;
+                playPauseBtn.textContent = 'Play Animation';
+                if (animationTimer) {
+                    clearInterval(animationTimer);
+                    animationTimer = null;
+                }
+            } else {
+                // Play
+                isPlaying = true;
+                playPauseBtn.textContent = 'Pause';
+
+                const speed = parseInt(speedSlider.value);
+                animationTimer = setInterval(() => {
+                    if (currentStep < demoData.optimization.steps.length - 1) {
+                        animateToStep(currentStep + 1);
+                    } else {
+                        togglePlayPause(); // Stop at end
+                    }
+                }, speed);
+            }
+        }
+
+        // Reset to initial state
+        function resetAnimation() {
+            // Stop any running animation
+            if (isPlaying) togglePlayPause();
+            if (isPlayingProgress) {
+                isPlayingProgress = false;
+                document.getElementById('playProgress').textContent = 'Play Progress';
+                if (progressAnimationTimer) {
+                    clearInterval(progressAnimationTimer);
+                    progressAnimationTimer = null;
+                }
+            }
+
+            currentStep = 0;
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Ready';
+            document.getElementById('currentIM').textContent = formatCurrency(demoData.initial_state.total_im);
+
+            // Remove chart marker
+            const existingMarker = document.getElementById('chartMarker');
+            if (existingMarker) existingMarker.remove();
+
+            if (!isLargeDataset) {
+                // Reset trade positions for normal mode
+                placeTradesInitial(demoData);
+                stepBackBtn.disabled = true;
+                stepForwardBtn.disabled = false;
+            }
+        }
+
+        // Event listeners
+        // Get selected trade types from checkboxes
+        function getSelectedTradeTypes() {
+            const checkboxes = document.querySelectorAll('.checkbox-group input[type="checkbox"]:checked');
+            const types = Array.from(checkboxes).map(cb => cb.value);
+            return types.length > 0 ? types.join(',') : 'ir_swap';
+        }
+
+        document.getElementById('runOptimization').addEventListener('click', async () => {
+            const numTrades = parseInt(document.getElementById('numTrades').value);
+            const numPortfolios = parseInt(document.getElementById('numPortfolios').value);
+            const tradeTypes = getSelectedTradeTypes();
+            const avgMaturity = parseFloat(document.getElementById('avgMaturity').value) || 5;
+            const maturitySpread = parseFloat(document.getElementById('maturitySpread').value) || 1;
+
+            // Show loading with more info for large datasets
+            const isLarge = numTrades > LARGE_DATASET_THRESHOLD;
+            portfoliosContainer.innerHTML = `
+                <div class="optimization-running">
+                    <div class="big-spinner"></div>
+                    <h3>Running Optimization</h3>
+                    <p>${numTrades} trades across ${numPortfolios} portfolios</p>
+                    <p style="color: #aaa;">Maturity: ${avgMaturity}Y ± ${maturitySpread}Y</p>
+                    ${isLarge ? '<p style="color: #ffa726; margin-top: 10px;">Large dataset - this may take longer...</p>' : ''}
+                    <div class="live-stats">
+                        <div class="live-stat">
+                            <div class="value" id="liveIteration">-</div>
+                            <div class="label">Iteration</div>
+                        </div>
+                        <div class="live-stat">
+                            <div class="value" id="liveIM">-</div>
+                            <div class="label">Current IM</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Try to fetch from backend, fall back to sample data
+            try {
+                const response = await fetch(`/run_optimization?trades=${numTrades}&portfolios=${numPortfolios}&types=${tradeTypes}&avgMaturity=${avgMaturity}&maturitySpread=${maturitySpread}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    initializeVisualization(data, true); // true = from real backend
+                } else {
+                    throw new Error('Backend not available');
+                }
+            } catch (e) {
+                // Generate sample data instead
+                console.log('Using sample data (backend not available)');
+                const data = generateSampleData(numTrades, numPortfolios);
+                initializeVisualization(data, false); // false = sample data
+            }
+        });
+
+        document.getElementById('loadSample').addEventListener('click', () => {
+            const numTrades = parseInt(document.getElementById('numTrades').value);
+            const numPortfolios = parseInt(document.getElementById('numPortfolios').value);
+            const data = generateSampleData(numTrades, numPortfolios);
+            initializeVisualization(data, false);
+        });
+
+        playPauseBtn.addEventListener('click', togglePlayPause);
+        resetBtn.addEventListener('click', resetAnimation);
+        stepBackBtn.addEventListener('click', () => animateToStep(currentStep - 1));
+        stepForwardBtn.addEventListener('click', () => animateToStep(currentStep + 1));
+
+        speedSlider.addEventListener('input', () => {
+            if (isPlaying) {
+                togglePlayPause();
+                togglePlayPause();
+            }
+        });
+
+        // Play Progress button for large datasets
+        let isPlayingProgress = false;
+        let progressAnimationTimer = null;
+
+        document.getElementById('playProgress').addEventListener('click', () => {
+            const playProgressBtn = document.getElementById('playProgress');
+
+            if (isPlayingProgress) {
+                // Stop
+                isPlayingProgress = false;
+                playProgressBtn.textContent = 'Play Progress';
+                if (progressAnimationTimer) {
+                    clearInterval(progressAnimationTimer);
+                    progressAnimationTimer = null;
+                }
+            } else {
+                // Start
+                isPlayingProgress = true;
+                playProgressBtn.textContent = 'Pause Progress';
+
+                // Reset to beginning if at end
+                if (currentStep >= demoData.optimization.steps.length - 1) {
+                    currentStep = 0;
+                }
+
+                const speed = parseInt(speedSlider.value);
+                progressAnimationTimer = setInterval(() => {
+                    if (currentStep < demoData.optimization.steps.length - 1) {
+                        currentStep++;
+                        updateProgressForLargeDataset(currentStep);
+                    } else {
+                        // Stop at end
+                        isPlayingProgress = false;
+                        playProgressBtn.textContent = 'Play Progress';
+                        clearInterval(progressAnimationTimer);
+                        progressAnimationTimer = null;
+
+                        // Highlight completion for large datasets
+                        const resultsSummary = document.querySelector('.portfolio-summary[style*="rgba(102, 187, 106"]');
+                        if (resultsSummary) {
+                            resultsSummary.classList.add('completed');
+                            setTimeout(() => resultsSummary.classList.remove('completed'), 1000);
+                        }
+                    }
+                }, speed / 3); // Faster for progress-only mode
+            }
+        });
+
+        // Update progress display for large datasets (no trade animation)
+        function updateProgressForLargeDataset(stepIndex) {
+            if (!demoData || stepIndex < 0 || stepIndex >= demoData.optimization.steps.length) return;
+
+            const step = demoData.optimization.steps[stepIndex];
+
+            // Update progress bar
+            const progress = (stepIndex / (demoData.optimization.steps.length - 1)) * 100;
+            progressFill.style.width = progress + '%';
+            progressText.textContent = `Iteration ${stepIndex + 1} / ${demoData.optimization.steps.length}`;
+
+            // Update current IM stat
+            document.getElementById('currentIM').textContent = formatCurrency(step.total_im);
+
+            // Update the chart with a marker showing current position
+            updateChartMarker(stepIndex);
+        }
+
+        // Update chart with current iteration marker
+        function updateChartMarker(stepIndex) {
+            if (!demoData) return;
+
+            const steps = demoData.optimization.steps;
+            const svg = document.getElementById('imChart');
+
+            // Remove existing marker
+            const existingMarker = document.getElementById('chartMarker');
+            if (existingMarker) existingMarker.remove();
+
+            const maxIM = Math.max(...steps.map(s => s.total_im));
+            const minIM = Math.min(...steps.map(s => s.total_im));
+            const range = maxIM - minIM || 1;
+
+            const width = 800;
+            const height = 150;
+            const padding = 10;
+
+            const x = padding + (stepIndex / (steps.length - 1 || 1)) * (width - 2 * padding);
+            const y = height - padding - ((steps[stepIndex].total_im - minIM) / range) * (height - 2 * padding);
+
+            // Add marker circle
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            marker.setAttribute('id', 'chartMarker');
+            marker.setAttribute('cx', x);
+            marker.setAttribute('cy', y);
+            marker.setAttribute('r', 6);
+            marker.setAttribute('fill', '#ffa726');
+            marker.setAttribute('stroke', '#fff');
+            marker.setAttribute('stroke-width', 2);
+
+            svg.appendChild(marker);
+        }
+
+        // Toggle details sections
+        function toggleDetails(sectionId) {
+            const content = document.getElementById(sectionId);
+            const icon = document.getElementById(sectionId + 'Icon');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '−';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '+';
+            }
+        }
+
+        // Initialize SIMM parameters display
+        function initializeSIMMParams() {
+            // IR Weights table
+            let irHtml = '';
+            SIMM_PARAMS.irTenors.forEach((tenor, i) => {
+                irHtml += `<tr><td>${tenor}</td><td class="num">${SIMM_PARAMS.irWeights[i]}</td></tr>`;
+            });
+            document.getElementById('irWeightsTable').innerHTML = irHtml;
+
+            // Other weights table
+            let otherHtml = '';
+            Object.entries(SIMM_PARAMS.otherWeights).forEach(([type, weight]) => {
+                otherHtml += `<tr><td>${type}</td><td class="num">${weight}</td></tr>`;
+            });
+            document.getElementById('otherWeightsTable').innerHTML = otherHtml;
+
+            // Correlation matrix
+            let corrHtml = '<thead><tr><th></th>';
+            SIMM_PARAMS.riskClasses.forEach(rc => {
+                corrHtml += `<th>${rc.substring(0, 6)}</th>`;
+            });
+            corrHtml += '</tr></thead><tbody>';
+            SIMM_PARAMS.riskClasses.forEach((rc, i) => {
+                corrHtml += `<tr><th>${rc}</th>`;
+                SIMM_PARAMS.psiMatrix[i].forEach((val, j) => {
+                    const cls = i === j ? 'diag' : '';
+                    corrHtml += `<td class="${cls}">${val.toFixed(2)}</td>`;
+                });
+                corrHtml += '</tr>';
+            });
+            corrHtml += '</tbody>';
+            document.getElementById('correlationMatrix').innerHTML = corrHtml;
+        }
+
+        // Populate CRIF and calculation details
+        function populateCRIFDetails(data) {
+            if (!data.crif_data) {
+                // Generate synthetic CRIF data for sample
+                data.crif_data = generateSyntheticCRIF(data);
+            }
+
+            // Populate trade filter dropdown
+            const tradeFilter = document.getElementById('crifTradeFilter');
+            tradeFilter.innerHTML = '<option value="all">All Trades</option>';
+            data.trades.forEach(t => {
+                tradeFilter.innerHTML += `<option value="${t.id}">${t.id}</option>`;
+            });
+
+            // Populate risk type filter
+            const riskTypes = [...new Set(data.crif_data.map(r => r.riskType))];
+            const riskFilter = document.getElementById('crifRiskFilter');
+            riskFilter.innerHTML = '<option value="all">All Risk Types</option>';
+            riskTypes.forEach(rt => {
+                riskFilter.innerHTML += `<option value="${rt}">${rt}</option>`;
+            });
+
+            // Populate CRIF table
+            updateCRIFTable(data.crif_data);
+
+            // Populate risk breakdown by portfolio
+            updateRiskBreakdown(data);
+
+            // Populate calculation details
+            updateCalcDetails(data);
+        }
+
+        // Generate synthetic CRIF data for sample data
+        function generateSyntheticCRIF(data) {
+            const crif = [];
+            const riskTypes = ['Risk_IRCurve', 'Risk_FX', 'Risk_Equity', 'Risk_Inflation'];
+            const currencies = ['USD', 'EUR', 'GBP'];
+
+            data.trades.forEach(trade => {
+                // Generate IR sensitivities
+                const numIRSens = Math.floor(Math.random() * 6) + 3;
+                for (let i = 0; i < numIRSens; i++) {
+                    const tenorIdx = Math.floor(Math.random() * 12);
+                    const amount = (Math.random() - 0.5) * trade.standalone_im * 0.1;
+                    crif.push({
+                        tradeId: trade.id,
+                        riskType: 'Risk_IRCurve',
+                        qualifier: trade.currency,
+                        bucket: tenorIdx + 1,
+                        label1: SIMM_PARAMS.irTenors[tenorIdx],
+                        amount: amount,
+                        riskWeight: SIMM_PARAMS.irWeights[tenorIdx],
+                        riskClass: 'Rates'
+                    });
+                }
+
+                // Add FX sensitivity for FX trades
+                if (trade.type.includes('FX') || trade.type.includes('XCCY')) {
+                    const amount = (Math.random() - 0.5) * trade.standalone_im * 0.2;
+                    crif.push({
+                        tradeId: trade.id,
+                        riskType: 'Risk_FX',
+                        qualifier: trade.currency + 'USD',
+                        bucket: '',
+                        label1: '',
+                        amount: amount,
+                        riskWeight: SIMM_PARAMS.otherWeights['FX'],
+                        riskClass: 'FX'
+                    });
+                }
+
+                // Add Equity sensitivity for equity trades
+                if (trade.type.includes('Equity')) {
+                    const amount = (Math.random() - 0.5) * trade.standalone_im * 0.15;
+                    crif.push({
+                        tradeId: trade.id,
+                        riskType: 'Risk_Equity',
+                        qualifier: 'Equity_' + Math.floor(Math.random() * 10),
+                        bucket: Math.floor(Math.random() * 11) + 1,
+                        label1: '',
+                        amount: amount,
+                        riskWeight: SIMM_PARAMS.otherWeights['Equity'],
+                        riskClass: 'Equity'
+                    });
+                }
+            });
+
+            return crif;
+        }
+
+        // Update CRIF table with filtering
+        function updateCRIFTable(crifData) {
+            const tradeFilter = document.getElementById('crifTradeFilter').value;
+            const riskFilter = document.getElementById('crifRiskFilter').value;
+
+            let filtered = crifData;
+            if (tradeFilter !== 'all') {
+                filtered = filtered.filter(r => r.tradeId === tradeFilter);
+            }
+            if (riskFilter !== 'all') {
+                filtered = filtered.filter(r => r.riskType === riskFilter);
+            }
+
+            const tbody = document.getElementById('crifTableBody');
+            let html = '';
+            filtered.forEach(row => {
+                const amtClass = row.amount >= 0 ? 'positive' : 'negative';
+                const weighted = row.amount * row.riskWeight;
+                const wtdClass = weighted >= 0 ? 'positive' : 'negative';
+                html += `
+                    <tr>
+                        <td>${row.tradeId}</td>
+                        <td>${row.riskType}</td>
+                        <td>${row.qualifier}</td>
+                        <td>${row.bucket}</td>
+                        <td>${row.label1}</td>
+                        <td class="num ${amtClass}">${formatNumber(row.amount)}</td>
+                        <td class="num">${row.riskWeight}</td>
+                        <td class="num ${wtdClass}">${formatNumber(weighted)}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html || '<tr><td colspan="8" style="text-align:center;color:#666;">No data</td></tr>';
+        }
+
+        // Filter CRIF table
+        function filterCRIF() {
+            if (demoData && demoData.crif_data) {
+                updateCRIFTable(demoData.crif_data);
+            }
+        }
+
+        // Update risk breakdown by portfolio
+        function updateRiskBreakdown(data) {
+            const container = document.getElementById('riskTables');
+            let html = '';
+
+            for (let p = 0; p < data.config.num_portfolios; p++) {
+                const pTradeIds = data.trades
+                    .filter((t, i) => data.final_state.assignments[i] === p)
+                    .map(t => t.id);
+
+                const pCRIF = data.crif_data.filter(r => pTradeIds.includes(r.tradeId));
+
+                // Aggregate by risk class
+                const byRiskClass = {};
+                SIMM_PARAMS.riskClasses.forEach(rc => byRiskClass[rc] = { sensSum: 0, wtdSqSum: 0, count: 0 });
+
+                pCRIF.forEach(row => {
+                    const rc = row.riskClass || 'Rates';
+                    byRiskClass[rc].sensSum += row.amount;
+                    byRiskClass[rc].wtdSqSum += Math.pow(row.amount * row.riskWeight, 2);
+                    byRiskClass[rc].count++;
+                });
+
+                // Calculate K values
+                let totalK = 0;
+                const kValues = {};
+                SIMM_PARAMS.riskClasses.forEach(rc => {
+                    kValues[rc] = Math.sqrt(byRiskClass[rc].wtdSqSum);
+                    totalK += kValues[rc];
+                });
+
+                // Portfolio IM from data
+                const pIM = data.final_state.portfolio_ims.find(x => x.portfolio === p)?.im || 0;
+
+                html += `
+                    <div class="risk-table-card">
+                        <h5>Portfolio ${p + 1} (${pTradeIds.length} trades)</h5>
+                        <table>
+                            <thead>
+                                <tr><th>Risk Class</th><th>Net Sens</th><th>K Value</th></tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                SIMM_PARAMS.riskClasses.forEach(rc => {
+                    if (byRiskClass[rc].count > 0 || kValues[rc] > 0) {
+                        html += `
+                            <tr>
+                                <td>${rc}</td>
+                                <td class="value">${formatNumber(byRiskClass[rc].sensSum)}</td>
+                                <td class="value">${formatCurrency(kValues[rc])}</td>
+                            </tr>
+                        `;
+                    }
+                });
+
+                html += `
+                            <tr class="total-row">
+                                <td>Total IM</td>
+                                <td></td>
+                                <td class="value">${formatCurrency(pIM)}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Update calculation details
+        function updateCalcDetails(data) {
+            const container = document.getElementById('calcTables');
+            let html = '';
+
+            // Show before/after comparison
+            html += `
+                <div class="risk-table-card">
+                    <h5>Initial Allocation</h5>
+                    <table>
+                        <thead><tr><th>Portfolio</th><th>Trades</th><th>IM</th></tr></thead>
+                        <tbody>
+            `;
+            data.initial_state.portfolio_ims.forEach(p => {
+                html += `<tr><td>Portfolio ${p.portfolio + 1}</td><td>${p.trades}</td><td class="value">${formatCurrency(p.im)}</td></tr>`;
+            });
+            html += `
+                        <tr class="total-row"><td>Total</td><td>${data.config.num_trades}</td><td class="value">${formatCurrency(data.initial_state.total_im)}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            html += `
+                <div class="risk-table-card">
+                    <h5>Final Allocation</h5>
+                    <table>
+                        <thead><tr><th>Portfolio</th><th>Trades</th><th>IM</th></tr></thead>
+                        <tbody>
+            `;
+            data.final_state.portfolio_ims.forEach(p => {
+                html += `<tr><td>Portfolio ${p.portfolio + 1}</td><td>${p.trades}</td><td class="value">${formatCurrency(p.im)}</td></tr>`;
+            });
+            html += `
+                        <tr class="total-row"><td>Total</td><td>${data.config.num_trades}</td><td class="value">${formatCurrency(data.final_state.total_im)}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            // Savings summary
+            const savings = data.initial_state.total_im - data.final_state.total_im;
+            html += `
+                <div class="risk-table-card" style="background: rgba(102, 187, 106, 0.1);">
+                    <h5 style="color: #66bb6a;">Optimization Savings</h5>
+                    <table>
+                        <tbody>
+                            <tr><td>Initial IM</td><td class="value">${formatCurrency(data.initial_state.total_im)}</td></tr>
+                            <tr><td>Final IM</td><td class="value">${formatCurrency(data.final_state.total_im)}</td></tr>
+                            <tr class="total-row" style="color: #66bb6a;"><td>Savings</td><td class="value">${formatCurrency(savings)} (${formatPercent(data.optimization.im_reduction_pct)})</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // Format number with sign
+        function formatNumber(value) {
+            if (Math.abs(value) >= 1e9) {
+                return (value >= 0 ? '+' : '') + (value / 1e9).toFixed(2) + 'B';
+            } else if (Math.abs(value) >= 1e6) {
+                return (value >= 0 ? '+' : '') + (value / 1e6).toFixed(2) + 'M';
+            } else if (Math.abs(value) >= 1e3) {
+                return (value >= 0 ? '+' : '') + (value / 1e3).toFixed(2) + 'K';
+            }
+            return (value >= 0 ? '+' : '') + value.toFixed(2);
+        }
+
+        // Initialize params on load
+        initializeSIMMParams();
+
+        // Load sample data on page load for demo
+        window.addEventListener('load', () => {
+            // Don't auto-load, let user click a button
+        });
+    </script>
+</body>
+</html>
