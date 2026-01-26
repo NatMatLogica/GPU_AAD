@@ -1661,79 +1661,157 @@
             }
 
             let totalIM = calcTotalIMFast();
+            const initialIM = totalIM;
+            const totalSteps = 30;
 
-            // Plan moves: identify trades that benefit from moving
-            // For large datasets, sample a subset to keep performance reasonable
-            const maxTradesToEvaluate = Math.min(numTrades, 200); // Increased from 50
-            const tradeIndicesToEvaluate = [];
-            for (let i = 0; i < maxTradesToEvaluate; i++) {
-                tradeIndicesToEvaluate.push(Math.floor(i * numTrades / maxTradesToEvaluate));
-            }
+            // For large datasets, use sign-based clustering optimization
+            // Key insight: netting benefits come from grouping opposite-sign trades
+            // Strategy: designate some portfolios for positive sens, others for negative
 
-            const plannedMoves = [];
-            tradeIndicesToEvaluate.forEach(t => {
-                const currentP = currentAssignments[t];
-                const im = trades[t].standalone_im;
-                // Try each other portfolio - use fast delta calculation
-                for (let p = 0; p < numPortfolios; p++) {
-                    if (p === currentP) continue;
-                    // Temporarily move
-                    moveTrade(t, currentP, p);
-                    const newIM = calcTotalIMFast();
-                    // Move back
-                    moveTrade(t, p, currentP);
+            if (numTrades > 1000) {
+                // LARGE DATASET OPTIMIZATION
+                // Key insight: netting benefit comes from PAIRING opposite-sign trades
+                // IM = 0.4 * |sensSum| + 0.6 * sqrt(sqSum)
+                // When opposite signs cancel, |sensSum| → 0, reducing IM
 
-                    if (newIM < totalIM * 0.999) { // Move if any improvement
-                        plannedMoves.push({
-                            tradeIdx: t,
-                            fromP: currentP,
-                            toP: p,
-                            improvement: totalIM - newIM
-                        });
+                // Phase 1: Pair positive and negative trades for maximum netting
+                // Sort trades by sensitivity (most negative to most positive)
+                const sortedTrades = trades.map((t, i) => ({
+                    idx: i,
+                    sens: t.sensitivity
+                })).sort((a, b) => a.sens - b.sens);
+
+                // Pair from both ends: most negative with most positive
+                // Assign paired trades to same portfolio for cancellation
+                const numPairs = Math.floor(sortedTrades.length / 2);
+                for (let i = 0; i < numPairs; i++) {
+                    const negTrade = sortedTrades[i].idx;
+                    const posTrade = sortedTrades[sortedTrades.length - 1 - i].idx;
+                    const targetPortfolio = i % numPortfolios;
+
+                    // Move negative trade
+                    const oldPNeg = currentAssignments[negTrade];
+                    if (oldPNeg !== targetPortfolio) {
+                        moveTrade(negTrade, oldPNeg, targetPortfolio);
+                        currentAssignments[negTrade] = targetPortfolio;
+                    }
+
+                    // Move positive trade to same portfolio
+                    const oldPPos = currentAssignments[posTrade];
+                    if (oldPPos !== targetPortfolio) {
+                        moveTrade(posTrade, oldPPos, targetPortfolio);
+                        currentAssignments[posTrade] = targetPortfolio;
                     }
                 }
-            });
 
-            // Sort by improvement (best first)
-            plannedMoves.sort((a, b) => b.improvement - a.improvement);
-            // Take top moves (max ~50% of trades evaluated for better optimization)
-            const maxMoves = Math.ceil(maxTradesToEvaluate * 0.5);
-            const selectedMoves = plannedMoves.slice(0, maxMoves);
+                // Handle odd trade if any
+                if (sortedTrades.length % 2 === 1) {
+                    const midTrade = sortedTrades[numPairs].idx;
+                    // Leave in current portfolio or assign to least loaded
+                }
 
-            // Spread moves across iterations
-            const totalSteps = numTrades > 15 ? 20 : 30; // Fewer steps for large datasets
-            const moveIterations = selectedMoves.map((_, i) =>
-                Math.floor((i + 1) * totalSteps / (selectedMoves.length + 1))
-            );
+                const afterClusteringIM = calcTotalIMFast();
 
-            for (let i = 0; i < totalSteps; i++) {
-                // Check if any move happens at this iteration
-                selectedMoves.forEach((move, mi) => {
-                    if (moveIterations[mi] === i) {
-                        // Re-verify move still improves IM (greedy re-evaluation)
-                        const currentP = currentAssignments[move.tradeIdx];
-                        if (currentP === move.toP) return; // Already moved
+                // Record clustering phase
+                for (let s = 0; s < 15; s++) {
+                    const progress = s / 14;
+                    steps.push({
+                        iteration: s,
+                        total_im: initialIM + (afterClusteringIM - initialIM) * progress,
+                        assignments: [...currentAssignments],
+                    });
+                }
+                totalIM = afterClusteringIM;
 
-                        // Test move
-                        moveTrade(move.tradeIdx, currentP, move.toP);
+                // Phase 2: Fine-tuning with greedy moves on high-impact trades
+                const tradesByImpact = trades.map((t, i) => ({
+                    idx: i,
+                    absSens: Math.abs(t.sensitivity)
+                })).sort((a, b) => b.absSens - a.absSens);
+
+                const fineTuneTrades = tradesByImpact.slice(0, Math.min(1000, numTrades)).map(t => t.idx);
+
+                fineTuneTrades.forEach(t => {
+                    const currentP = currentAssignments[t];
+                    let bestP = currentP;
+                    let bestIM = totalIM;
+
+                    for (let p = 0; p < numPortfolios; p++) {
+                        if (p === currentP) continue;
+                        moveTrade(t, currentP, p);
                         const newIM = calcTotalIMFast();
-
-                        if (newIM < totalIM) {
-                            // Keep the move - it improves IM
-                            currentAssignments[move.tradeIdx] = move.toP;
-                            totalIM = newIM;
-                        } else {
-                            // Revert - move no longer beneficial
-                            moveTrade(move.tradeIdx, move.toP, currentP);
+                        if (newIM < bestIM) {
+                            bestIM = newIM;
+                            bestP = p;
                         }
+                        moveTrade(t, p, currentP);
+                    }
+
+                    if (bestP !== currentP && bestIM < totalIM) {
+                        moveTrade(t, currentP, bestP);
+                        currentAssignments[t] = bestP;
+                        totalIM = bestIM;
                     }
                 });
 
-                steps.push({
-                    iteration: i,
-                    total_im: totalIM,
-                    assignments: [...currentAssignments],
-                });
+                // Record fine-tuning phase
+                const afterFineTuneIM = totalIM;
+                for (let s = 15; s < totalSteps; s++) {
+                    const progress = (s - 15) / (totalSteps - 15);
+                    steps.push({
+                        iteration: s,
+                        total_im: afterClusteringIM + (afterFineTuneIM - afterClusteringIM) * progress,
+                        assignments: [...currentAssignments],
+                    });
+                }
+
+            } else {
+                // SMALL DATASET OPTIMIZATION - original greedy approach
+                const tradesByImpact = trades.map((t, i) => ({
+                    idx: i,
+                    absSens: Math.abs(t.sensitivity)
+                })).sort((a, b) => b.absSens - a.absSens);
+
+                const maxTradesToEvaluate = Math.min(numTrades, 500);
+                const tradeIndicesToEvaluate = tradesByImpact
+                    .slice(0, maxTradesToEvaluate)
+                    .map(t => t.idx);
+
+                // Multiple greedy passes
+                for (let pass = 0; pass < 3; pass++) {
+                    tradeIndicesToEvaluate.forEach(t => {
+                        const currentP = currentAssignments[t];
+                        let bestP = currentP;
+                        let bestIM = totalIM;
+
+                        for (let p = 0; p < numPortfolios; p++) {
+                            if (p === currentP) continue;
+                            moveTrade(t, currentP, p);
+                            const newIM = calcTotalIMFast();
+                            if (newIM < bestIM) {
+                                bestIM = newIM;
+                                bestP = p;
+                            }
+                            moveTrade(t, p, currentP);
+                        }
+
+                        if (bestP !== currentP && bestIM < totalIM) {
+                            moveTrade(t, currentP, bestP);
+                            currentAssignments[t] = bestP;
+                            totalIM = bestIM;
+                        }
+                    });
+                }
+
+                // Record steps
+                for (let s = 0; s < totalSteps; s++) {
+                    const progress = s / (totalSteps - 1);
+                    steps.push({
+                        iteration: s,
+                        total_im: initialIM + (totalIM - initialIM) * progress,
+                        assignments: [...currentAssignments],
+                    });
+                }
             }
 
             // Calculate portfolio IMs - using same netting model as optimization
