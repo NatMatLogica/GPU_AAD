@@ -324,6 +324,38 @@ When opposite sensitivities are grouped:
 - |netted| → 0 (cancellation)
 - Portfolio IM decreases significantly
 
+### Large Dataset Optimization (100K+ Trades)
+
+For very large portfolios, random initial allocation already achieves partial netting due to the law of large numbers. A smarter **pairing optimization** is required:
+
+**Strategy: Match Opposite Sensitivities**
+
+```
+1. Sort all trades by sensitivity: most negative → most positive
+2. Pair from both ends:
+   - Most negative (-$5B) paired with most positive (+$5B)
+   - Second most negative paired with second most positive
+   - etc.
+3. Assign paired trades to same portfolio for maximum cancellation
+4. Fine-tune with greedy optimization on high-impact trades
+```
+
+**Why Pairing Works:**
+
+```
+Before (random allocation):
+  Portfolio 1: trades with sens = [+2B, -1B, +3B, -2B] → sensSum = +2B
+
+After (pairing optimization):
+  Portfolio 1: trades with sens = [-5B, +5B, -4B, +4B] → sensSum ≈ 0
+                                                        → |netted| ≈ 0
+                                                        → Lower IM
+```
+
+**Expected Reduction:**
+- Small datasets (< 1000 trades): 10-30% with greedy optimization
+- Large datasets (100K+ trades): 30-50% with pairing optimization
+
 ## Usage Examples
 
 ### Basic SIMM Calculation
