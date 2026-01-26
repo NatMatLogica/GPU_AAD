@@ -157,9 +157,12 @@ The following dimensions need to be varied in margin optimization:
 | Stress margin | ✓ | ✓ | - |
 | Incremental margin | ✓ | ✓ | - |
 | What-if analysis | ✓ | ✓ | - |
+| **Pre-trade marginal IM** | ✓ | ✓ | - |
+| **Bilateral vs Cleared** | ✓ | ✓ | - |
+| **Counterparty routing** | ✓ | ✓ | - |
+| Multi-custodian | ✓ | ✓ | - |
+| Allocation optimization | ✓ | ✓ | - |
 | Swaptions | ✗ | ✓ | **Gap** |
-| Multi-custodian | ✗ | ✓ | **Gap** |
-| Allocation optimization | ✗ | ✓ | **Gap** |
 | QuantLib integration | ✗ | ✓ | **Gap** |
 
 ---
@@ -176,17 +179,25 @@ The following dimensions need to be varied in margin optimization:
 - ✓ Scenario generation framework (7 predefined scenarios)
 - ✓ Portfolio-level what-if (incremental margin, add/remove trades)
 
-### Phase 3: Multi-Entity
-- Multi-custodian modeling
-- Counterparty margin comparison
-- Netting set optimization
+### Phase 3: Multi-Entity (Implemented)
+- ✓ Multi-custodian/counterparty modeling - `model/pretrade_analytics.py`
+- ✓ Counterparty margin comparison - `analyze_trade_routing()`
+- ✓ Pre-trade marginal IM calculator - `compute_marginal_im_fast()`
+- ✓ Netting set optimization - `simm_allocation_optimizer.py`
 
-### Phase 4: Products & Integration
+### Phase 4: Pre-Trade Decision Support (Implemented)
+- ✓ Bilateral vs Cleared comparison - `compare_bilateral_vs_cleared()`
+- ✓ CCP margin proxy (LCH, CME, Eurex) - `calculate_ccp_margin()`
+- ✓ Trade routing recommendations - `CounterpartyRoutingRecommendation`
+- ✓ Netting benefit analysis
+
+### Phase 5: Products & Integration
 - Swaption pricing (Vol Arb)
 - QuantLib integration
-- Cross-currency swaps
+- Cross-currency swaps (basic support exists)
 
-### Phase 5: Optimization
-- Allocation optimization solver
-- Transaction structuring recommendations
-- Margin efficiency scoring
+### Phase 6: Advanced Optimization
+- ✓ Allocation optimization solver - `reallocate_trades_optimal()`
+- ✓ Transaction structuring recommendations
+- ✓ Margin efficiency scoring
+- Novation candidate identification

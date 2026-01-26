@@ -56,7 +56,7 @@ import time
 from typing import Dict, List, Tuple, Optional
 
 # Version
-MODULE_VERSION = "2.1.0"  # Efficient kernel + ISDA v2.6 intra-bucket correlations
+MODULE_VERSION = "2.2.0"  # Performance optimizations: itertuples, ThreadPool reuse
 
 try:
     import aadc
@@ -105,8 +105,9 @@ def _get_unique_risk_factors(trade_crifs: Dict[str, pd.DataFrame]) -> List[Tuple
     """
     factors = set()
     for crif_df in trade_crifs.values():
-        for _, row in crif_df.iterrows():
-            key = (row['RiskType'], row['Qualifier'], str(row['Bucket']), row['Label1'])
+        # Use itertuples() for 10-100x speedup over iterrows()
+        for row in crif_df.itertuples(index=False):
+            key = (row.RiskType, row.Qualifier, str(row.Bucket), row.Label1)
             factors.add(key)
     return sorted(factors)
 
@@ -138,11 +139,12 @@ def _build_sensitivity_matrix(
         if trade_id not in trade_to_idx:
             continue
         t_idx = trade_to_idx[trade_id]
-        for _, row in crif_df.iterrows():
-            key = (row['RiskType'], row['Qualifier'], str(row['Bucket']), row['Label1'])
+        # Use itertuples() for 10-100x speedup over iterrows()
+        for row in crif_df.itertuples(index=False):
+            key = (row.RiskType, row.Qualifier, str(row.Bucket), row.Label1)
             if key in factor_to_idx:
                 k_idx = factor_to_idx[key]
-                S[t_idx, k_idx] += float(row['Amount'])
+                S[t_idx, k_idx] += float(row.Amount)
 
     return S
 
@@ -445,6 +447,7 @@ def compute_allocation_gradient_chainrule(
     S: np.ndarray,                    # T × K sensitivity matrix
     current_allocation: np.ndarray,   # T × P allocation fractions
     num_threads: int,
+    workers: 'aadc.ThreadPool' = None,
 ) -> Tuple[np.ndarray, float]:
     """
     Compute gradient ∂total_IM/∂x[t,p] using chain rule.
@@ -463,6 +466,7 @@ def compute_allocation_gradient_chainrule(
         S: Sensitivity matrix of shape (T, K)
         current_allocation: Current allocation matrix of shape (T, P)
         num_threads: Number of AADC worker threads
+        workers: Optional pre-created ThreadPool (avoids creation overhead)
 
     Returns:
         (gradient_array[T,P], total_im_value)
@@ -472,7 +476,9 @@ def compute_allocation_gradient_chainrule(
     T, P = current_allocation.shape
     K = S.shape[1]
 
-    workers = aadc.ThreadPool(num_threads)
+    # Use provided workers or create new (for backwards compatibility)
+    if workers is None:
+        workers = aadc.ThreadPool(num_threads)
     total_im = 0.0
     gradient = np.zeros((T, P))
 
@@ -512,6 +518,7 @@ def optimize_allocation_gradient_descent_efficient(
     lr: float = None,
     tol: float = 1e-6,
     verbose: bool = True,
+    workers: 'aadc.ThreadPool' = None,
 ) -> Tuple[np.ndarray, List[float], int]:
     """
     Gradient descent with simplex projection using efficient chain rule gradients.
@@ -533,6 +540,7 @@ def optimize_allocation_gradient_descent_efficient(
         lr: Learning rate (auto-computed if None)
         tol: Relative tolerance for convergence
         verbose: Print progress
+        workers: Optional pre-created ThreadPool (avoids creation overhead)
 
     Returns:
         (optimal_allocation, im_history, num_iterations)
@@ -541,9 +549,13 @@ def optimize_allocation_gradient_descent_efficient(
     im_history = []
     T, P = x.shape
 
+    # Create a single ThreadPool for all iterations (5-10% speedup)
+    if workers is None:
+        workers = aadc.ThreadPool(num_threads)
+
     # First evaluation to get gradient scale for adaptive lr
     gradient, total_im = compute_allocation_gradient_chainrule(
-        funcs, sens_handles, im_output, S, x, num_threads
+        funcs, sens_handles, im_output, S, x, num_threads, workers
     )
     im_history.append(total_im)
 
@@ -565,7 +577,7 @@ def optimize_allocation_gradient_descent_efficient(
     for iteration in range(max_iters):
         if iteration > 0:
             gradient, total_im = compute_allocation_gradient_chainrule(
-                funcs, sens_handles, im_output, S, x, num_threads
+                funcs, sens_handles, im_output, S, x, num_threads, workers
             )
             im_history.append(total_im)
 
@@ -756,6 +768,7 @@ def compute_allocation_gradient(
     S: np.ndarray,
     current_allocation: np.ndarray,
     num_threads: int,
+    workers: 'aadc.ThreadPool' = None,
 ) -> Tuple[np.ndarray, float]:
     """
     Evaluate kernel and compute gradient dIM/dx[t,p].
@@ -768,6 +781,7 @@ def compute_allocation_gradient(
         S: Sensitivity matrix of shape (T, K)
         current_allocation: Current allocation matrix of shape (T, P)
         num_threads: Number of AADC worker threads
+        workers: Optional pre-created ThreadPool (avoids creation overhead)
 
     Returns:
         (gradient, total_im) where:
@@ -776,7 +790,9 @@ def compute_allocation_gradient(
     """
     T, P = current_allocation.shape
 
-    workers = aadc.ThreadPool(num_threads)
+    # Use provided workers or create new (for backwards compatibility)
+    if workers is None:
+        workers = aadc.ThreadPool(num_threads)
 
     # Set allocation inputs
     inputs = {}
@@ -1106,6 +1122,9 @@ def reallocate_trades_optimal(
     start_time = time.perf_counter()
     T = len(trades)
 
+    # Create a single ThreadPool for the entire optimization (5-10% speedup)
+    workers = aadc.ThreadPool(num_threads)
+
     # Auto-select method based on problem size
     # With efficient kernel (O(K) inputs + chain rule), gradient descent is fast for much larger T
     # The kernel has only K≈100 inputs, and per-iteration is P kernel evals + O(T×K) numpy ops
@@ -1123,7 +1142,7 @@ def reallocate_trades_optimal(
     # Step 1: Precompute all trade CRIFs
     if verbose:
         print("  Precomputing trade CRIFs...")
-    trade_crifs = precompute_all_trade_crifs(trades, market, num_threads)
+    trade_crifs = precompute_all_trade_crifs(trades, market, num_threads, workers)
 
     trade_ids = [t.trade_id for t in trades if t.trade_id in trade_crifs]
     T = len(trade_ids)
@@ -1207,7 +1226,7 @@ def reallocate_trades_optimal(
 
         # Step 4: Compute initial IM using chain rule gradient
         _, initial_im = compute_allocation_gradient_chainrule(
-            funcs, sens_handles, im_output, S, filtered_allocation, num_threads
+            funcs, sens_handles, im_output, S, filtered_allocation, num_threads, workers
         )
         if verbose:
             print(f"  Initial total IM: ${initial_im:,.2f}")
@@ -1219,6 +1238,7 @@ def reallocate_trades_optimal(
             funcs, sens_handles, im_output, S,
             filtered_allocation, num_threads,
             max_iters=max_iters, lr=lr, tol=tol, verbose=verbose,
+            workers=workers,
         )
 
         # Step 6: Round if needed
@@ -1227,7 +1247,7 @@ def reallocate_trades_optimal(
             if verbose:
                 # Show IM before rounding
                 _, continuous_im = compute_allocation_gradient_chainrule(
-                    funcs, sens_handles, im_output, S, continuous_allocation, num_threads
+                    funcs, sens_handles, im_output, S, continuous_allocation, num_threads, workers
                 )
                 print(f"  Continuous IM (before rounding): ${continuous_im:,.2f}")
 
@@ -1243,7 +1263,7 @@ def reallocate_trades_optimal(
 
         # Step 7: Compute final IM
         _, final_im = compute_allocation_gradient_chainrule(
-            funcs, sens_handles, im_output, S, final_allocation, num_threads
+            funcs, sens_handles, im_output, S, final_allocation, num_threads, workers
         )
 
     # Count moves

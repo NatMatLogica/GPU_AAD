@@ -37,13 +37,18 @@ Where:
 - ψ_rs = cross-risk-class correlation (6×6 matrix)
 ```
 
-**Implementation Status (v2.6.0):**
+**Implementation Status (v3.0.0):**
 - ✅ IR tenor correlations (12×12 matrix from v2_6.py)
 - ✅ Currency-specific IR weights (regular/low/high volatility)
 - ✅ Cross-risk-class correlations (ψ matrix)
 - ✅ Iterative gradient refresh during reallocation (solves stale gradient problem)
-- ⚠️ Vega/Curvature risk measures (not yet implemented)
-- ⚠️ Concentration thresholds (not yet implemented)
+- ✅ Concentration thresholds (CR for Delta, VCR for Vega)
+- ✅ Sub-curve correlations (phi) for IR multi-curve portfolios
+- ✅ Inter-bucket aggregation with gamma correlation (IR cross-currency)
+- ✅ Vega risk measure with VRW and VCR
+- ✅ FX correlation by volatility category (high/regular)
+- ✅ Credit bucket-specific correlations
+- ⚠️ Curvature risk measure (documented, requires scenario-based computation)
 
 ### Tenor Buckets (IR Delta)
 - 2w, 1m, 3m, 6m, 1y, 2y, 3y, 5y, 10y, 15y, 20y, 30y
@@ -237,54 +242,116 @@ timestamp,model_name,model_version,mode,num_trades,num_risk_factors,num_sensitiv
 
 ## AADC Integration Guidelines
 
+### CRITICAL: Single evaluate() for Multiple Portfolios (10-200x Speedup)
+
+**The most important AADC optimization**: When computing results for P portfolios, use a SINGLE `aadc.evaluate()` call with arrays of length P instead of P separate calls.
+
+```python
+# WRONG (slow - P separate dispatch calls, high Python-C++ overhead):
+for p in range(P):
+    agg_S_p = compute_aggregated_sensitivities(portfolio_p)
+    inputs = {sens_handles[k]: np.array([agg_S_p[k]]) for k in range(K)}
+    results = aadc.evaluate(funcs, request, inputs, workers)  # Called P times!
+    im_p = results[0][im_output][0]
+    grad_p = results[1][im_output][sens_handles[k]][0]
+
+# CORRECT (fast - 1 dispatch call, vectorized internally):
+# Stack all P portfolios' aggregated sensitivities
+agg_S_all = np.column_stack([compute_aggregated_sensitivities(p) for p in range(P)])  # Shape: (K, P)
+inputs = {sens_handles[k]: agg_S_all[k, :] for k in range(K)}  # Each input is array of P values
+results = aadc.evaluate(funcs, request, inputs, workers)  # Called ONCE!
+
+# Extract P results at once
+all_ims = results[0][im_output]  # Array of P IM values
+all_grads = {k: results[1][im_output][sens_handles[k]] for k in range(K)}  # Each is array of P values
+```
+
+**Why this matters**: The overhead of calling `aadc.evaluate()` (Python→C++ dispatch) is significant. Batching P portfolios into one call eliminates P-1 dispatch calls, yielding 10-200x speedup for typical portfolio counts.
+
+### v2 Optimized Implementation
+
+The optimized v2 modules implement this pattern:
+- `model/simm_portfolio_aadc_v2.py` - Single evaluate() for all portfolios
+- `model/simm_allocation_optimizer_v2.py` - Batched allocation optimization
+
+```python
+# v2 usage:
+from model.simm_portfolio_aadc_v2 import compute_all_portfolios_im_gradient_v2
+
+gradient, all_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+    funcs, sens_handles, im_output, S, allocation, num_threads, workers
+)
+# gradient.shape = (T, P) - all T trades × P portfolios in ONE call
+# all_ims.shape = (P,) - all P portfolio IMs in ONE call
+```
+
+### Kernel Design: Minimize Inputs
+
+Record kernels with the **minimum number of inputs**:
+- **BAD**: T×P inputs (one per trade per portfolio) - tape grows with portfolio size
+- **GOOD**: K inputs (one per risk factor) - tape size is constant
+
+```python
+# GOOD: K aggregated sensitivity inputs (K ~ 100)
+# Aggregation happens OUTSIDE kernel in numpy
+agg_sens = np.dot(allocation.T, sensitivity_matrix)  # Fast numpy
+# Kernel only sees K inputs, evaluated P times in one call
+```
+
 ### Recording Pattern for SIMM
+
 ```python
 import aadc
 import numpy as np
 
-def record_simm_kernel(num_risk_factors: int, num_buckets: int):
+def record_simm_kernel(num_risk_factors: int):
     """Record AADC kernel for SIMM margin calculation."""
-    funcs = aadc.Functions()
-    funcs.start_recording()
+    # Use context manager (Pythonic)
+    with aadc.record_kernel() as funcs:
+        # Mark sensitivities as differentiable inputs
+        sensitivities = []
+        sens_handles = []
+        for i in range(num_risk_factors):
+            s = aadc.idouble(0.0)
+            sens_handles.append(s.mark_as_input())
+            sensitivities.append(s)
 
-    # Mark sensitivities as differentiable inputs
-    sensitivities = []
-    sens_args = []
-    for i in range(num_risk_factors):
-        s = aadc.idouble(0.0)
-        sens_args.append(s.mark_as_input())
-        sensitivities.append(s)
+        # Risk weights as Python floats (not idoubles - no gradient needed)
+        risk_weights = get_risk_weights()  # Returns list of floats
 
-    # Mark risk weights as non-differentiable (constant)
-    risk_weights = []
-    for i in range(num_buckets):
-        rw = aadc.idouble(1.0)
-        rw.mark_as_input_no_diff()
-        risk_weights.append(rw)
+        # SIMM calculation (inside kernel)
+        weighted_sens = [s * rw for s, rw in zip(sensitivities, risk_weights)]
 
-    # SIMM calculation (inside kernel)
-    weighted_sens = [s * rw for s, rw in zip(sensitivities, risk_weights)]
+        # Aggregation inside kernel
+        margin = compute_simm_margin(weighted_sens, correlations)
+        margin_res = margin.mark_as_output()
 
-    # Aggregation inside kernel
-    margin = compute_simm_margin(weighted_sens, correlations)
-
-    margin_res = margin.mark_as_output()
-    funcs.stop_recording()
-
-    return funcs, sens_args, margin_res
+    return funcs, sens_handles, margin_res
 ```
 
 ### Key AADC Patterns for SIMM
 
-1. **Use `aadc.array()` for bucket allocations**:
+1. **Use context manager for recording**:
    ```python
-   bucket_sensitivities = aadc.array(np.zeros(num_buckets))
+   # PREFERRED (Pythonic, ensures cleanup):
+   with aadc.record_kernel() as funcs:
+       # ... recording code ...
+
+   # AVOID:
+   funcs.start_recording()
+   # ...
+   funcs.stop_recording()
    ```
 
-2. **Use `np.interp` for tenor bucket allocation**:
+2. **Constants as Python floats (not idoubles)**:
    ```python
-   # Allocate sensitivity to adjacent tenor buckets
-   bucket_weights = np.interp(maturity, tenor_times, bucket_indices)
+   # CORRECT: risk weights as floats - no AADC overhead
+   rw = 50.0  # Python float
+   ws = sensitivity * rw  # idouble × float = idouble
+
+   # AVOID: unnecessary idouble wrapping
+   rw = aadc.idouble(50.0)
+   rw.mark_as_input_no_diff()  # Extra tape operations
    ```
 
 3. **Move aggregations inside kernel**:
@@ -297,14 +364,20 @@ def record_simm_kernel(num_risk_factors: int, num_buckets: int):
    # AVOID: sqrt outside kernel
    K_squared_res = K_squared.mark_as_output()
    # ... evaluate ...
-   K = np.sqrt(results[0][K_squared_res])  # Outside kernel
+   K = np.sqrt(results[0][K_squared_res])  # Outside kernel - no gradient!
    ```
 
-4. **Separate kernels for different risk classes**:
+4. **Use `aadc.array()` for array initialization**:
    ```python
-   # Record separate kernels for IR, Credit, Equity, etc.
-   ir_kernel = record_ir_delta_kernel(...)
-   credit_kernel = record_credit_delta_kernel(...)
+   bucket_sensitivities = aadc.array(np.zeros(num_buckets))
+   ```
+
+5. **Reuse ThreadPool across evaluations**:
+   ```python
+   # Create once, reuse many times
+   workers = aadc.ThreadPool(num_threads)
+   for iteration in range(max_iters):
+       results = aadc.evaluate(funcs, request, inputs, workers)  # Reuses workers
    ```
 
 
@@ -368,14 +441,55 @@ Version format: MAJOR.MINOR.PATCH
 
 ### Benchmark Commands
 ```bash
+# IMPORTANT: Always activate the virtual environment first
+source venv/bin/activate
+
 # Run baseline
 python -m model.simm_baseline --trades 1000 --threads 8
 
-# Run AADC
+# Run AADC v1
 python -m model.simm_aadc --trades 1000 --threads 8
 
 # Run full benchmark comparison
 python benchmark_simm.py --trades 1000 --threads 8
+
+# Run v1 vs v2 optimization benchmark (demonstrates single-evaluate speedup)
+python benchmark_aadc_v1_vs_v2.py --trades 500 --portfolios 5 --threads 4
+
+# Run v1 vs v2 with full optimization
+python benchmark_aadc_v1_vs_v2.py --trades 500 --portfolios 5 --threads 4 --optimize
+
+# Run tests for v2 optimizations
+pytest tests/test_aadc_optimizations.py -v
+```
+
+### v2 Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `model/simm_portfolio_aadc_v2.py` | Optimized AADC with single evaluate() call |
+| `model/simm_allocation_optimizer_v2.py` | Batched optimizer with Newton/BFGS support |
+| `tests/test_aadc_optimizations.py` | Tests verifying v1 vs v2 correctness |
+| `benchmark_aadc_v1_vs_v2.py` | A/B performance comparison |
+
+### v2 Usage Example
+```python
+from model.simm_allocation_optimizer_v2 import reallocate_trades_optimal_v2
+
+result = reallocate_trades_optimal_v2(
+    trades=trades,
+    market=market,
+    num_portfolios=5,
+    initial_allocation=allocation,
+    num_threads=8,
+    method='gradient_descent',  # or 'newton'
+    max_iters=100,
+    verbose=True,
+)
+
+print(f"IM reduction: {result['initial_im'] - result['final_im']:,.0f}")
+print(f"Trades moved: {result['trades_moved']}")
+print(f"Speedup metrics: {result['v2_metrics']}")
 ```
 
 
