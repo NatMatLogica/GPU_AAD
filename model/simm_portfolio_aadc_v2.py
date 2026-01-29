@@ -28,9 +28,10 @@ import numpy as np
 import pandas as pd
 import time
 from typing import Dict, List, Tuple, Optional
+from dataclasses import dataclass
 
 # Version
-MODULE_VERSION = "1.0.0"
+MODULE_VERSION = "2.0.0"
 
 try:
     import aadc
@@ -67,6 +68,14 @@ from model.simm_portfolio_aadc import (
     _is_vega_risk_type,
     _get_vega_risk_weight,
     _precompute_concentration_factors,
+    _get_concentration_threshold,
+    _compute_concentration_risk,
+    _get_vega_concentration_threshold,
+    INFLATION_RISK_WEIGHT,
+)
+
+from Weights_and_Corr.v2_6 import (
+    ccy_basis_swap_spread_rw, ccy_basis_spread_corr,
 )
 
 # Cross-risk-class correlation matrix
@@ -117,6 +126,287 @@ def _get_factor_metadata_v2(risk_factors: List[Tuple]) -> Tuple[List[str], np.nd
         factor_buckets.append(bucket)
 
     return factor_risk_classes, np.array(factor_weights), factor_risk_types, factor_labels, factor_buckets
+
+
+# =============================================================================
+# v2 Full ISDA Kernel - Factor Metadata (Step 2)
+# =============================================================================
+
+@dataclass
+class FactorMeta:
+    """Metadata for a single risk factor in the v2 full kernel."""
+    risk_class: str
+    risk_type: str
+    qualifier: str
+    bucket: str
+    label1: str
+    is_delta: bool
+    is_vega: bool
+    weight: float      # Delta RW or Vega VRW
+    cr: float          # Concentration factor CR or VCR
+    bucket_key: str    # Grouping key (currency for IR/FX, bucket for others)
+
+
+def _get_factor_metadata_v2_full(
+    risk_factors: List[Tuple],
+    combined_crif: pd.DataFrame,
+) -> List[FactorMeta]:
+    """
+    Build detailed per-factor metadata for the full-ISDA v2 kernel.
+
+    Each risk factor is identified by (RiskType, Qualifier, Bucket, Label1).
+    This function determines whether each factor is Delta or Vega,
+    assigns the correct risk weight, and pre-computes concentration factors
+    from the combined CRIF.
+
+    Args:
+        risk_factors: List of (RiskType, Qualifier, Bucket, Label1) tuples
+        combined_crif: Combined CRIF DataFrame for pre-computing CR/VCR
+
+    Returns:
+        List of FactorMeta, one per risk factor
+    """
+    # Pre-compute concentration factors from combined CRIF
+    delta_cr_factors = _precompute_concentration_factors(combined_crif, "Delta")
+    vega_cr_factors = _precompute_concentration_factors(combined_crif, "Vega")
+
+    metadata = []
+    for rt, qualifier, bucket, label1 in risk_factors:
+        rc = _map_risk_type_to_class(rt)
+        is_delta = _is_delta_risk_type(rt)
+        is_vega = _is_vega_risk_type(rt)
+
+        qualifier_str = str(qualifier) if qualifier else ""
+        bucket_str = str(bucket) if bucket else ""
+        label1_str = str(label1) if label1 else ""
+
+        # Determine risk weight
+        if is_delta:
+            if rt == "Risk_IRCurve" and qualifier_str and label1_str:
+                weight = _get_ir_risk_weight_v26(qualifier_str, label1_str)
+            elif rt == "Risk_Inflation":
+                weight = INFLATION_RISK_WEIGHT
+            elif rt == "Risk_XCcyBasis":
+                weight = ccy_basis_swap_spread_rw
+            else:
+                weight = _get_risk_weight(rt, bucket_str)
+        elif is_vega:
+            weight = _get_vega_risk_weight(rt, bucket_str)
+        else:
+            weight = _get_risk_weight(rt, bucket_str)
+
+        # Determine bucket key for grouping
+        if rc in ("Rates", "FX"):
+            bucket_key = qualifier_str
+        else:
+            bucket_key = bucket_str
+
+        # Get concentration factor
+        if is_delta:
+            cr = delta_cr_factors.get((rc, bucket_key), 1.0)
+        elif is_vega:
+            cr = vega_cr_factors.get((rc, bucket_key), 1.0)
+        else:
+            cr = 1.0
+
+        # XCcyBasis doesn't use concentration
+        if rt == "Risk_XCcyBasis":
+            cr = 1.0
+
+        metadata.append(FactorMeta(
+            risk_class=rc,
+            risk_type=rt,
+            qualifier=qualifier_str,
+            bucket=bucket_str,
+            label1=label1_str,
+            is_delta=is_delta,
+            is_vega=is_vega,
+            weight=weight,
+            cr=cr,
+            bucket_key=bucket_key,
+        ))
+
+    return metadata
+
+
+def record_single_portfolio_simm_kernel_v2_full(
+    K: int,
+    factor_metadata: List[FactorMeta],
+) -> Tuple['aadc.Functions', List[int], int]:
+    """
+    Record AADC kernel: K aggregated sensitivities -> single portfolio IM.
+
+    FULL ISDA v2.6 implementation with:
+    - Delta and Vega margin separation per risk class
+    - Intra-bucket correlations (tenor rho for IR, bucket-specific for others)
+    - Risk weights and concentration factors (as Python float constants)
+    - Inter-bucket gamma aggregation for IR
+    - Cross-risk-class PSI aggregation
+
+    The same kernel can be evaluated with arrays of length P to compute
+    all P portfolios' IMs in a SINGLE aadc.evaluate() call.
+
+    Args:
+        K: Number of risk factors
+        factor_metadata: List of FactorMeta for each factor
+
+    Returns:
+        (funcs, sensitivity_handles, im_output)
+    """
+    if not AADC_AVAILABLE:
+        raise RuntimeError("AADC is required")
+
+    with aadc.record_kernel() as funcs:
+        # Mark aggregated sensitivities as differentiable inputs (K values)
+        agg_sens = []
+        sens_handles = []
+        for k in range(K):
+            s_k = aadc.idouble(0.0)
+            handle = s_k.mark_as_input()
+            sens_handles.append(handle)
+            agg_sens.append(s_k)
+
+        # Compute Delta and Vega margins per risk class
+        risk_class_total_margins = []
+
+        for rc in _RISK_CLASS_ORDER:
+            # Separate delta and vega factors for this risk class
+            delta_indices = [k for k in range(K)
+                           if factor_metadata[k].risk_class == rc and factor_metadata[k].is_delta]
+            vega_indices = [k for k in range(K)
+                          if factor_metadata[k].risk_class == rc and factor_metadata[k].is_vega]
+
+            # Compute Delta margin for this risk class
+            delta_margin = _compute_rc_margin_v2_full(
+                rc, delta_indices, agg_sens, factor_metadata, "Delta"
+            )
+
+            # Compute Vega margin for this risk class
+            vega_margin = _compute_rc_margin_v2_full(
+                rc, vega_indices, agg_sens, factor_metadata, "Vega"
+            )
+
+            # Total margin = Delta + Vega
+            total_margin = delta_margin + vega_margin
+            risk_class_total_margins.append(total_margin)
+
+        # Cross-risk-class aggregation: IM = sqrt(sum_r sum_s psi[r,s] * K_r * K_s)
+        simm_sq = aadc.idouble(0.0)
+        for i in range(6):
+            for j in range(6):
+                psi_ij = _PSI_MATRIX[i, j]
+                simm_sq = simm_sq + psi_ij * risk_class_total_margins[i] * risk_class_total_margins[j]
+
+        im_p = np.sqrt(simm_sq)
+        im_output = im_p.mark_as_output()
+
+    return funcs, sens_handles, im_output
+
+
+def _compute_rc_margin_v2_full(
+    rc: str,
+    factor_indices: List[int],
+    agg_sens: List,
+    factor_metadata: List[FactorMeta],
+    risk_measure: str,
+) -> 'aadc.idouble':
+    """
+    Compute margin for one risk class and one risk measure (Delta or Vega)
+    using the full ISDA formula with intra-bucket correlations and inter-bucket
+    gamma aggregation.
+
+    This mirrors _compute_risk_class_margin() but operates on K aggregated
+    factor sensitivities instead of N CRIF rows.
+
+    Args:
+        rc: Risk class name (Rates, FX, etc.)
+        factor_indices: Indices into agg_sens for factors in this RC + measure
+        agg_sens: List of aadc.idouble aggregated sensitivities
+        factor_metadata: Factor metadata list
+        risk_measure: "Delta" or "Vega"
+
+    Returns:
+        aadc.idouble: Margin for this risk class and measure
+    """
+    if not factor_indices:
+        return aadc.idouble(0.0)
+
+    # Group by bucket
+    buckets_in_rc = {}
+    for k in factor_indices:
+        bk = factor_metadata[k].bucket_key
+        if bk not in buckets_in_rc:
+            buckets_in_rc[bk] = []
+        buckets_in_rc[bk].append(k)
+
+    # Compute K_b and S_b for each bucket
+    bucket_K = {}
+    bucket_S = {}
+    bucket_CR = {}
+
+    for bucket_key, bucket_indices in buckets_in_rc.items():
+        # Compute weighted sensitivities: WS_k = S_k * RW_k * CR_k
+        ws_list = []
+        for k in bucket_indices:
+            meta = factor_metadata[k]
+            ws_k = agg_sens[k] * float(meta.weight) * float(meta.cr)
+            ws_list.append(ws_k)
+
+        bucket_CR[bucket_key] = factor_metadata[bucket_indices[0]].cr
+
+        # Compute K_b^2 with intra-bucket correlations
+        k_sq = aadc.idouble(0.0)
+        ws_sum = aadc.idouble(0.0)
+        num_in_bucket = len(bucket_indices)
+
+        if num_in_bucket > 1:
+            for i_local in range(num_in_bucket):
+                i_global = bucket_indices[i_local]
+                ws_sum = ws_sum + ws_list[i_local]
+
+                for j_local in range(num_in_bucket):
+                    j_global = bucket_indices[j_local]
+
+                    # Rho (tenor/intra-bucket) correlation
+                    rho_ij = _get_intra_correlation(
+                        rc,
+                        factor_metadata[i_global].risk_type,
+                        factor_metadata[j_global].risk_type,
+                        factor_metadata[i_global].label1,
+                        factor_metadata[j_global].label1,
+                        bucket_key,
+                    )
+
+                    k_sq = k_sq + rho_ij * ws_list[i_local] * ws_list[j_local]
+        else:
+            k_sq = ws_list[0] * ws_list[0]
+            ws_sum = ws_list[0]
+
+        bucket_K[bucket_key] = np.sqrt(k_sq)
+        bucket_S[bucket_key] = ws_sum
+
+    # Inter-bucket aggregation
+    k_rc_sq = aadc.idouble(0.0)
+    bucket_keys = list(buckets_in_rc.keys())
+
+    for bucket_key in bucket_keys:
+        k_rc_sq = k_rc_sq + bucket_K[bucket_key] * bucket_K[bucket_key]
+
+    # Cross-bucket gamma correlation for IR
+    if len(bucket_keys) > 1 and rc == "Rates":
+        gamma = ir_gamma_diff_ccy
+        for i_b in range(len(bucket_keys)):
+            for j_b in range(len(bucket_keys)):
+                if i_b == j_b:
+                    continue
+                b_key = bucket_keys[i_b]
+                c_key = bucket_keys[j_b]
+                cr_b = bucket_CR.get(b_key, 1.0)
+                cr_c = bucket_CR.get(c_key, 1.0)
+                g_bc = min(cr_b, cr_c) / max(cr_b, cr_c) if max(cr_b, cr_c) > 0 else 1.0
+                k_rc_sq = k_rc_sq + gamma * bucket_S[b_key] * bucket_S[c_key] * g_bc
+
+    return np.sqrt(k_rc_sq)
 
 
 def record_single_portfolio_simm_kernel_v2(

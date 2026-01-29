@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 # Version
-MODEL_VERSION = "3.3.0"  # AADC chain rule implementation - correct SIMM calculation
+MODEL_VERSION = "5.0.0"  # v2 kernel refactor - K risk-factor inputs, single evaluate for all portfolios
 MODEL_NAME = "simm_portfolio_aadc_py"
 
 # Ensure project root is on path
@@ -1233,6 +1233,7 @@ def precompute_all_trade_crifs(
                 if abs(sensitivity) > 1e-10:
                     crif_rows.append({
                         "TradeID": trade.trade_id,
+                        "ProductClass": meta.get("product_class", "RatesFX"),
                         "RiskType": meta["risk_type"],
                         "Qualifier": meta["qualifier"],
                         "Bucket": meta["bucket"],
@@ -1912,6 +1913,7 @@ def reallocate_trades(
     num_threads: int,
     num_portfolios: int,
     refresh_gradients: bool = True,
+    v2_kernel_state: dict = None,
 ) -> Tuple[Dict, float]:
     """
     Reallocate N trades to minimize total SIMM using gradient info.
@@ -2051,26 +2053,78 @@ def reallocate_trades(
                 else:
                     current_group_crifs[best_group] = trade_crif.copy()
 
-                # Refresh gradients for affected groups using AADC (~1ms each)
-                # Reuses ThreadPool and kernel cache for efficiency
-                for affected_group in [from_group, best_group]:
-                    affected_crif = current_group_crifs.get(affected_group, pd.DataFrame())
-                    if affected_crif.empty or len(affected_crif) == 0:
-                        current_group_gradients[affected_group] = np.array([])
-                        current_group_ims[affected_group] = 0.0
-                    else:
-                        try:
-                            gradient, im_val, _, _ = compute_im_gradient_aadc(
-                                affected_crif, num_threads,
-                                workers=workers, kernel_cache=kernel_cache
-                            )
-                            current_group_gradients[affected_group] = gradient
-                            current_group_ims[affected_group] = im_val
-                            gradient_refresh_count += 1
-                        except Exception as e:
-                            # If AADC fails, keep old gradient (degraded accuracy)
-                            print(f"    Warning: gradient refresh failed for group {affected_group}: {e}")
-                            pass
+                # Refresh gradients for affected groups
+                if v2_kernel_state is not None:
+                    # v5.0.0: Use v2 kernel for efficient gradient refresh
+                    # Update allocation matrix and recompute gradients for ALL groups at once
+                    from model.simm_portfolio_aadc_v2 import compute_all_portfolios_im_gradient_v2
+                    v2_alloc = v2_kernel_state['allocation'].copy()
+                    v2_tid_to_idx = v2_kernel_state['trade_id_to_idx']
+                    v2_factor_to_idx = v2_kernel_state['factor_to_idx']
+
+                    # Update allocation for moved trade
+                    if trade_id in v2_tid_to_idx:
+                        t_idx = v2_tid_to_idx[trade_id]
+                        v2_alloc[t_idx, :] = 0
+                        v2_alloc[t_idx, best_group] = 1.0
+                        v2_kernel_state['allocation'] = v2_alloc
+
+                    # Single evaluate for ALL portfolios
+                    _, v2_all_ims, _ = compute_all_portfolios_im_gradient_v2(
+                        v2_kernel_state['funcs'],
+                        v2_kernel_state['sens_handles'],
+                        v2_kernel_state['im_output'],
+                        v2_kernel_state['S_matrix'],
+                        v2_alloc,
+                        num_threads,
+                        v2_kernel_state['workers'],
+                    )
+
+                    # Recompute grad_matrix for CRIF-row gradient mapping
+                    K_v2 = len(v2_kernel_state['risk_factors'])
+                    agg_S = np.dot(v2_kernel_state['S_matrix'].T, v2_alloc)
+                    inputs_v2 = {v2_kernel_state['sens_handles'][k]: agg_S[k, :] for k in range(K_v2)}
+                    request_v2 = {v2_kernel_state['im_output']: v2_kernel_state['sens_handles']}
+                    results_v2 = aadc.evaluate(
+                        v2_kernel_state['funcs'], request_v2, inputs_v2, v2_kernel_state['workers']
+                    )
+                    grad_matrix_kp = np.zeros((K_v2, num_portfolios))
+                    for k in range(K_v2):
+                        grad_matrix_kp[k, :] = results_v2[1][v2_kernel_state['im_output']][v2_kernel_state['sens_handles'][k]]
+
+                    for affected_group in [from_group, best_group]:
+                        current_group_ims[affected_group] = float(v2_all_ims[affected_group])
+                        affected_crif = current_group_crifs.get(affected_group, pd.DataFrame())
+                        if affected_crif.empty:
+                            current_group_gradients[affected_group] = np.array([])
+                        else:
+                            crif_grad = np.zeros(len(affected_crif))
+                            for row_idx, row in enumerate(affected_crif.itertuples(index=False)):
+                                fk = (row.RiskType, row.Qualifier, str(row.Bucket), row.Label1)
+                                k_idx = v2_factor_to_idx.get(fk)
+                                if k_idx is not None:
+                                    crif_grad[row_idx] = grad_matrix_kp[k_idx, affected_group]
+                            current_group_gradients[affected_group] = crif_grad
+                        gradient_refresh_count += 1
+                else:
+                    # Fallback: per-group gradient refresh using N-input kernel
+                    for affected_group in [from_group, best_group]:
+                        affected_crif = current_group_crifs.get(affected_group, pd.DataFrame())
+                        if affected_crif.empty or len(affected_crif) == 0:
+                            current_group_gradients[affected_group] = np.array([])
+                            current_group_ims[affected_group] = 0.0
+                        else:
+                            try:
+                                gradient, im_val, _, _ = compute_im_gradient_aadc(
+                                    affected_crif, num_threads,
+                                    workers=workers, kernel_cache=kernel_cache
+                                )
+                                current_group_gradients[affected_group] = gradient
+                                current_group_ims[affected_group] = im_val
+                                gradient_refresh_count += 1
+                            except Exception as e:
+                                print(f"    Warning: gradient refresh failed for group {affected_group}: {e}")
+                                pass
 
     if not moves:
         elapsed = time.perf_counter() - realloc_start
@@ -2271,26 +2325,105 @@ def main():
         group_ims[group] = base_im
         group_meta[group] = (num_group_trades, crif_time, simm_time, base_im)
 
-    # Phase 2: Batch compute IM gradients for all groups with positive IM (v2 pattern)
-    # Groups with identical CRIF structure are batched into single evaluate() calls
+    _v2_kernel_state = None
+
+    # Phase 2: Compute IM gradients using v2 kernel (K risk-factor inputs)
+    # Single kernel with K inputs evaluated once for ALL portfolios simultaneously
     groups_needing_gradient = [g for g in group_meta if group_meta[g][3] > 0.0]
 
     if groups_needing_gradient:
-        portfolio_crifs = [group_crifs[g] for g in groups_needing_gradient]
+        from model.simm_portfolio_aadc_v2 import (
+            record_single_portfolio_simm_kernel_v2_full,
+            _get_factor_metadata_v2_full,
+            compute_all_portfolios_im_gradient_v2,
+        )
+        from model.simm_allocation_optimizer import (
+            _get_unique_risk_factors,
+            _build_sensitivity_matrix,
+        )
+
         grad_start = time.perf_counter()
-        all_gradients, all_ims_batched, batch_eval_time = \
-            compute_all_portfolios_im_gradient_aadc(portfolio_crifs, num_threads)
+
+        # Build per-trade CRIFs from group CRIFs
+        trade_crifs_map = {}
+        for group_id, crif in group_crifs.items():
+            for tid in crif["TradeID"].unique():
+                trade_crifs_map[tid] = crif[crif["TradeID"] == tid].copy()
+
+        # Build S matrix and factor metadata
+        risk_factors = _get_unique_risk_factors(trade_crifs_map)
+        all_trade_ids = sorted(trade_crifs_map.keys())
+        S_matrix = _build_sensitivity_matrix(trade_crifs_map, all_trade_ids, risk_factors)
+        K = len(risk_factors)
+        T_trades = len(all_trade_ids)
+        P = num_portfolios
+
+        # Build allocation matrix from group_ids
+        allocation = np.zeros((T_trades, P))
+        trade_id_to_idx = {tid: i for i, tid in enumerate(all_trade_ids)}
+        for i, trade in enumerate(trades):
+            if trade.trade_id in trade_id_to_idx:
+                t_idx = trade_id_to_idx[trade.trade_id]
+                allocation[t_idx, group_ids[i]] = 1.0
+
+        # Pre-compute factor metadata (including CR from combined CRIF)
+        combined_crif = pd.concat(list(group_crifs.values()), ignore_index=True)
+        factor_metadata = _get_factor_metadata_v2_full(risk_factors, combined_crif)
+
+        # Record v2 full kernel (K inputs - much smaller than N CRIF rows)
+        print(f"  Recording v2 kernel: K={K} risk factor inputs (vs N={len(combined_crif)} CRIF rows)")
+        funcs, sens_handles, im_output = record_single_portfolio_simm_kernel_v2_full(
+            K, factor_metadata
+        )
+
+        # Create shared ThreadPool
+        workers = aadc.ThreadPool(num_threads)
+
+        # Single evaluate for ALL portfolios
+        gradient_tp, all_ims_v2, eval_time = compute_all_portfolios_im_gradient_v2(
+            funcs, sens_handles, im_output, S_matrix, allocation, num_threads, workers
+        )
+
         total_grad_time = time.perf_counter() - grad_start
-        # Distribute batch time evenly across groups for per-group logging
         per_group_grad_time = total_grad_time / len(groups_needing_gradient)
 
+        print(f"  v2 kernel: K={K}, P={P}, eval_time={eval_time*1000:.2f}ms, total={total_grad_time*1000:.2f}ms")
+
+        # Build factor index mapping: for each CRIF row -> which factor k it maps to
+        factor_to_idx = {f: i for i, f in enumerate(risk_factors)}
+
+        # Map v2 gradients to per-CRIF-row gradients for Euler decomposition
+        # dIM_g/dAmount[i] = dIM_g/dAggS[k(i)] where k(i) maps CRIF row i to factor k
+        # gradient_tp[T, P]: dIM/dx[t,p] = sum_k (dIM_p/dAggS[k]) * S[t,k]
+        # We need dIM_p/dAggS[k] for each portfolio p, which is grad_matrix from v2
+        # Recompute grad_matrix for mapping
+        agg_S_all = np.dot(S_matrix.T, allocation)  # (K, P)
+        inputs_for_grad = {sens_handles[k]: agg_S_all[k, :] for k in range(K)}
+        request = {im_output: sens_handles}
+        results = aadc.evaluate(funcs, request, inputs_for_grad, workers)
+        grad_matrix_kp = np.zeros((K, P))
+        for k in range(K):
+            grad_matrix_kp[k, :] = results[1][im_output][sens_handles[k]]
+
         for idx, group in enumerate(groups_needing_gradient):
-            gradient = all_gradients[idx]
-            group_gradients[group] = gradient
             base_im = group_meta[group][3]
 
+            # Map v2 gradient (dIM_g/dAggS[k]) to CRIF-row gradient (dIM_g/dAmount[i])
+            group_crif = group_crifs[group]
+            n_rows = len(group_crif)
+            crif_gradient = np.zeros(n_rows)
+
+            for row_idx, row in enumerate(group_crif.itertuples(index=False)):
+                factor_key = (row.RiskType, row.Qualifier, str(row.Bucket), row.Label1)
+                k_idx = factor_to_idx.get(factor_key)
+                if k_idx is not None:
+                    # dIM_g/dAmount[row] = dIM_g/dAggS[k]
+                    crif_gradient[row_idx] = grad_matrix_kp[k_idx, group]
+
+            group_gradients[group] = crif_gradient
+
             # Euler decomposition: per-trade contribution
-            contributions = compute_trade_contributions(group_crifs[group], gradient)
+            contributions = compute_trade_contributions(group_crif, crif_gradient)
             group_contributions[group] = contributions
             print_trade_contributions(contributions, group, base_im)
 
@@ -2304,6 +2437,21 @@ def main():
                     "im_total": base_im,
                     "pct_of_im": (contrib / base_im * 100) if base_im > 0 else 0.0,
                 })
+
+        # Store v2 kernel artifacts for use in reallocation
+        _v2_kernel_state = {
+            'funcs': funcs,
+            'sens_handles': sens_handles,
+            'im_output': im_output,
+            'S_matrix': S_matrix,
+            'allocation': allocation,
+            'risk_factors': risk_factors,
+            'factor_metadata': factor_metadata,
+            'trade_id_to_idx': trade_id_to_idx,
+            'all_trade_ids': all_trade_ids,
+            'workers': workers,
+            'factor_to_idx': factor_to_idx,
+        }
 
     # Phase 3: Build group results
     for group in group_meta:
@@ -2330,16 +2478,19 @@ def main():
     save_trade_contributions_log(all_contrib_rows)
     print()
 
-    # Reallocation step (if requested)
+    # Reallocation step (if requested) - uses v2 kernel for gradient refresh
     realloc_result = None
     realloc_time = 0.0
     if n_reallocate is not None and n_reallocate > 0:
         refresh_gradients = not getattr(args, 'no_refresh_gradients', False)
         print(f"Reallocation: moving up to {n_reallocate} trades using gradient info...")
         if refresh_gradients:
-            print("  (v2.6.0: iterative gradient refresh enabled)")
+            print("  (v5.0.0: iterative gradient refresh via v2 kernel)")
         else:
             print("  (gradient refresh disabled - using stale gradients)")
+
+        # Pass v2 kernel state for efficient gradient refresh during reallocation
+        v2_state = _v2_kernel_state
         realloc_result, realloc_time = reallocate_trades(
             n_reallocate,
             trades, group_ids,
@@ -2347,6 +2498,7 @@ def main():
             group_contributions,
             market, num_threads, num_portfolios,
             refresh_gradients=refresh_gradients,
+            v2_kernel_state=v2_state,
         )
 
     # Full optimization (if requested) - uses v2 batched evaluate() for all portfolios
