@@ -1,11 +1,13 @@
-# The parameters below can be found at https://www.isda.org/a/Pf2gE/ISDA-SIMM-v2.5.pdf
+# ISDA SIMM v2.5 Parameters
+# Extracted from AcadiaSoft simm-lib: https://github.com/AcadiaSoft/simm-lib
+# These parameters are for comparison/validation purposes
 
-# p.14, 33
-## Regular/Low Vol Currency Buckets
+# Regular/Low/High Vol Currency Buckets
 reg_vol_ccy_bucket = ['USD', 'EUR', 'GBP', 'CHF', 'AUD', 'NZD', 'CAD', 'SEK', 'NOK', 'DKK', 'HKD', 'KRW', 'SGD', 'TWD']
 low_vol_ccy_bucket = ['JPY']
 
-## table1: Risk Weights for Regular/Low/High Vol Currency Bucket Respectively
+# Risk Weights for Regular/Low/High Vol Currency Bucket (10-day)
+# Source: InterestRateRiskWeight.java
 reg_vol_rw = {
     '2w'  : 115,
     '1m'  : 112,
@@ -22,8 +24,8 @@ reg_vol_rw = {
 }
 
 low_vol_rw = {
-    '2w'  : 15, 
-    '1m'  : 18, 
+    '2w'  : 15,
+    '1m'  : 18,
     '3m'  : 9,
     '6m'  : 11,
     '1y'  : 13,
@@ -37,8 +39,8 @@ low_vol_rw = {
 }
 
 high_vol_rw = {
-    '2w'  : 119, 
-    '1m'  : 93, 
+    '2w'  : 119,
+    '1m'  : 93,
     '3m'  : 80,
     '6m'  : 82,
     '1y'  : 90,
@@ -51,43 +53,47 @@ high_vol_rw = {
     '30y' : 101,
 }
 
-## Risk Weights for Any Currency's Inflation Rate/Cross-Currency Basis Swap Spread
+# Risk Weights for Inflation Rate/Cross-Currency Basis Swap Spread
 inflation_rw = 63
 ccy_basis_swap_spread_rw = 21
 
-# p.14, 34: The Historical Volatility Ratio for the Interest Rate Risk Class
-ir_hvr = 0.44
+# Historical Volatility Ratio for Interest Rate Risk Class
+ir_hvr = 0.53
 
-# p.14, 35: The Vega Risk Weight for the Interest Rate Risk Class
+# Vega Risk Weight for Interest Rate Risk Class
 ir_vrw = 0.18
 
-# p.15, 36: IR - Correlations
-## Correlations for Aggregated Weighted Sensitivities/Risk Exposures
+# IR Correlations - 12x12 tenor correlation matrix
 ir_corr = list(
     zip(
-        [1.00, 0.74, 0.63, 0.55, 0.45, 0.36, 0.32, 0.28, 0.23, 0.20, 0.18, 0.16],
-        [0.74, 1.00, 0.80, 0.69, 0.52, 0.41, 0.35, 0.29, 0.24, 0.18, 0.17, 0.16],
-        [0.63, 0.80, 1.00, 0.85, 0.67, 0.53, 0.45, 0.39, 0.32, 0.24, 0.22, 0.22],
-        [0.55, 0.69, 0.85, 1.00, 0.83, 0.71, 0.62, 0.54, 0.45, 0.36, 0.35, 0.33],
-        [0.45, 0.52, 0.67, 0.83, 1.00, 0.94, 0.86, 0.78, 0.65, 0.58, 0.55, 0.53],
-        [0.36, 0.41, 0.53, 0.71, 0.94, 1.00, 0.95, 0.89, 0.78, 0.72, 0.68, 0.67],
-        [0.32, 0.35, 0.45, 0.62, 0.86, 0.95, 1.00, 0.96, 0.87, 0.80, 0.77, 0.74],
-        [0.28, 0.29, 0.39, 0.54, 0.78, 0.89, 0.96, 1.00, 0.94, 0.89, 0.86, 0.84],
-        [0.23, 0.24, 0.32, 0.45, 0.65, 0.78, 0.87, 0.94, 1.00, 0.97, 0.95, 0.94],
-        [0.20, 0.18, 0.24, 0.36, 0.58, 0.72, 0.80, 0.89, 0.97, 1.00, 0.98, 0.98],
-        [0.18, 0.17, 0.22, 0.35, 0.55, 0.68, 0.77, 0.86, 0.95, 0.98, 1.00, 0.99],
-        [0.16, 0.16, 0.22, 0.33, 0.53, 0.67, 0.74, 0.84, 0.94, 0.98, 0.99, 1.00],   
+        [1.00, 0.75, 0.63, 0.55, 0.44, 0.35, 0.31, 0.26, 0.21, 0.17, 0.15, 0.14],
+        [0.75, 1.00, 0.79, 0.68, 0.51, 0.40, 0.33, 0.28, 0.22, 0.17, 0.15, 0.14],
+        [0.63, 0.79, 1.00, 0.85, 0.67, 0.53, 0.45, 0.38, 0.31, 0.24, 0.22, 0.21],
+        [0.55, 0.68, 0.85, 1.00, 0.83, 0.71, 0.62, 0.54, 0.45, 0.36, 0.35, 0.33],
+        [0.44, 0.51, 0.67, 0.83, 1.00, 0.94, 0.86, 0.78, 0.65, 0.58, 0.55, 0.53],
+        [0.35, 0.40, 0.53, 0.71, 0.94, 1.00, 0.95, 0.89, 0.78, 0.72, 0.68, 0.67],
+        [0.31, 0.33, 0.45, 0.62, 0.86, 0.95, 1.00, 0.96, 0.87, 0.80, 0.76, 0.74],
+        [0.26, 0.28, 0.38, 0.54, 0.78, 0.89, 0.96, 1.00, 0.94, 0.89, 0.85, 0.83],
+        [0.21, 0.22, 0.31, 0.45, 0.65, 0.78, 0.87, 0.94, 1.00, 0.97, 0.94, 0.93],
+        [0.17, 0.17, 0.24, 0.36, 0.58, 0.72, 0.80, 0.89, 0.97, 1.00, 0.98, 0.97],
+        [0.15, 0.15, 0.22, 0.35, 0.55, 0.68, 0.76, 0.85, 0.94, 0.98, 1.00, 0.99],
+        [0.14, 0.14, 0.21, 0.33, 0.53, 0.67, 0.74, 0.83, 0.93, 0.97, 0.99, 1.00],
     )
 )
-## The Correlation between any two sub-curves of the same currency
+
+# Sub-curve correlation (same currency, different curves)
 sub_curves_corr = 0.99
-inflation_corr  = 0.37
+
+# Inflation correlation
+inflation_corr = 0.37
+
+# Cross-currency basis spread correlation
 ccy_basis_spread_corr = 0.01
 
-# p.15, 37: The parameter for aggregating across different currencies
+# Parameter for aggregating across different currencies
 ir_gamma_diff_ccy = 0.24
 
-# p.16, 39: Risk Weights for Credit Qualifying
+# Credit Qualifying Risk Weights
 creditQ_rw = {
     1:  75,
     2:  91,
@@ -101,53 +107,53 @@ creditQ_rw = {
     10: 251,
     11: 172,
     12: 247,
-    0:  665, # Residual
+    0:  665,  # Residual
 }
 
-# p.17, 40: Vega Risk Weight for Credit Qualifying
+# Vega Risk Weight for Credit Qualifying
 creditQ_vrw = 0.74
 
-# p.17, 41: Base Correlation Weight
-base_corr_weight = 10
+# Base Correlation Weight
+base_corr_weight = 8
 
-# p.17, 42: Credit Qualifying Correlations
-creditQ_corr = [0.93,0.42,0.5,0.24]
+# Credit Qualifying Correlations
+creditQ_corr = [0.92, 0.41, 0.49, 0.24]
 
-# p.17, 43: Correlations for sensitivity/risk exposure pairs across diffrent non-residual buckets
+# Correlations for Credit Qualifying across different non-residual buckets
 creditQ_corr_non_res = list(
     zip(
-        [1.00, 0.36, 0.38, 0.35, 0.37, 0.33, 0.36, 0.31, 0.32, 0.33, 0.32, 0.30],
-        [0.36, 1.00, 0.46, 0.44, 0.45, 0.43, 0.33, 0.36, 0.38, 0.39, 0.40, 0.36],
-        [0.38, 0.46, 1.00, 0.49, 0.49, 0.47, 0.34, 0.36, 0.41, 0.42, 0.43, 0.39],
-        [0.35, 0.44, 0.49, 1.00, 0.48, 0.48, 0.31, 0.34, 0.38, 0.42, 0.41, 0.37],
-        [0.37, 0.45, 0.49, 0.48, 1.00, 0.48, 0.33, 0.35, 0.39, 0.42, 0.43, 0.38],
-        [0.33, 0.43, 0.47, 0.48, 0.48, 1.00, 0.29, 0.32, 0.36, 0.39, 0.40, 0.35],
-        [0.36, 0.33, 0.34, 0.31, 0.33, 0.29, 1.00, 0.28, 0.32, 0.31, 0.30, 0.28],
-        [0.31, 0.36, 0.36, 0.34, 0.35, 0.32, 0.28, 1.00, 0.33, 0.34, 0.33, 0.30],
-        [0.32, 0.38, 0.41, 0.38, 0.39, 0.36, 0.32, 0.33, 1.00, 0.38, 0.36, 0.34],
-        [0.33, 0.39, 0.42, 0.42, 0.42, 0.39, 0.31, 0.34, 0.38, 1.00, 0.38, 0.36],
-        [0.32, 0.40, 0.43, 0.41, 0.43, 0.40, 0.30, 0.33, 0.36, 0.38, 1.00, 0.35],
-        [0.30, 0.36, 0.39, 0.37, 0.38, 0.35, 0.28, 0.30, 0.34, 0.36, 0.35, 1.00],
+        [1.00, 0.42, 0.39, 0.39, 0.40, 0.38, 0.39, 0.34, 0.37, 0.37, 0.36, 0.31],
+        [0.42, 1.00, 0.44, 0.45, 0.47, 0.45, 0.33, 0.40, 0.41, 0.40, 0.40, 0.35],
+        [0.39, 0.44, 1.00, 0.43, 0.45, 0.43, 0.32, 0.35, 0.41, 0.42, 0.40, 0.35],
+        [0.39, 0.45, 0.43, 1.00, 0.47, 0.44, 0.30, 0.34, 0.39, 0.43, 0.39, 0.36],
+        [0.40, 0.47, 0.45, 0.47, 1.00, 0.47, 0.32, 0.35, 0.40, 0.42, 0.42, 0.37],
+        [0.38, 0.45, 0.43, 0.44, 0.47, 1.00, 0.30, 0.34, 0.38, 0.40, 0.39, 0.38],
+        [0.39, 0.33, 0.32, 0.30, 0.32, 0.30, 1.00, 0.28, 0.31, 0.31, 0.29, 0.26],
+        [0.34, 0.40, 0.35, 0.34, 0.35, 0.34, 0.28, 1.00, 0.34, 0.35, 0.33, 0.30],
+        [0.37, 0.41, 0.41, 0.39, 0.40, 0.38, 0.31, 0.34, 1.00, 0.40, 0.37, 0.32],
+        [0.37, 0.40, 0.42, 0.43, 0.42, 0.40, 0.31, 0.35, 0.40, 1.00, 0.40, 0.35],
+        [0.36, 0.40, 0.40, 0.39, 0.42, 0.39, 0.29, 0.33, 0.37, 0.40, 1.00, 0.34],
+        [0.31, 0.35, 0.35, 0.36, 0.37, 0.38, 0.26, 0.30, 0.32, 0.35, 0.34, 1.00],
     )
 )
 
-# p.18, 46: Risk Weights for Credit Non-Qualifying
+# Credit Non-Qualifying Risk Weights
 creiditNonQ_rw = {
     1: 280,
     2: 1300,
-    0: 1300, # Residual
+    0: 1300,  # Residual
 }
 
-# p.18, 47: Vega Risk Weight for Credit Non-Qualifying
+# Vega Risk Weight for Credit Non-Qualifying
 creditNonQ_vrw = 0.74
 
-# p.18, 48: Credit Non-Qualifying Correlations
-creditNonQ_corr = [0.82,0.27,0.5]
+# Credit Non-Qualifying Correlations
+creditNonQ_corr = [0.82, 0.27, 0.42]
 
-# p.18, 49: Correlation between non-residual bucket
-cr_gamma_diff_ccy = 0.40
+# Correlation between non-residual buckets
+cr_gamma_diff_ccy = 0.4
 
-# p.20, 56: Risk Weights for Equity Risk Class
+# Equity Risk Weights
 equity_rw = {
     1:  26,
     2:  28,
@@ -161,52 +167,52 @@ equity_rw = {
     10: 32,
     11: 18,
     12: 18,
-    0:  34, # Residual
+    0:  34,  # Residual
 }
 
-# p.20, 57: Historical Volatility Ratio for Equity Risk Class
-equity_hvr = 0.58
+# Historical Volatility Ratio for Equity
+equity_hvr = 0.65
 
-# p.20, 58: Vega Risk Weight for Equity Risk Class 
-equity_vrw = 0.45
-equity_vrw_bucket_12 = 0.96
+# Vega Risk Weight for Equity
+equity_vrw = 0.21
+equity_vrw_bucket_12 = 0.37
 
-# p.20, 59: Correlations for Equity Risk Class
+# Equity Correlations
 equity_corr = {
-    1:  0.18,
-    2:  0.23,
-    3:  0.30,
-    4:  0.26,
-    5:  0.23,
+    1:  0.14,
+    2:  0.21,
+    3:  0.27,
+    4:  0.21,
+    5:  0.24,
     6:  0.35,
-    7:  0.36,
-    8:  0.33,
-    9:  0.19,
-    10: 0.20,
+    7:  0.34,
+    8:  0.34,
+    9:  0.20,
+    10: 0.19,
     11: 0.45,
     12: 0.45,
-    0:  0,   # Residual
+    0:  0,  # Residual
 }
 
-# p.20, 60: Correlations for sensitivity/risk exposure pairs across diffrent non-residual buckets
+# Equity correlations across different non-residual buckets
 equity_corr_non_res = list(
     zip(
-        [1.00, 0.20, 0.20, 0.20, 0.13, 0.16, 0.16, 0.16, 0.17, 0.12, 0.18, 0.18],
-        [0.20, 1.00, 0.25, 0.23, 0.14, 0.17, 0.18, 0.17, 0.19, 0.13, 0.19, 0.19],
-        [0.20, 0.25, 1.00, 0.24, 0.13, 0.17, 0.18, 0.16, 0.20, 0.13, 0.18, 0.18],
-        [0.20, 0.23, 0.24, 1.00, 0.17, 0.22, 0.22, 0.22, 0.21, 0.16, 0.24, 0.24],
-        [0.13, 0.14, 0.13, 0.17, 1.00, 0.27, 0.26, 0.27, 0.15, 0.20, 0.30, 0.30],
-        [0.16, 0.17, 0.17, 0.22, 0.27, 1.00, 0.34, 0.33, 0.18, 0.24, 0.38, 0.38],
-        [0.16, 0.18, 0.18, 0.22, 0.26, 0.34, 1.00, 0.32, 0.18, 0.24, 0.37, 0.37],
-        [0.16, 0.17, 0.16, 0.22, 0.27, 0.33, 0.32, 1.00, 0.18, 0.23, 0.37, 0.37],
-        [0.17, 0.19, 0.20, 0.21, 0.15, 0.18, 0.18, 0.18, 1.00, 0.14, 0.20, 0.20],
-        [0.12, 0.13, 0.13, 0.16, 0.20, 0.24, 0.24, 0.23, 0.14, 1.00, 0.25, 0.25],
-        [0.18, 0.19, 0.18, 0.24, 0.30, 0.38, 0.37, 0.37, 0.20, 0.25, 1.00, 0.45],
-        [0.18, 0.19, 0.18, 0.24, 0.30, 0.38, 0.37, 0.37, 0.20, 0.25, 0.45, 1.00],
+        [1.00, 0.17, 0.18, 0.17, 0.12, 0.13, 0.15, 0.13, 0.14, 0.16, 0.19, 0.19],
+        [0.17, 1.00, 0.23, 0.21, 0.13, 0.15, 0.18, 0.15, 0.16, 0.18, 0.20, 0.20],
+        [0.18, 0.23, 1.00, 0.24, 0.13, 0.14, 0.17, 0.15, 0.18, 0.18, 0.20, 0.20],
+        [0.17, 0.21, 0.24, 1.00, 0.16, 0.18, 0.22, 0.18, 0.19, 0.21, 0.24, 0.24],
+        [0.12, 0.13, 0.13, 0.16, 1.00, 0.28, 0.27, 0.26, 0.14, 0.17, 0.32, 0.32],
+        [0.13, 0.15, 0.14, 0.18, 0.28, 1.00, 0.34, 0.33, 0.16, 0.19, 0.38, 0.38],
+        [0.15, 0.18, 0.17, 0.22, 0.27, 0.34, 1.00, 0.32, 0.17, 0.20, 0.37, 0.37],
+        [0.13, 0.15, 0.15, 0.18, 0.26, 0.33, 0.32, 1.00, 0.16, 0.19, 0.36, 0.36],
+        [0.14, 0.16, 0.18, 0.19, 0.14, 0.16, 0.17, 0.16, 1.00, 0.18, 0.21, 0.21],
+        [0.16, 0.18, 0.18, 0.21, 0.17, 0.19, 0.20, 0.19, 0.18, 1.00, 0.21, 0.21],
+        [0.19, 0.20, 0.20, 0.24, 0.32, 0.38, 0.37, 0.36, 0.21, 0.21, 1.00, 0.45],
+        [0.19, 0.20, 0.20, 0.24, 0.32, 0.38, 0.37, 0.36, 0.21, 0.21, 0.45, 1.00],
     )
 )
 
-# p.22, 61: Risk Weights for Commodity Risk Class
+# Commodity Risk Weights
 commodity_rw = {
     1:  27,
     2:  29,
@@ -221,66 +227,66 @@ commodity_rw = {
     11: 20,
     12: 21,
     13: 13,
-    14: 16,
+    14: 15,
     15: 13,
     16: 58,
     17: 17,
 }
 
-# p.22, 62: Historical Volatility Ratio for Commodity Risk Class
-commodity_hvr = 0.69
+# Historical Volatility Ratio for Commodity
+commodity_hvr = 0.74
 
-# p.22, 63: Vega Risk Weight for Commodity Risk Class
-commodity_vrw = 0.60
+# Vega Risk Weight for Commodity
+commodity_vrw = 0.41
 
-# p.22, 64: Correlations for Commodity Risk Class
+# Commodity Correlations
 commodity_corr = {
-    1:  0.84,
-    2:  0.98,
-    3:  0.96,
-    4:  0.97,
-    5:  0.98,
-    6:  0.88,
-    7:  0.98,
-    8:  0.49,
-    9:  0.80,
-    10: 0.46,
+    1:  0.30,
+    2:  0.97,
+    3:  0.93,
+    4:  0.98,
+    5:  0.99,
+    6:  0.92,
+    7:  1.00,
+    8:  0.58,
+    9:  0.75,
+    10: 0.10,
     11: 0.55,
-    12: 0.46,
-    13: 0.66,
-    14: 0.18,
-    15: 0.21,
+    12: 0.64,
+    13: 0.71,
+    14: 0.22,
+    15: 0.29,
     16: 0.00,
-    17: 0.36,
+    17: 0.21,
 }
 
-# p.23, 65: Correlations for sensitivity/risk exposure pairs across diffrent non-residual buckets
+# Commodity correlations across different non-residual buckets
 commodity_corr_non_res = list(
     zip(
-        [1.00, 0.33, 0.21, 0.27, 0.29, 0.21, 0.48, 0.16, 0.41, 0.23, 0.18, 0.02, 0.21, 0.19, 0.15, 0.00, 0.24],
-        [0.33, 1.00, 0.94, 0.94, 0.89, 0.21, 0.19, 0.13, 0.21, 0.21, 0.41, 0.27, 0.31, 0.29, 0.21, 0.00, 0.60],
-        [0.21, 0.94, 1.00, 0.91, 0.85, 0.12, 0.20, 0.09, 0.19, 0.20, 0.36, 0.18, 0.22, 0.23, 0.23, 0.00, 0.54],
-        [0.27, 0.94, 0.91, 1.00, 0.84, 0.14, 0.24, 0.13, 0.21, 0.19, 0.39, 0.25, 0.23, 0.27, 0.18, 0.00, 0.59],
-        [0.29, 0.89, 0.85, 0.84, 1.00, 0.15, 0.17, 0.09, 0.16, 0.21, 0.38, 0.28, 0.28, 0.27, 0.18, 0.00, 0.55],
-        [0.21, 0.21, 0.12, 0.14, 0.15, 1.00, 0.33, 0.53, 0.26, 0.09, 0.21, 0.04, 0.11, 0.10, 0.09, 0.00, 0.24],
-        [0.48, 0.19, 0.20, 0.24, 0.17, 0.33, 1.00, 0.31, 0.72, 0.24, 0.14,-0.12, 0.19, 0.14, 0.08, 0.00, 0.24],
-        [0.16, 0.13, 0.09, 0.13, 0.09, 0.53, 0.31, 1.00, 0.24, 0.04, 0.13,-0.07, 0.04, 0.06, 0.01, 0.00, 0.16],
-        [0.41, 0.21, 0.19, 0.21, 0.16, 0.26, 0.72, 0.24, 1.00, 0.21, 0.18,-0.07, 0.12, 0.12, 0.10, 0.00, 0.21],
-        [0.23, 0.21, 0.20, 0.19, 0.21, 0.09, 0.24, 0.04, 0.21, 1.00, 0.14, 0.11, 0.11, 0.10, 0.07, 0.00, 0.14],
-        [0.18, 0.41, 0.36, 0.39, 0.38, 0.21, 0.14, 0.13, 0.18, 0.14, 1.00, 0.28, 0.30, 0.25, 0.18, 0.00, 0.38],
-        [0.02, 0.27, 0.18, 0.25, 0.28, 0.04,-0.12,-0.07,-0.07, 0.11, 0.28, 1.00, 0.18, 0.18, 0.08, 0.00, 0.21],
-        [0.21, 0.31, 0.22, 0.23, 0.28, 0.11, 0.19, 0.04, 0.12, 0.11, 0.30, 0.18, 1.00, 0.34, 0.16, 0.00, 0.34],
-        [0.19, 0.29, 0.23, 0.27, 0.27, 0.10, 0.14, 0.06, 0.12, 0.10, 0.25, 0.18, 0.34, 1.00, 0.13, 0.00, 0.26],
-        [0.15, 0.21, 0.23, 0.18, 0.18, 0.09, 0.08, 0.01, 0.10, 0.07, 0.18, 0.08, 0.16, 0.13, 1.00, 0.00, 0.21],
+        [1.00, 0.18, 0.15, 0.20, 0.25, 0.08, 0.19, 0.01, 0.27, 0.00, 0.15, 0.02, 0.06, 0.07, -0.04, 0.00, 0.06],
+        [0.18, 1.00, 0.89, 0.94, 0.93, 0.32, 0.22, 0.27, 0.24, 0.09, 0.45, 0.21, 0.32, 0.28, 0.17, 0.00, 0.37],
+        [0.15, 0.89, 1.00, 0.87, 0.88, 0.25, 0.16, 0.19, 0.12, 0.10, 0.26, 0.07, 0.22, 0.18, 0.13, 0.00, 0.28],
+        [0.20, 0.94, 0.87, 1.00, 0.92, 0.29, 0.22, 0.26, 0.24, 0.06, 0.32, 0.15, 0.26, 0.18, 0.13, 0.00, 0.34],
+        [0.25, 0.93, 0.88, 0.92, 1.00, 0.30, 0.26, 0.26, 0.29, 0.10, 0.40, 0.17, 0.28, 0.24, 0.13, 0.00, 0.38],
+        [0.08, 0.32, 0.25, 0.29, 0.30, 1.00, 0.35, 0.19, 0.33, 0.02, 0.23, 0.11, 0.13, 0.04, 0.06, 0.00, 0.14],
+        [0.19, 0.22, 0.16, 0.22, 0.26, 0.35, 1.00, 0.11, 0.37, 0.04, 0.19, 0.05, 0.10, 0.03, -0.01, 0.00, 0.09],
+        [0.01, 0.27, 0.19, 0.26, 0.26, 0.19, 0.11, 1.00, 0.18, 0.02, 0.17, 0.04, 0.07, 0.01, 0.01, 0.00, 0.07],
+        [0.27, 0.24, 0.12, 0.24, 0.29, 0.33, 0.37, 0.18, 1.00, 0.06, 0.21, 0.04, 0.10, 0.06, 0.03, 0.00, 0.10],
+        [0.00, 0.09, 0.10, 0.06, 0.10, 0.02, 0.04, 0.02, 0.06, 1.00, 0.12, 0.06, 0.10, 0.06, 0.07, 0.00, 0.08],
+        [0.15, 0.45, 0.26, 0.32, 0.40, 0.23, 0.19, 0.17, 0.21, 0.12, 1.00, 0.34, 0.20, 0.21, 0.15, 0.00, 0.24],
+        [0.02, 0.21, 0.07, 0.15, 0.17, 0.11, 0.05, 0.04, 0.04, 0.06, 0.34, 1.00, 0.19, 0.14, 0.08, 0.00, 0.15],
+        [0.06, 0.32, 0.22, 0.26, 0.28, 0.13, 0.10, 0.07, 0.10, 0.10, 0.20, 0.19, 1.00, 0.34, 0.17, 0.00, 0.26],
+        [0.07, 0.28, 0.18, 0.18, 0.24, 0.04, 0.03, 0.01, 0.06, 0.06, 0.21, 0.14, 0.34, 1.00, 0.26, 0.00, 0.27],
+        [-0.04, 0.17, 0.13, 0.13, 0.13, 0.06, -0.01, 0.01, 0.03, 0.07, 0.15, 0.08, 0.17, 0.26, 1.00, 0.00, 0.16],
         [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 1.00, 0.00],
-        [0.24, 0.60, 0.54, 0.59, 0.55, 0.24, 0.24, 0.16, 0.21, 0.14, 0.38, 0.21, 0.34, 0.26, 0.21, 0.00, 1.00],
+        [0.06, 0.37, 0.28, 0.34, 0.38, 0.14, 0.09, 0.07, 0.10, 0.08, 0.24, 0.15, 0.26, 0.27, 0.16, 0.00, 1.00],
     )
 )
 
-# p.24, 67: The group of high FX volatility currencies
+# High FX volatility currencies
 high_vol_currency_group = ['BRL', 'RUB', 'TRY', 'ZAR']
 
-# p.24, 69: Risk Weights for a currency depends on the group of the calculation currency
+# FX Risk Weights (v2.5: 7.4, 13.6, 14.6)
 fx_rw = {
     "Regular": {
         "Regular": 7.4,
@@ -292,17 +298,16 @@ fx_rw = {
     }
 }
 
-# p.24, 70: Historical Volatility Ratio for FX Risk Class
-fx_hvr = 0.52
+# Historical Volatility Ratio for FX
+fx_hvr = 0.6
 
-# p.24, 71: Vega Risk Weight for FX Risk Class
+# Vega Risk Weight for FX
 fx_vrw = 0.47
 
-# p.24, 72: Correlations for FX
-## Regular Vol FX Group
+# FX Correlations (Regular Vol calculation currency)
 fx_reg_vol_corr = {
     "Regular": {
-        "Regular": 0.50,
+        "Regular": 0.5,
         "High":    0.27,
     },
     "High": {
@@ -311,197 +316,196 @@ fx_reg_vol_corr = {
     }
 }
 
-# p.25, 72: Correlations for FX Risk Factor
-# High Vol FX Group
+# FX Correlations (High Vol calculation currency)
 fx_high_vol_corr = {
     "Regular": {
         "Regular": 0.85,
-        "High":    0.54,
+        "High":    0.69,
     },
     "High": {
-        "Regular": 0.54,
-        "High":    0.50,
+        "Regular": 0.69,
+        "High":    0.5,
     }
 }
 
-# p.25, 73: Correlations for FX Volatility&Curvature Risk Factor
-fx_vega_corr = 0.5 
+# FX Vega Correlation
+fx_vega_corr = 0.5
 
-# p.26, 74&75: Delta Concentration Thresholds for Interest Rate Risk
+# Delta Concentration Thresholds for Interest Rate Risk
 ir_delta_CT = {
-    'Others' : 33,  # All other currencies
-    'USD'    : 230, # Regular volatility, well-traded 
-    'EUR'    : 230, # Regular volatility, well-traded 
-    'GBP'    : 230, # Regular volatility, well-traded
-    'AUD'    : 44,  # Regular volatility, less well-traded 
-    'CAD'    : 44,  # Regular volatility, less well-traded 
-    'CHF'    : 44,  # Regular volatility, less well-traded 
-    'DKK'    : 44,  # Regular volatility, less well-traded 
-    'HKD'    : 44,  # Regular volatility, less well-traded 
-    'KRW'    : 44,  # Regular volatility, less well-traded 
-    'NOK'    : 44,  # Regular volatility, less well-traded 
-    'NZD'    : 44,  # Regular volatility, less well-traded 
-    'SEK'    : 44,  # Regular volatility, less well-traded 
-    'SGD'    : 44,  # Regular volatility, less well-traded 
-    'TWD'    : 44,  # Regular volatility, less well-traded
-    'JPY'    : 70, # Low volatility
+    'Others' : 33,   # High volatility currencies
+    'USD'    : 230,  # Regular volatility, well-traded
+    'EUR'    : 230,  # Regular volatility, well-traded
+    'GBP'    : 230,  # Regular volatility, well-traded
+    'AUD'    : 44,   # Regular volatility, less well-traded
+    'CAD'    : 44,   # Regular volatility, less well-traded
+    'CHF'    : 44,   # Regular volatility, less well-traded
+    'DKK'    : 44,   # Regular volatility, less well-traded
+    'HKD'    : 44,   # Regular volatility, less well-traded
+    'KRW'    : 44,   # Regular volatility, less well-traded
+    'NOK'    : 44,   # Regular volatility, less well-traded
+    'NZD'    : 44,   # Regular volatility, less well-traded
+    'SEK'    : 44,   # Regular volatility, less well-traded
+    'SGD'    : 44,   # Regular volatility, less well-traded
+    'TWD'    : 44,   # Regular volatility, less well-traded
+    'JPY'    : 70,   # Low volatility
 }
 
-# p.26, 76: Delta Concentration Thresholds for Credit Spread Risk Group
+# Delta Concentration Thresholds for Credit Spread Risk
 credit_delta_CT = {
     "Qualifying" : {
-        1 : 0.91, # Sovereigns including central banks
-        2 : 0.19, # Corporate entities 
-        3 : 0.19, # Corporate entities
-        4 : 0.19, # Corporate entities
-        5 : 0.19, # Corporate entities
-        6 : 0.19, # Corporate entities
-        7 : 0.91, # Sovereigns including central banks
-        8 : 0.19, # Corporate entities
-        9 : 0.19, # Corporate entities
-        10: 0.19, # Corporate entities
-        11: 0.19, # Corporate entities
-        12: 0.19, # Corporate entities
-        0 : 0.19, # Residual
-    }, 
+        1 : 1.00,
+        2 : 0.25,
+        3 : 0.25,
+        4 : 0.25,
+        5 : 0.25,
+        6 : 0.25,
+        7 : 1.00,
+        8 : 0.25,
+        9 : 0.25,
+        10: 0.25,
+        11: 0.25,
+        12: 0.25,
+        0 : 0.25,  # Residual
+    },
     "Non-Qualifying" : {
-        1 : 9.5, # Investment Grades(RMBS & CMBS) 
-        2 : 0.5, # High Yield/Non-rated (RMBS & CMBS)
-        0 : 0.5, # Residual
+        1 : 9.5,
+        2 : 0.5,
+        0 : 0.5,  # Residual
     }
 }
 
-# p.26, 77: Delta Concentration Thresholds for Equity Risk
+# Delta Concentration Thresholds for Equity Risk
 equity_delta_CT = {
-    1 : 10,    # Emerging Markets  - Large Cap
-    2 : 10,    # Emerging Markets  - Large Cap
-    3 : 10,    # Emerging Markets  - Large Cap
-    4 : 10,    # Emerging Markets  - Large Cap
-    5 : 21,   # Developed Markets - Large Cap
-    6 : 21,   # Developed Markets - Large Cap
-    7 : 21,   # Developed Markets - Large Cap
-    8 : 21,   # Developed Markets - Large Cap
-    9 : 1.4,  # Emerging Markets  - Small Cap
-    10: 0.6,  # Developed Markets - Small Cap
-    11: 2100, # Indexes, Funds, ETFs, Volatility Indexes
-    12: 2100, # Indexes, Funds, ETFs, Volatility Indexes
-    0 : 0.6,  # Residual - Not classified
+    1 : 8,
+    2 : 8,
+    3 : 8,
+    4 : 8,
+    5 : 22,
+    6 : 22,
+    7 : 22,
+    8 : 22,
+    9 : 0.27,
+    10: 0.60,
+    11: 1200,
+    12: 1200,
+    0 : 0.27,  # Residual
 }
 
-# p.27, 78: Delta Concentration Thresholds for Commodity Risk
+# Delta Concentration Thresholds for Commodity Risk
 commodity_delta_CT = {
-    1 : 310,  # Coal
-    2 : 2100, # Crude Oil
-    3 : 1700, # Oil Fractions 
-    4 : 1700, # Oil Fractions 
-    5 : 1700, # Oil Fractions 
-    6 : 3200, # Natural Gas 
-    7 : 3200, # Natural Gas 
-    8 : 2700, # Power 
-    9 : 2700, # Power 
-    10: 52,   # Freight, Dry or Wet 
-    11: 530,  # Base metals 
-    12: 1600, # Precious Metals 
-    13: 100,   # Agricultural 
-    14: 100,   # Agricultural 
-    15: 100,   # Agricultural 
-    16: 52,   # Other 
-    17: 4000, # Indices 
+    1 : 140,
+    2 : 2000,
+    3 : 310,
+    4 : 310,
+    5 : 310,
+    6 : 2600,
+    7 : 2600,
+    8 : 750,
+    9 : 750,
+    10: 52,
+    11: 490,
+    12: 1300,
+    13: 72,
+    14: 72,
+    15: 72,
+    16: 52,
+    17: 4200,
 }
 
-# p.27, 80: Currency Categories
-fx_category1 = ['USD', 'EUR', 'JPY', 'GBP', 'AUD', 'CHF', 'CAD'] # Significantly material
-fx_category2 = ['BRL', 'CNY', 'HKD', 'INR', 'KRW', 'MXN', 'NOK', 'NZD', 'RUB', 'SEK', 'SGD', 'TRY', 'ZAR'] # Frequently traded
+# Currency Categories for FX
+fx_category1 = ['USD', 'EUR', 'JPY', 'GBP', 'AUD', 'CHF', 'CAD']
+fx_category2 = ['BRL', 'CNY', 'HKD', 'INR', 'KRW', 'MXN', 'NOK', 'NZD', 'RUB', 'SEK', 'SGD', 'TRY', 'ZAR']
 
-# p.27, 79: Delta Concentration Thresholds for FX Risk
+# Delta Concentration Thresholds for FX Risk
 fx_delta_CT = {
-    'Category1' : 5100, # Significantly material 
-    'Category2' : 1200, # Frequently traded 
-    'Others'    : 190,  # All other currencies
+    'Category1' : 8400,
+    'Category2' : 1900,
+    'Others'    : 560,
 }
 
-# p.27, 81: Vega Concentration Thresholds for IR Risk
+# Vega Concentration Thresholds for IR Risk
 ir_vega_CT = {
-    'Others' : 120,   # All other currencies
-    'USD'    : 3300, # Regular volatility, well-traded 
-    'EUR'    : 3300, # Regular volatility, well-traded 
+    'Others' : 120,  # High volatility
+    'USD'    : 3300, # Regular volatility, well-traded
+    'EUR'    : 3300, # Regular volatility, well-traded
     'GBP'    : 3300, # Regular volatility, well-traded
-    'AUD'    : 470,  # Regular volatility, less well-traded 
-    'CAD'    : 470,  # Regular volatility, less well-traded 
-    'CHF'    : 470,  # Regular volatility, less well-traded 
-    'DKK'    : 470,  # Regular volatility, less well-traded 
-    'HKD'    : 470,  # Regular volatility, less well-traded 
-    'KRW'    : 470,  # Regular volatility, less well-traded 
-    'NOK'    : 470,  # Regular volatility, less well-traded 
-    'NZD'    : 470,  # Regular volatility, less well-traded 
-    'SEK'    : 470,  # Regular volatility, less well-traded 
-    'SGD'    : 470,  # Regular volatility, less well-traded 
+    'AUD'    : 470,  # Regular volatility, less well-traded
+    'CAD'    : 470,  # Regular volatility, less well-traded
+    'CHF'    : 470,  # Regular volatility, less well-traded
+    'DKK'    : 470,  # Regular volatility, less well-traded
+    'HKD'    : 470,  # Regular volatility, less well-traded
+    'KRW'    : 470,  # Regular volatility, less well-traded
+    'NOK'    : 470,  # Regular volatility, less well-traded
+    'NZD'    : 470,  # Regular volatility, less well-traded
+    'SEK'    : 470,  # Regular volatility, less well-traded
+    'SGD'    : 470,  # Regular volatility, less well-traded
     'TWD'    : 470,  # Regular volatility, less well-traded
     'JPY'    : 570,  # Low volatility
 }
 
-# p.27, 83: Vega Concentration Thresholds for Credit Spread Risk
+# Vega Concentration Thresholds for Credit Spread Risk
 credit_vega_CT = {
-    "Qualifying"     : 260, 
-    "Non-Qualifying" : 145,
+    "Qualifying"     : 310,
+    "Non-Qualifying" : 150,
 }
 
-# p.28, 84: Vega Concentration Thresholds for Equity Risk
+# Vega Concentration Thresholds for Equity Risk
 equity_vega_CT = {
-    1 : 210,  # Emerging Markets  - Large Cap
-    2 : 210,  # Emerging Markets  - Large Cap
-    3 : 210,  # Emerging Markets  - Large Cap
-    4 : 210,  # Emerging Markets  - Large Cap
-    5 : 1300, # Developed Markets - Large Cap
-    6 : 1300, # Developed Markets - Large Cap
-    7 : 1300, # Developed Markets - Large Cap
-    8 : 1300, # Developed Markets - Large Cap
-    9 : 40,   # Emerging Markets  - Small Cap
-    10: 200,  # Developed Markets - Small Cap
-    11: 5900, # Indexes, Funds, ETFs, Volatility Indexes
-    12: 5900, # Indexes, Funds, ETFs, Volatility Indexes
-    0 : 40,   # Residual - Not classified
+    1 : 130,
+    2 : 130,
+    3 : 130,
+    4 : 130,
+    5 : 7400,
+    6 : 7400,
+    7 : 7400,
+    8 : 7400,
+    9 : 300,
+    10: 190,
+    11: 9400,
+    12: 9400,
+    0 : 300,  # Residual
 }
 
-# p.28, 85: Vega Concentration Thresholds for Commodity Risk
+# Vega Concentration Thresholds for Commodity Risk
 commodity_vega_CT = {
-    1 : 210,  # Coal
-    2 : 2700, # Crude Oil
-    3 : 290,  # Oil Fractions 
-    4 : 290,  # Oil Fractions 
-    5 : 290,  # Oil Fractions 
-    6 : 5000, # Natural Gas 
-    7 : 5000, # Natural Gas 
-    8 : 920,  # Power 
-    9 : 920,  # Power 
-    10: 100,  # Freight, Dry or Wet 
-    11: 350,  # Base metals 
-    12: 720,  # Precious Metals 
-    13: 500,  # Agricultural 
-    14: 500,  # Agricultural 
-    15: 500,  # Agricultural 
-    16: 65,   # Other 
-    17: 65,   # Indices 
+    1 : 250,
+    2 : 2000,
+    3 : 510,
+    4 : 510,
+    5 : 510,
+    6 : 2700,
+    7 : 2700,
+    8 : 870,
+    9 : 870,
+    10: 220,
+    11: 450,
+    12: 740,
+    13: 380,
+    14: 380,
+    15: 380,
+    16: 480,
+    17: 79,
 }
 
-# p.28, 86: Vega Concentration Thresholds for FX Risk
+# Vega Concentration Thresholds for FX Risk
 fx_vega_CT = {
-    'Category1-Category1' : 2800,
-    'Category1-Category2' : 1300,
-    'Category1-Category3' : 550,
-    'Category2-Category2' : 490,
-    'Category2-Category3' : 310,
-    'Category3-Category3' : 200,
+    'Category1-Category1' : 2700,
+    'Category1-Category2' : 1200,
+    'Category1-Category3' : 610,
+    'Category2-Category2' : 570,
+    'Category2-Category3' : 370,
+    'Category3-Category3' : 170,
 }
 
-# p.29, 88: Correlation between Risk Classes within Product Classes
+# Correlation between Risk Classes within Product Classes
 corr_params = list(
     zip(
-        [1.00, 0.29, 0.13, 0.28, 0.46, 0.32],
-        [0.29, 1.00, 0.54, 0.71, 0.52, 0.38],
-        [0.13, 0.54, 1.00, 0.46, 0.41, 0.12],
-        [0.28, 0.71, 0.46, 1.00, 0.49, 0.35],
-        [0.46, 0.52, 0.41, 0.49, 1.00, 0.41],
-        [0.32, 0.38, 0.12, 0.35, 0.41, 1.00],
+        [1.00, 0.28, 0.18, 0.18, 0.30, 0.22],
+        [0.28, 1.00, 0.30, 0.66, 0.46, 0.27],
+        [0.18, 0.30, 1.00, 0.46, 0.32, 0.18],
+        [0.18, 0.66, 0.46, 1.00, 0.63, 0.24],
+        [0.30, 0.46, 0.32, 0.63, 1.00, 0.26],
+        [0.22, 0.27, 0.18, 0.24, 0.26, 1.00],
     )
 )

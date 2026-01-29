@@ -1,0 +1,4184 @@
+[18:48:45] ==========================================
+[18:48:45]  SIMM v2 Batched-Evaluate Benchmark Suite
+[18:48:45] ==========================================
+[18:48:45] Date:    2026-01-27T18:48:45+00:00
+[18:48:45] Dir:     /home/natashamanito/ISDA-SIMM
+[18:48:45] Threads: 8
+[18:48:45] Quick:   true
+[18:48:45] Log:     data/benchmark_v2_20260127_184845.log
+[18:48:45] 
+[18:48:45] Activated venv: Python 3.11.2
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+AttributeError: module 'aadc' has no attribute '__version__'
+[18:48:45] ERROR: AADC not importable — AADC benchmarks will fail
+[18:48:45] 
+[18:48:45] ============ Section 1: AADC Portfolio (affected by v2 change) ============
+[18:48:45] 
+[18:48:45] --- START: AADC basic IR swaps (50 trades, 5 portfolios)
+[18:48:45] CMD: python -m model.simm_portfolio_aadc --trades 50 --portfolios 5 --threads 8 --trade-types ir_swap
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap
+  Trades:          50
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         8 (AADC workers)
+
+Generating market data...
+Generating 50 ir_swap trades...
+  Total trades: 50
+Portfolio allocation:
+  Group 0: 7 trades
+  Group 1: 10 trades
+  Group 2: 10 trades
+  Group 3: 13 trades
+  Group 4: 10 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000045       42,219,865,878,600.57  66157.30%
+    IR_SWAP_000018       17,523,486,018,434.51  27458.79%
+    IR_SWAP_000041       4,230,946,496,352.23   6629.77%
+    IR_SWAP_000023       3,294,679,883,267.14   5162.67%
+    IR_SWAP_000033         841,588,024,857.99   1318.74%
+    IR_SWAP_000038         592,950,340,874.43    929.14%
+    IR_SWAP_000024        -406,169,919,597.19   -636.46%
+    ----------------------------------------------------
+    Sum                  68,297,346,722,789.67 (IM = 63,817,398,331.71)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000005       110,991,339,186,161.50  85129.30%
+    IR_SWAP_000027       -31,224,720,062,339.85 -23949.06%
+    IR_SWAP_000013       30,044,047,513,514.55  23043.50%
+    IR_SWAP_000015       29,015,467,209,348.80  22254.59%
+    IR_SWAP_000048       29,015,467,209,348.79  22254.59%
+    IR_SWAP_000046       -19,105,584,012,796.44 -14653.80%
+    IR_SWAP_000020       -4,890,006,009,772.10  -3750.59%
+    IR_SWAP_000039       -4,328,966,236,573.74  -3320.28%
+    IR_SWAP_000043         796,468,490,896.98    610.88%
+    IR_SWAP_000044        -134,766,915,844.67   -103.36%
+    ----------------------------------------------------
+    Sum                  140,178,746,371,943.84 (IM = 130,379,709,120.52)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000030       56,895,245,512,848.91  51589.93%
+    IR_SWAP_000036       56,895,245,512,848.90  51589.93%
+    IR_SWAP_000011       -11,336,629,491,605.50 -10279.52%
+    IR_SWAP_000025       9,166,793,008,898.98   8312.02%
+    IR_SWAP_000026       9,111,068,745,070.90   8261.49%
+    IR_SWAP_000034       -3,860,436,373,805.39  -3500.46%
+    IR_SWAP_000002       1,092,560,658,943.56    990.68%
+    IR_SWAP_000007         386,686,821,429.51    350.63%
+    IR_SWAP_000008         -32,662,169,428.71    -29.62%
+    IR_SWAP_000006             731,488,372.43      0.66%
+    ----------------------------------------------------
+    Sum                  118,318,603,713,573.59 (IM = 110,283,631,248.13)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000022       -22,004,595,391,195.14 -50695.81%
+    IR_SWAP_000000       16,351,287,123,926.55  37671.30%
+    IR_SWAP_000040       16,351,287,123,926.55  37671.30%
+    IR_SWAP_000028       16,351,287,123,926.54  37671.30%
+    IR_SWAP_000031       10,626,995,286,707.54  24483.26%
+    IR_SWAP_000019       2,762,518,558,643.06   6364.49%
+    IR_SWAP_000029        -585,733,151,695.82  -1349.46%
+    IR_SWAP_000042         561,688,855,714.68   1294.06%
+    IR_SWAP_000049         561,688,855,714.68   1294.06%
+    IR_SWAP_000032         550,750,318,302.72   1268.86%
+    IR_SWAP_000016         191,368,062,766.23    440.89%
+    IR_SWAP_000014        -173,309,015,443.61   -399.28%
+    IR_SWAP_000010         161,713,616,402.30    372.57%
+    ----------------------------------------------------
+    Sum                  41,706,947,367,696.26 (IM = 43,405,152,883.42)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000012       28,082,981,244,462.89 101668.51%
+    IR_SWAP_000035       4,525,661,124,044.32  16384.20%
+    IR_SWAP_000037       -3,989,424,174,704.68 -14442.87%
+    IR_SWAP_000021       2,428,359,548,263.44   8791.36%
+    IR_SWAP_000047       -2,219,089,490,611.83  -8033.75%
+    IR_SWAP_000017       -1,991,767,457,455.45  -7210.77%
+    IR_SWAP_000009       1,229,799,726,886.51   4452.23%
+    IR_SWAP_000004        -308,670,341,414.87  -1117.48%
+    IR_SWAP_000003        -302,776,097,757.44  -1096.14%
+    IR_SWAP_000001        -157,865,207,605.83   -571.52%
+    ----------------------------------------------------
+    Sum                  27,297,208,874,107.07 (IM = 27,622,102,490.18)
+
+CRIF logged: 269 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 50 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0          7  63,817,398,331.71      0.867   0.407922      41      0.347
+  1         10 130,379,709,120.52      1.100   0.507986      56      0.347
+  2         10 110,283,631,248.13      1.101   0.472712      55      0.347
+  3         13  43,405,152,883.42      1.197   0.500139      68      0.347
+  4         10  27,622,102,490.18      1.204   0.476093      49      0.347
+--------------------------------------------------------------------------
+  ALL       50 375,507,994,073.95      5.469   2.364852     269      1.734
+
+Timing Summary (AADC):
+  CRIF (AADC):       5.469 s (5 groups)
+  SIMM aggregation:  2.364852 s (5 groups)
+  IM gradient (AADC): 1.734 s (269 sensitivities, single adjoint)
+  Total:             9.568 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:48:57] --- PASS: AADC basic IR swaps (50 trades, 5 portfolios) (12s)
+[18:48:57] --- START: AADC multi-asset (50 trades, 5 portfolios, 3 types)
+[18:48:57] CMD: python -m model.simm_portfolio_aadc --trades 50 --portfolios 5 --threads 8 --trade-types ir_swap,equity_option,fx_option
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap,equity_option,fx_option
+  Trades:          50
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         8 (AADC workers)
+
+Generating market data...
+Generating 50 ir_swap trades...
+Generating 50 equity_option trades...
+Generating 50 fx_option trades...
+  Total trades: 150
+Portfolio allocation:
+  Group 0: 25 trades
+  Group 1: 28 trades
+  Group 2: 27 trades
+  Group 3: 40 trades
+  Group 4: 30 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000026 105,089,154,834,212.17  29920.26%
+    EQUITY_OPTION_000041 63,603,550,270,932.10  18108.76%
+    IR_SWAP_000045       24,393,426,788,289.33   6945.13%
+    IR_SWAP_000018       10,348,817,322,584.61   2946.44%
+    EQUITY_OPTION_000034 5,045,683,982,491.28   1436.57%
+    IR_SWAP_000041       2,417,914,882,687.81    688.41%
+    IR_SWAP_000023       1,873,668,483,450.26    533.46%
+    EQUITY_OPTION_000035  -658,645,106,355.20   -187.52%
+    EQUITY_OPTION_000037  -658,645,106,355.20   -187.52%
+    IR_SWAP_000033         486,291,330,883.35    138.45%
+    IR_SWAP_000038         346,022,588,720.24     98.52%
+    IR_SWAP_000024        -240,450,715,329.46    -68.46%
+    EQUITY_OPTION_000036   126,999,144,144.03     36.16%
+    FX_OPTION_000001       120,762,299,881.31     34.38%
+    EQUITY_OPTION_000044   -95,845,332,076.21    -27.29%
+    EQUITY_OPTION_000049    77,624,224,206.34     22.10%
+    FX_OPTION_000018        31,683,960,656.66      9.02%
+    FX_OPTION_000010        20,606,436,033.93      5.87%
+    FX_OPTION_000040        -2,539,079,077.43     -0.72%
+    FX_OPTION_000014        -2,539,079,077.43     -0.72%
+    FX_OPTION_000024         1,107,153,808.74      0.32%
+    FX_OPTION_000004         1,107,153,808.74      0.32%
+    EQUITY_OPTION_000005                 0.00      0.00%
+    EQUITY_OPTION_000020                 0.00      0.00%
+    EQUITY_OPTION_000031                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  212,325,756,438,520.00 (IM = 351,230,804,113.24)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000014 245,586,353,121,134.50  12845.32%
+    EQUITY_OPTION_000017 245,586,353,121,134.50  12845.32%
+    IR_SWAP_000005       65,261,242,279,175.28   3413.47%
+    EQUITY_OPTION_000009 23,894,460,611,842.17   1249.79%
+    IR_SWAP_000027       -18,442,778,619,120.43   -964.64%
+    IR_SWAP_000013       16,752,603,248,277.26    876.24%
+    IR_SWAP_000015       16,176,610,341,601.70    846.11%
+    IR_SWAP_000048       16,176,610,341,601.70    846.11%
+    IR_SWAP_000046       -10,659,080,343,075.15   -557.52%
+    EQUITY_OPTION_000007 5,017,421,440,359.35    262.43%
+    IR_SWAP_000020       -2,728,255,117,713.60   -142.70%
+    IR_SWAP_000039       -2,413,715,352,946.77   -126.25%
+    IR_SWAP_000043         444,384,379,324.33     23.24%
+    EQUITY_OPTION_000023   128,816,616,040.96      6.74%
+    IR_SWAP_000044         -80,840,053,769.58     -4.23%
+    EQUITY_OPTION_000048    72,152,988,058.80      3.77%
+    FX_OPTION_000038       -63,177,041,008.87     -3.30%
+    FX_OPTION_000048       -49,574,015,870.09     -2.59%
+    FX_OPTION_000016       -38,848,023,969.59     -2.03%
+    FX_OPTION_000003       -24,637,922,231.07     -1.29%
+    EQUITY_OPTION_000013    14,430,708,480.58      0.75%
+    FX_OPTION_000019       -11,010,066,593.29     -0.58%
+    FX_OPTION_000020        -9,650,008,855.90     -0.50%
+    FX_OPTION_000037           -27,415,999.64     -0.00%
+    EQUITY_OPTION_000025                -0.00     -0.00%
+    EQUITY_OPTION_000047                 0.00      0.00%
+    EQUITY_OPTION_000010                 0.00      0.00%
+    EQUITY_OPTION_000016                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  600,589,845,215,877.12 (IM = 1,911,873,875,635.70)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000004 88,485,906,669,236.53   9978.84%
+    EQUITY_OPTION_000040 88,485,906,669,236.53   9978.84%
+    EQUITY_OPTION_000043 88,485,906,669,236.53   9978.84%
+    IR_SWAP_000030       36,322,692,700,085.07   4096.23%
+    IR_SWAP_000036       36,322,692,700,085.07   4096.23%
+    IR_SWAP_000011       -7,237,513,308,579.43   -816.20%
+    IR_SWAP_000025       5,803,788,136,222.32    654.51%
+    IR_SWAP_000026       5,768,531,656,626.41    650.54%
+    IR_SWAP_000034       -2,436,713,910,156.68   -274.80%
+    FX_OPTION_000047      -729,789,211,434.77    -82.30%
+    FX_OPTION_000011      -729,789,211,434.77    -82.30%
+    IR_SWAP_000002         479,646,817,840.88     54.09%
+    IR_SWAP_000007         289,891,810,113.20     32.69%
+    FX_OPTION_000008       272,862,866,072.44     30.77%
+    FX_OPTION_000023       271,816,863,397.41     30.65%
+    FX_OPTION_000030      -221,992,224,784.05    -25.03%
+    FX_OPTION_000009      -157,193,886,497.56    -17.73%
+    FX_OPTION_000017       -33,922,590,842.72     -3.83%
+    FX_OPTION_000013       -24,706,048,501.24     -2.79%
+    FX_OPTION_000006        20,803,839,318.20      2.35%
+    FX_OPTION_000034       -15,373,778,485.73     -1.73%
+    IR_SWAP_000006         -15,253,405,042.74     -1.72%
+    IR_SWAP_000008         -13,768,001,347.93     -1.55%
+    FX_OPTION_000035        -2,675,153,254.50     -0.30%
+    EQUITY_OPTION_000039                 0.00      0.00%
+    EQUITY_OPTION_000042                -0.00     -0.00%
+    EQUITY_OPTION_000045                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  339,391,756,667,108.44 (IM = 886,735,646,201.05)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000000 105,616,892,645,586.16  30231.56%
+    EQUITY_OPTION_000011 49,426,013,263,868.08  14147.60%
+    IR_SWAP_000022       -10,934,567,290,780.20  -3129.89%
+    IR_SWAP_000028       8,116,615,298,850.32   2323.28%
+    IR_SWAP_000040       8,116,615,298,850.31   2323.28%
+    IR_SWAP_000000       8,116,615,298,850.31   2323.28%
+    IR_SWAP_000031       5,318,190,508,838.95   1522.27%
+    EQUITY_OPTION_000001 4,078,690,403,370.91   1167.48%
+    EQUITY_OPTION_000029 4,078,690,403,370.91   1167.48%
+    EQUITY_OPTION_000038 3,475,625,374,643.58    994.86%
+    EQUITY_OPTION_000002 1,845,745,214,054.86    528.32%
+    IR_SWAP_000019       1,351,841,268,691.86    386.95%
+    IR_SWAP_000029        -286,626,190,874.27    -82.04%
+    EQUITY_OPTION_000006   278,135,073,836.76     79.61%
+    EQUITY_OPTION_000019   278,135,073,836.76     79.61%
+    IR_SWAP_000042         274,861,362,981.94     78.68%
+    IR_SWAP_000049         274,861,362,981.94     78.68%
+    FX_OPTION_000025       270,294,011,948.03     77.37%
+    FX_OPTION_000042       270,294,011,948.03     77.37%
+    IR_SWAP_000032         268,664,201,090.33     76.90%
+    FX_OPTION_000046      -142,955,340,127.13    -40.92%
+    FX_OPTION_000045      -105,040,972,946.70    -30.07%
+    IR_SWAP_000016          93,757,148,606.89     26.84%
+    IR_SWAP_000014         -84,343,642,697.20    -24.14%
+    IR_SWAP_000010          78,702,014,460.22     22.53%
+    FX_OPTION_000043        48,739,715,865.41     13.95%
+    FX_OPTION_000027       -22,578,155,191.44     -6.46%
+    FX_OPTION_000021       -22,578,155,191.44     -6.46%
+    FX_OPTION_000007       -21,958,123,251.58     -6.29%
+    FX_OPTION_000032        20,271,708,196.76      5.80%
+    FX_OPTION_000049        15,394,907,011.40      4.41%
+    FX_OPTION_000036       -12,497,525,808.67     -3.58%
+    FX_OPTION_000044        -2,162,569,209.14     -0.62%
+    FX_OPTION_000000        -2,162,569,209.14     -0.62%
+    FX_OPTION_000002        -2,162,569,209.14     -0.62%
+    EQUITY_OPTION_000028                -0.00     -0.00%
+    EQUITY_OPTION_000008                 0.00      0.00%
+    EQUITY_OPTION_000018                 0.00      0.00%
+    EQUITY_OPTION_000015                 0.00      0.00%
+    EQUITY_OPTION_000027                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  190,074,012,467,244.69 (IM = 349,359,660,819.70)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000046 334,984,480,297,260.88  17000.31%
+    EQUITY_OPTION_000022 243,700,047,131,721.91  12367.66%
+    IR_SWAP_000012       12,127,716,024,823.02    615.48%
+    IR_SWAP_000037       -1,766,127,420,481.82    -89.63%
+    IR_SWAP_000035       1,426,083,969,805.78     72.37%
+    IR_SWAP_000047        -968,736,852,687.18    -49.16%
+    EQUITY_OPTION_000003   895,413,697,306.89     45.44%
+    IR_SWAP_000021         751,427,221,431.99     38.13%
+    IR_SWAP_000017        -634,006,798,542.18    -32.18%
+    IR_SWAP_000009         540,120,951,513.84     27.41%
+    FX_OPTION_000026       146,509,102,560.67      7.44%
+    FX_OPTION_000031       146,509,102,560.67      7.44%
+    IR_SWAP_000004        -137,305,010,454.20     -6.97%
+    IR_SWAP_000003         -96,678,606,330.94     -4.91%
+    IR_SWAP_000001         -70,216,862,116.77     -3.56%
+    FX_OPTION_000039       -45,598,932,282.02     -2.31%
+    EQUITY_OPTION_000033    20,090,403,126.90      1.02%
+    FX_OPTION_000012       -11,325,537,816.06     -0.57%
+    FX_OPTION_000033         8,709,171,667.13      0.44%
+    FX_OPTION_000005         6,522,336,334.59      0.33%
+    FX_OPTION_000022         6,522,336,334.59      0.33%
+    FX_OPTION_000028         6,522,336,334.59      0.33%
+    FX_OPTION_000041         6,522,336,334.59      0.33%
+    FX_OPTION_000029        -4,453,615,358.26     -0.23%
+    FX_OPTION_000015         1,199,614,533.78      0.06%
+    EQUITY_OPTION_000012                -0.00     -0.00%
+    EQUITY_OPTION_000021                -0.00     -0.00%
+    EQUITY_OPTION_000032                 0.00      0.00%
+    EQUITY_OPTION_000030                 0.00      0.00%
+    EQUITY_OPTION_000024                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  591,039,946,397,582.50 (IM = 1,970,461,489,362.11)
+
+CRIF logged: 608 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 150 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0         25 351,230,804,113.24      2.500   0.889044     100      0.722
+  1         28 1,911,873,875,635.70      2.956   0.998174     116      0.722
+  2         27 886,735,646,201.05      2.636   0.684260     114      0.722
+  3         40 349,359,660,819.70      3.406   1.053820     161      0.722
+  4         30 1,970,461,489,362.11      2.834   0.771633     117      0.722
+--------------------------------------------------------------------------
+  ALL      150 5,469,661,476,131.80     14.332   4.396932     608      3.611
+
+Timing Summary (AADC):
+  CRIF (AADC):       14.332 s (5 groups)
+  SIMM aggregation:  4.396932 s (5 groups)
+  IM gradient (AADC): 3.611 s (608 sensitivities, single adjoint)
+  Total:             22.340 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:49:21] --- PASS: AADC multi-asset (50 trades, 5 portfolios, 3 types) (24s)
+[18:49:21] --- START: AADC multi-asset + reallocation (100 trades)
+[18:49:21] CMD: python -m model.simm_portfolio_aadc --trades 100 --portfolios 5 --threads 8 --trade-types ir_swap,equity_option,fx_option --reallocate 20
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap,equity_option,fx_option
+  Trades:          100
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         8 (AADC workers)
+  Reallocate:      20 trades
+
+Generating market data...
+Generating 100 ir_swap trades...
+Generating 100 equity_option trades...
+Generating 100 fx_option trades...
+  Total trades: 300
+Portfolio allocation:
+  Group 0: 69 trades
+  Group 1: 46 trades
+  Group 2: 63 trades
+  Group 3: 74 trades
+  Group 4: 48 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000014 136,904,948,887,309.56  11471.10%
+    IR_SWAP_000091       105,914,601,697,530.56   8874.46%
+    IR_SWAP_000018       43,824,230,537,858.65   3671.98%
+    IR_SWAP_000081       41,520,025,824,744.76   3478.91%
+    EQUITY_OPTION_000004 34,836,936,325,362.14   2918.95%
+    EQUITY_OPTION_000040 34,836,936,325,362.14   2918.95%
+    EQUITY_OPTION_000070 16,034,438,259,088.96   1343.51%
+    EQUITY_OPTION_000077 16,034,438,259,088.96   1343.51%
+    IR_SWAP_000087       -10,479,137,251,860.84   -878.03%
+    IR_SWAP_000045       9,791,482,102,890.52    820.42%
+    IR_SWAP_000084       5,564,499,467,586.68    466.24%
+    IR_SWAP_000070       5,429,474,996,969.38    454.93%
+    IR_SWAP_000076       -2,891,541,600,133.46   -242.28%
+    IR_SWAP_000085       -2,155,207,952,004.60   -180.58%
+    EQUITY_OPTION_000001 -1,458,301,081,559.87   -122.19%
+    IR_SWAP_000038       1,367,230,313,697.08    114.56%
+    IR_SWAP_000055       1,173,137,022,590.93     98.30%
+    IR_SWAP_000024       -1,042,106,698,588.21    -87.32%
+    IR_SWAP_000041       1,029,345,133,632.44     86.25%
+    FX_OPTION_000092       939,101,773,939.52     78.69%
+    IR_SWAP_000023         823,783,522,524.73     69.02%
+    FX_OPTION_000025       737,472,440,366.25     61.79%
+    FX_OPTION_000042       737,472,440,366.25     61.79%
+    IR_SWAP_000094        -377,901,139,244.75    -31.66%
+    EQUITY_OPTION_000061   359,554,748,800.63     30.13%
+    FX_OPTION_000050      -282,552,560,745.71    -23.67%
+    FX_OPTION_000003      -282,552,560,745.71    -23.67%
+    EQUITY_OPTION_000050   231,028,045,818.21     19.36%
+    IR_SWAP_000033         195,117,134,646.12     16.35%
+    FX_OPTION_000063      -119,354,946,690.38    -10.00%
+    FX_OPTION_000019       101,558,441,477.54      8.51%
+    FX_OPTION_000018       -78,363,616,261.46     -6.57%
+    FX_OPTION_000047       -78,363,616,261.46     -6.57%
+    FX_OPTION_000065       -78,363,616,261.46     -6.57%
+    FX_OPTION_000021       -65,743,403,088.84     -5.51%
+    FX_OPTION_000031       -65,743,403,088.84     -5.51%
+    IR_SWAP_000086         -54,043,106,458.76     -4.53%
+    IR_SWAP_000099          53,657,690,680.82      4.50%
+    FX_OPTION_000036       -35,156,803,662.96     -2.95%
+    FX_OPTION_000041       -35,156,803,662.96     -2.95%
+    FX_OPTION_000056       -35,156,803,662.96     -2.95%
+    FX_OPTION_000084       -35,156,803,662.96     -2.95%
+    FX_OPTION_000002       -27,221,538,123.26     -2.28%
+    FX_OPTION_000034       -25,620,731,683.49     -2.15%
+    FX_OPTION_000054       -25,620,731,683.49     -2.15%
+    FX_OPTION_000082       -25,620,731,683.49     -2.15%
+    EQUITY_OPTION_000055   -23,384,792,533.14     -1.96%
+    FX_OPTION_000024       -16,098,683,042.40     -1.35%
+    FX_OPTION_000091       -16,098,683,042.40     -1.35%
+    FX_OPTION_000099       -11,216,833,099.42     -0.94%
+    FX_OPTION_000067           364,812,044.40      0.03%
+    FX_OPTION_000071           364,812,044.40      0.03%
+    FX_OPTION_000072           364,812,044.40      0.03%
+    EQUITY_OPTION_000080                 0.00      0.00%
+    EQUITY_OPTION_000071                 0.00      0.00%
+    EQUITY_OPTION_000088                 0.00      0.00%
+    EQUITY_OPTION_000063                 0.00      0.00%
+    EQUITY_OPTION_000087                 0.00      0.00%
+    EQUITY_OPTION_000097                 0.00      0.00%
+    EQUITY_OPTION_000079                 0.00      0.00%
+    EQUITY_OPTION_000018                -0.00     -0.00%
+    EQUITY_OPTION_000052                 0.00      0.00%
+    EQUITY_OPTION_000010                -0.00     -0.00%
+    EQUITY_OPTION_000058                -0.00     -0.00%
+    EQUITY_OPTION_000068                -0.00     -0.00%
+    EQUITY_OPTION_000082                 0.00      0.00%
+    EQUITY_OPTION_000024                 0.00      0.00%
+    EQUITY_OPTION_000051                 0.00      0.00%
+    EQUITY_OPTION_000053                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  438,620,779,335,928.88 (IM = 1,193,476,629,477.13)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000072 218,626,614,976,739.28   9893.02%
+    EQUITY_OPTION_000084 218,626,614,976,739.28   9893.02%
+    IR_SWAP_000005       151,144,358,911,345.88   6839.40%
+    IR_SWAP_000057       142,342,960,022,386.66   6441.13%
+    IR_SWAP_000027       -43,471,815,900,895.09  -1967.13%
+    IR_SWAP_000073       -32,030,103,937,570.19  -1449.39%
+    IR_SWAP_000098       21,348,336,424,160.47    966.03%
+    IR_SWAP_000067       18,800,246,881,529.82    850.73%
+    EQUITY_OPTION_000090 18,573,825,689,766.92    840.48%
+    EQUITY_OPTION_000019 18,573,825,689,766.91    840.48%
+    IR_SWAP_000075       -18,113,822,284,260.07   -819.66%
+    IR_SWAP_000013       15,036,323,479,760.77    680.41%
+    IR_SWAP_000060       15,036,323,479,760.77    680.41%
+    IR_SWAP_000015       13,920,229,768,029.12    629.90%
+    IR_SWAP_000048       13,920,229,768,029.12    629.90%
+    IR_SWAP_000046       -9,926,157,778,853.93   -449.17%
+    EQUITY_OPTION_000038 9,145,551,487,405.86    413.84%
+    EQUITY_OPTION_000037 3,933,933,328,643.82    178.01%
+    IR_SWAP_000097       3,564,691,660,600.15    161.31%
+    IR_SWAP_000020       -2,274,331,766,504.47   -102.92%
+    IR_SWAP_000039       -2,131,413,712,155.86    -96.45%
+    IR_SWAP_000059       1,104,252,181,057.49     49.97%
+    IR_SWAP_000064       1,089,200,996,853.09     49.29%
+    EQUITY_OPTION_000003 1,076,689,458,077.22     48.72%
+    IR_SWAP_000066        -716,978,995,137.20    -32.44%
+    IR_SWAP_000063         646,072,654,384.47     29.24%
+    FX_OPTION_000026       419,959,608,265.06     19.00%
+    FX_OPTION_000027       419,959,608,265.06     19.00%
+    FX_OPTION_000030       419,959,608,265.06     19.00%
+    IR_SWAP_000043         369,647,273,901.78     16.73%
+    FX_OPTION_000059      -267,488,259,357.05    -12.10%
+    IR_SWAP_000044        -178,281,032,613.92     -8.07%
+    FX_OPTION_000058      -173,998,955,389.95     -7.87%
+    FX_OPTION_000080       120,395,609,132.78      5.45%
+    EQUITY_OPTION_000048    70,522,432,449.64      3.19%
+    FX_OPTION_000060       -65,316,089,044.56     -2.96%
+    EQUITY_OPTION_000075    50,529,658,101.93      2.29%
+    FX_OPTION_000020        33,926,373,353.07      1.54%
+    EQUITY_OPTION_000083    24,534,158,103.62      1.11%
+    FX_OPTION_000013        19,723,839,039.67      0.89%
+    FX_OPTION_000000         2,914,999,595.67      0.13%
+    FX_OPTION_000035         2,914,999,595.67      0.13%
+    EQUITY_OPTION_000093                -0.00     -0.00%
+    EQUITY_OPTION_000065                 0.00      0.00%
+    EQUITY_OPTION_000020                -0.00     -0.00%
+    EQUITY_OPTION_000016                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  779,115,561,291,323.62 (IM = 2,209,906,834,617.12)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000011 91,469,781,079,724.62  11051.79%
+    EQUITY_OPTION_000059 91,469,781,079,724.62  11051.79%
+    IR_SWAP_000030       39,792,445,596,318.55   4807.90%
+    IR_SWAP_000036       39,792,445,596,318.54   4807.90%
+    EQUITY_OPTION_000017 33,586,548,714,626.43   4058.08%
+    EQUITY_OPTION_000034 33,586,548,714,626.43   4058.08%
+    EQUITY_OPTION_000067 33,586,548,714,626.43   4058.08%
+    IR_SWAP_000089       9,735,306,249,753.63   1176.26%
+    EQUITY_OPTION_000081 8,488,713,159,980.91   1025.64%
+    IR_SWAP_000011       -7,928,743,860,225.21   -957.99%
+    IR_SWAP_000054       7,207,768,308,861.07    870.87%
+    IR_SWAP_000025       6,434,596,624,986.84    777.46%
+    IR_SWAP_000026       6,395,666,385,305.77    772.75%
+    EQUITY_OPTION_000064 5,770,236,984,145.51    697.19%
+    IR_SWAP_000034       -2,691,679,447,782.72   -325.22%
+    IR_SWAP_000002       1,314,660,697,375.01    158.84%
+    EQUITY_OPTION_000006   837,194,962,568.73    101.15%
+    EQUITY_OPTION_000009   837,194,962,568.73    101.15%
+    EQUITY_OPTION_000076  -459,016,020,285.52    -55.46%
+    EQUITY_OPTION_000054   427,876,258,467.04     51.70%
+    FX_OPTION_000074       414,420,067,503.89     50.07%
+    FX_OPTION_000079       414,420,067,503.89     50.07%
+    FX_OPTION_000088       414,420,067,503.89     50.07%
+    FX_OPTION_000001      -403,480,160,775.05    -48.75%
+    EQUITY_OPTION_000023   392,672,054,346.65     47.44%
+    EQUITY_OPTION_000035   392,672,054,346.65     47.44%
+    FX_OPTION_000078      -284,919,487,267.10    -34.43%
+    FX_OPTION_000045      -266,714,984,988.09    -32.23%
+    IR_SWAP_000007         208,775,322,327.90     25.23%
+    IR_SWAP_000093         151,277,392,507.47     18.28%
+    IR_SWAP_000095         151,277,392,507.47     18.28%
+    FX_OPTION_000043       114,801,903,269.49     13.87%
+    FX_OPTION_000012        74,310,395,754.54      8.98%
+    FX_OPTION_000007       -47,530,337,690.48     -5.74%
+    FX_OPTION_000075       -47,530,337,690.48     -5.74%
+    FX_OPTION_000005       -42,851,849,497.98     -5.18%
+    FX_OPTION_000022       -42,851,849,497.98     -5.18%
+    FX_OPTION_000028       -42,851,849,497.98     -5.18%
+    IR_SWAP_000008         -40,581,472,255.97     -4.90%
+    IR_SWAP_000092         -40,581,472,255.97     -4.90%
+    FX_OPTION_000090        36,084,507,808.88      4.36%
+    IR_SWAP_000006          30,653,796,905.01      3.70%
+    FX_OPTION_000010       -28,716,737,628.37     -3.47%
+    FX_OPTION_000097       -28,716,737,628.37     -3.47%
+    FX_OPTION_000077       -28,716,737,628.37     -3.47%
+    IR_SWAP_000090          20,902,927,620.00      2.53%
+    FX_OPTION_000055        16,575,850,396.04      2.00%
+    FX_OPTION_000014        13,069,168,704.34      1.58%
+    FX_OPTION_000040        13,069,168,704.34      1.58%
+    FX_OPTION_000049        13,069,168,704.34      1.58%
+    FX_OPTION_000061        13,069,168,704.34      1.58%
+    FX_OPTION_000015       -10,618,959,676.15     -1.28%
+    FX_OPTION_000044       -10,618,959,676.15     -1.28%
+    FX_OPTION_000053       -10,618,959,676.15     -1.28%
+    FX_OPTION_000070        -7,443,191,649.81     -0.90%
+    EQUITY_OPTION_000013    -3,911,282,640.89     -0.47%
+    EQUITY_OPTION_000089                -0.00     -0.00%
+    EQUITY_OPTION_000030                 0.00      0.00%
+    EQUITY_OPTION_000008                 0.00      0.00%
+    EQUITY_OPTION_000047                -0.00     -0.00%
+    EQUITY_OPTION_000096                 0.00      0.00%
+    EQUITY_OPTION_000060                -0.00     -0.00%
+    EQUITY_OPTION_000095                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  401,150,159,869,183.19 (IM = 827,646,845,237.14)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000046 378,851,392,417,112.81  24269.33%
+    EQUITY_OPTION_000000 73,990,552,515,824.95   4739.86%
+    EQUITY_OPTION_000049 73,990,552,515,824.95   4739.86%
+    EQUITY_OPTION_000069 73,990,552,515,824.95   4739.86%
+    EQUITY_OPTION_000066 19,160,836,242,180.63   1227.45%
+    EQUITY_OPTION_000074 9,278,215,333,136.99    594.37%
+    IR_SWAP_000019       2,361,834,453,048.02    151.30%
+    EQUITY_OPTION_000007 2,329,283,353,100.39    149.21%
+    EQUITY_OPTION_000002 2,329,283,353,100.39    149.21%
+    EQUITY_OPTION_000073 2,329,283,353,100.39    149.21%
+    IR_SWAP_000079        -728,828,563,347.97    -46.69%
+    IR_SWAP_000022        -728,828,563,347.97    -46.69%
+    IR_SWAP_000040         566,588,223,286.74     36.30%
+    IR_SWAP_000000         566,588,223,286.73     36.30%
+    IR_SWAP_000028         566,588,223,286.73     36.30%
+    IR_SWAP_000029        -500,250,144,667.37    -32.05%
+    IR_SWAP_000069        -491,750,800,086.53    -31.50%
+    IR_SWAP_000049         480,030,983,482.66     30.75%
+    IR_SWAP_000042         480,030,983,482.66     30.75%
+    IR_SWAP_000032         461,460,847,324.32     29.56%
+    IR_SWAP_000031         322,181,832,262.72     20.64%
+    IR_SWAP_000078        -280,249,447,301.05    -17.95%
+    FX_OPTION_000011       257,589,411,487.51     16.50%
+    FX_OPTION_000046       257,589,411,487.51     16.50%
+    IR_SWAP_000050         192,316,496,610.47     12.32%
+    IR_SWAP_000051        -163,893,442,515.76    -10.50%
+    IR_SWAP_000061         159,025,896,528.74     10.19%
+    FX_OPTION_000048       158,908,957,587.05     10.18%
+    IR_SWAP_000016         153,379,479,606.76      9.83%
+    IR_SWAP_000014        -136,482,618,336.92     -8.74%
+    IR_SWAP_000010         129,328,176,213.71      8.28%
+    IR_SWAP_000065         107,669,703,914.18      6.90%
+    FX_OPTION_000008       -61,656,478,015.29     -3.95%
+    FX_OPTION_000016       -61,656,478,015.29     -3.95%
+    FX_OPTION_000023       -54,689,296,246.28     -3.50%
+    FX_OPTION_000052       -54,689,296,246.28     -3.50%
+    IR_SWAP_000088          54,440,785,767.49      3.49%
+    FX_OPTION_000064        53,211,909,354.98      3.41%
+    FX_OPTION_000009        53,211,909,354.98      3.41%
+    EQUITY_OPTION_000036    49,316,657,153.76      3.16%
+    EQUITY_OPTION_000043    49,316,657,153.76      3.16%
+    IR_SWAP_000068          47,881,133,274.04      3.07%
+    FX_OPTION_000069        42,697,843,448.92      2.74%
+    IR_SWAP_000056          25,212,021,195.97      1.62%
+    IR_SWAP_000077          24,969,541,401.29      1.60%
+    IR_SWAP_000052          24,969,541,401.29      1.60%
+    FX_OPTION_000086       -18,192,021,133.43     -1.17%
+    FX_OPTION_000029       -17,123,588,204.39     -1.10%
+    FX_OPTION_000032       -17,123,588,204.39     -1.10%
+    FX_OPTION_000017        16,540,875,808.15      1.06%
+    FX_OPTION_000033        16,540,875,808.15      1.06%
+    FX_OPTION_000083        13,995,456,963.22      0.90%
+    FX_OPTION_000073        13,995,456,963.22      0.90%
+    FX_OPTION_000093       -13,336,683,284.20     -0.85%
+    FX_OPTION_000098        11,638,560,994.52      0.75%
+    FX_OPTION_000094         8,743,910,406.96      0.56%
+    IR_SWAP_000058           5,173,573,350.89      0.33%
+    FX_OPTION_000066        -3,882,535,419.85     -0.25%
+    EQUITY_OPTION_000044    -2,986,737,728.05     -0.19%
+    EQUITY_OPTION_000094    -2,986,737,728.05     -0.19%
+    FX_OPTION_000089         1,408,426,933.19      0.09%
+    FX_OPTION_000004         1,408,426,933.19      0.09%
+    FX_OPTION_000037          -211,732,388.63     -0.01%
+    FX_OPTION_000051          -211,732,388.63     -0.01%
+    EQUITY_OPTION_000085                 0.00      0.00%
+    EQUITY_OPTION_000092                 0.00      0.00%
+    EQUITY_OPTION_000021                 0.00      0.00%
+    EQUITY_OPTION_000025                 0.00      0.00%
+    EQUITY_OPTION_000099                 0.00      0.00%
+    EQUITY_OPTION_000032                 0.00      0.00%
+    EQUITY_OPTION_000056                -0.00     -0.00%
+    EQUITY_OPTION_000042                -0.00     -0.00%
+    EQUITY_OPTION_000027                 0.00      0.00%
+    EQUITY_OPTION_000045                 0.00      0.00%
+    ----------------------------------------------------
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+    Sum                  640,646,705,981,164.88 (IM = 1,561,029,435,314.50)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000022 80,523,314,756,540.59   7441.86%
+    EQUITY_OPTION_000086 78,637,274,446,454.25   7267.55%
+    EQUITY_OPTION_000026 68,559,666,471,782.48   6336.19%
+    EQUITY_OPTION_000041 35,541,829,364,782.77   3284.73%
+    EQUITY_OPTION_000091 35,541,829,364,782.77   3284.73%
+    IR_SWAP_000012       9,078,165,891,163.66    838.99%
+    EQUITY_OPTION_000033 5,925,787,664,756.99    547.65%
+    EQUITY_OPTION_000078 5,925,787,664,756.99    547.65%
+    IR_SWAP_000071       3,482,100,285,606.92    321.81%
+    IR_SWAP_000035       -1,608,458,538,810.36   -148.65%
+    IR_SWAP_000037        -940,963,048,422.34    -86.96%
+    IR_SWAP_000017         789,924,955,572.86     73.00%
+    IR_SWAP_000047        -642,414,608,612.37    -59.37%
+    IR_SWAP_000053        -605,034,144,021.77    -55.92%
+    IR_SWAP_000082        -537,104,715,309.37    -49.64%
+    IR_SWAP_000021        -351,835,757,589.95    -32.52%
+    IR_SWAP_000009         325,273,990,626.94     30.06%
+    IR_SWAP_000080         215,887,326,816.04     19.95%
+    IR_SWAP_000072         197,008,132,757.48     18.21%
+    FX_OPTION_000068       156,682,891,626.94     14.48%
+    IR_SWAP_000096        -136,128,058,536.71    -12.58%
+    IR_SWAP_000003         116,059,779,029.61     10.73%
+    IR_SWAP_000074        -114,018,874,430.47    -10.54%
+    FX_OPTION_000062       110,496,333,229.70     10.21%
+    FX_OPTION_000096       110,496,333,229.70     10.21%
+    FX_OPTION_000039       -90,624,932,991.59     -8.38%
+    FX_OPTION_000076        89,361,972,219.19      8.26%
+    FX_OPTION_000038       -75,220,474,597.53     -6.95%
+    IR_SWAP_000004         -55,207,299,664.76     -5.10%
+    EQUITY_OPTION_000029    42,473,411,987.45      3.93%
+    IR_SWAP_000001         -28,083,477,174.38     -2.60%
+    FX_OPTION_000085        27,366,333,924.32      2.53%
+    FX_OPTION_000081       -10,762,220,613.83     -0.99%
+    FX_OPTION_000057        -8,867,145,145.64     -0.82%
+    FX_OPTION_000095        -8,867,145,145.64     -0.82%
+    IR_SWAP_000083           5,612,423,265.49      0.52%
+    FX_OPTION_000006        -4,302,924,147.10     -0.40%
+    IR_SWAP_000062           3,558,428,046.13      0.33%
+    FX_OPTION_000087          -821,481,733.64     -0.08%
+    EQUITY_OPTION_000005                 0.00      0.00%
+    EQUITY_OPTION_000012                 0.00      0.00%
+    EQUITY_OPTION_000057                -0.00     -0.00%
+    EQUITY_OPTION_000028                 0.00      0.00%
+    EQUITY_OPTION_000062                -0.00     -0.00%
+    EQUITY_OPTION_000015                -0.00     -0.00%
+    EQUITY_OPTION_000098                -0.00     -0.00%
+    EQUITY_OPTION_000031                 0.00      0.00%
+    EQUITY_OPTION_000039                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  320,187,243,376,011.81 (IM = 1,082,032,637,107.75)
+
+CRIF logged: 1230 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 300 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+Reallocation: moving up to 20 trades using gradient info...
+  (v2.6.0: iterative gradient refresh enabled)
+
+  Reallocation Summary (20 trades considered, 18 moved):
+    TradeID               From    To        Old Contrib      Signed Impact      Standalone IM
+    ------------------------------------------------------------------------------------------
+    EQUITY_OPTION_000046     3     2 378,851,392,417,112.81 -190,989,195,639.24 851,678,621,418.08
+    EQUITY_OPTION_000072     1     3 218,626,614,976,739.28 -63,778,921,454.98 611,623,311,897.62
+    EQUITY_OPTION_000084     1     4 264,356,964,946,568.97 88,690,330,958,193.58 611,623,311,897.62
+    IR_SWAP_000005           1     3 188,208,624,483,354.19 -3,130,872,746,884.82 146,237,379,569.18
+    IR_SWAP_000057           1     4 81,922,004,169,357.77 8,704,691,794,507.03 134,231,826,104.36
+    EQUITY_OPTION_000014     0     1 136,904,948,887,309.56  -1,975,501,596.49 582,341,864,301.65
+    IR_SWAP_000091           0     1 120,515,365,216,498.17 -1,025,240,263,803.87  95,135,564,787.61
+    EQUITY_OPTION_000011     2     1 52,284,206,169,372.70 -122,022,709,307.61 111,049,321,886.92
+    EQUITY_OPTION_000059     2     0 26,690,786,139,498.50 -196,001,019,392.13 111,049,321,886.92
+    EQUITY_OPTION_000022     4     0 193,908,746,337,165.97 8,065,811,754,901.26 529,079,716,176.79
+    EQUITY_OPTION_000086     4     3 69,163,589,567,596.63  12,576,439,151.42 228,026,735,044.31
+    EQUITY_OPTION_000000     3     1 84,995,592,054,276.25 -367,356,799,955.64 186,513,883,945.55
+    EQUITY_OPTION_000049     3     0 46,121,237,531,740.11 -384,409,508,452.21 186,513,883,945.55
+    EQUITY_OPTION_000069     3     2 43,731,002,697,491.21 -470,783,919,857.26 186,513,883,945.55
+    EQUITY_OPTION_000026     4     1 19,481,242,930,256.42 -113,873,582,077.66 185,659,962,040.61
+    IR_SWAP_000027           1     0 21,172,424,665,013.83 18,720,169,588,349.95  25,095,268,003.07
+    IR_SWAP_000081           0     1 28,275,354,644,249.00 9,487,826,535,240.93  24,875,570,449.09
+    IR_SWAP_000030           2     0 34,346,418,777,510.18 25,128,991,174,988.02  37,407,530,251.64
+
+    Total IM before:     6,874,092,381,753.64
+    Total IM after:      6,703,142,085,828.02
+    Quadratic estimate:   99,690,630,952.37
+    Estimate rel error:  96.0629%
+    Estimate matches:    NO (< 10% tolerance)
+    Gradient refreshes:                  36 (v2.6.0 iterative)
+    Reallocation time:   107.589 s
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0         69 1,193,476,629,477.13      5.572   1.241106     274      1.840
+  1         46 2,209,906,834,617.12      4.549   1.044434     203      1.840
+  2         63 827,646,845,237.14      4.899   1.215474     264      1.840
+  3         74 1,561,029,435,314.50      5.756   1.370228     300      1.840
+  4         48 1,082,032,637,107.75      4.700   1.307748     189      1.840
+--------------------------------------------------------------------------
+  ALL      300 6,874,092,381,753.64     25.476   6.178990    1230      9.200
+
+Timing Summary (AADC):
+  CRIF (AADC):       25.476 s (5 groups)
+  SIMM aggregation:  6.178990 s (5 groups)
+  IM gradient (AADC): 9.200 s (1230 sensitivities, single adjoint)
+  Reallocation:      107.589 s (18 trades moved)
+  Total:             148.444 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:51:53] --- PASS: AADC multi-asset + reallocation (100 trades) (152s)
+[18:51:53] --- START: AADC optimization gradient_descent (200 trades, 20 iters)
+[18:51:53] CMD: python -m model.simm_portfolio_aadc --trades 200 --portfolios 5 --threads 8 --trade-types ir_swap,equity_option --optimize --method gradient_descent --max-iters 20
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap,equity_option
+  Trades:          200
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         8 (AADC workers)
+
+Generating market data...
+Generating 200 ir_swap trades...
+Generating 200 equity_option trades...
+  Total trades: 400
+Portfolio allocation:
+  Group 0: 88 trades
+  Group 1: 73 trades
+  Group 2: 76 trades
+  Group 3: 93 trades
+  Group 4: 70 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000163       -118,455,741,875,256.78  -5897.02%
+    IR_SWAP_000110       112,439,193,768,507.78   5597.50%
+    IR_SWAP_000155       103,386,412,996,218.73   5146.83%
+    IR_SWAP_000104       93,991,220,642,386.42   4679.12%
+    IR_SWAP_000091       93,991,220,642,386.41   4679.12%
+    EQUITY_OPTION_000041 73,320,540,061,335.39   3650.08%
+    EQUITY_OPTION_000050 73,320,540,061,335.39   3650.08%
+    EQUITY_OPTION_000091 73,320,540,061,335.39   3650.08%
+    EQUITY_OPTION_000125 73,320,540,061,335.39   3650.08%
+    IR_SWAP_000045       48,014,676,943,895.84   2390.29%
+    IR_SWAP_000087       -47,399,501,925,935.59  -2359.67%
+    IR_SWAP_000101       -47,399,501,925,935.58  -2359.67%
+    IR_SWAP_000018       39,398,823,110,803.73   1961.37%
+    IR_SWAP_000081       37,303,095,030,405.76   1857.04%
+    IR_SWAP_000158       37,303,095,030,405.75   1857.04%
+    IR_SWAP_000140       -33,613,592,939,382.57  -1673.37%
+    IR_SWAP_000153       26,814,526,714,602.06   1334.89%
+    EQUITY_OPTION_000034 25,699,325,126,528.17   1279.38%
+    EQUITY_OPTION_000067 25,699,325,126,528.17   1279.38%
+    EQUITY_OPTION_000110 25,699,325,126,528.17   1279.38%
+    EQUITY_OPTION_000190 25,699,325,126,528.17   1279.38%
+    IR_SWAP_000084       22,812,881,134,221.47   1135.68%
+    IR_SWAP_000197       22,281,823,694,134.57   1109.24%
+    IR_SWAP_000070       22,281,823,694,134.55   1109.24%
+    IR_SWAP_000085       -10,866,432,213,738.12   -540.96%
+    IR_SWAP_000161       -6,789,619,930,286.87   -338.00%
+    IR_SWAP_000171       -6,789,619,930,286.86   -338.00%
+    IR_SWAP_000114       -5,470,966,850,653.82   -272.36%
+    EQUITY_OPTION_000002 4,840,638,236,342.35    240.98%
+    EQUITY_OPTION_000072 4,840,638,236,342.35    240.98%
+    EQUITY_OPTION_000084 4,840,638,236,342.35    240.98%
+    EQUITY_OPTION_000132 4,840,638,236,342.35    240.98%
+    IR_SWAP_000041       4,660,312,667,189.03    232.00%
+    IR_SWAP_000187       3,667,801,897,356.40    182.59%
+    IR_SWAP_000023       3,605,771,568,761.72    179.50%
+    IR_SWAP_000182       -3,304,991,381,592.09   -164.53%
+    IR_SWAP_000179       -3,272,077,066,792.25   -162.89%
+    IR_SWAP_000170       -2,880,965,251,193.33   -143.42%
+    IR_SWAP_000076       -2,622,849,977,349.19   -130.57%
+    IR_SWAP_000151       -2,219,451,906,611.59   -110.49%
+    EQUITY_OPTION_000158 1,963,342,764,120.75     97.74%
+    IR_SWAP_000152       -1,767,215,833,806.02    -87.98%
+    IR_SWAP_000188       -1,453,103,219,066.51    -72.34%
+    IR_SWAP_000180       1,279,652,592,386.16     63.70%
+    IR_SWAP_000038       1,279,652,592,386.16     63.70%
+    EQUITY_OPTION_000182 1,071,770,916,489.82     53.36%
+    EQUITY_OPTION_000003 1,059,759,880,859.90     52.76%
+    IR_SWAP_000055       1,036,228,600,844.58     51.59%
+    EQUITY_OPTION_000054  -996,878,030,356.42    -49.63%
+    IR_SWAP_000033         957,382,405,612.48     47.66%
+    IR_SWAP_000024        -924,390,302,656.17    -46.02%
+    IR_SWAP_000177        -924,390,302,656.17    -46.02%
+    IR_SWAP_000168        -700,180,936,164.78    -34.86%
+    IR_SWAP_000094        -379,244,360,632.53    -18.88%
+    IR_SWAP_000150         331,913,026,057.45     16.52%
+    EQUITY_OPTION_000113   286,190,030,841.95     14.25%
+    EQUITY_OPTION_000036   255,375,038,168.07     12.71%
+    IR_SWAP_000086        -221,830,945,701.25    -11.04%
+    IR_SWAP_000118         220,286,936,672.73     10.97%
+    IR_SWAP_000099         220,286,936,672.73     10.97%
+    IR_SWAP_000124        -164,635,150,530.54     -8.20%
+    EQUITY_OPTION_000019    65,592,870,400.63      3.27%
+    EQUITY_OPTION_000099                 0.00      0.00%
+    EQUITY_OPTION_000106                 0.00      0.00%
+    EQUITY_OPTION_000071                 0.00      0.00%
+    EQUITY_OPTION_000185                 0.00      0.00%
+    EQUITY_OPTION_000021                 0.00      0.00%
+    EQUITY_OPTION_000025                 0.00      0.00%
+    EQUITY_OPTION_000063                 0.00      0.00%
+    EQUITY_OPTION_000047                 0.00      0.00%
+    EQUITY_OPTION_000147                 0.00      0.00%
+    EQUITY_OPTION_000018                -0.00     -0.00%
+    EQUITY_OPTION_000056                -0.00     -0.00%
+    EQUITY_OPTION_000140                -0.00     -0.00%
+    EQUITY_OPTION_000193                -0.00     -0.00%
+    EQUITY_OPTION_000082                 0.00      0.00%
+    EQUITY_OPTION_000065                -0.00     -0.00%
+    EQUITY_OPTION_000123                -0.00     -0.00%
+    EQUITY_OPTION_000124                -0.00     -0.00%
+    EQUITY_OPTION_000174                -0.00     -0.00%
+    EQUITY_OPTION_000042                -0.00     -0.00%
+    EQUITY_OPTION_000031                -0.00     -0.00%
+    EQUITY_OPTION_000102                -0.00     -0.00%
+    EQUITY_OPTION_000092                 0.00      0.00%
+    EQUITY_OPTION_000152                 0.00      0.00%
+    EQUITY_OPTION_000188                 0.00      0.00%
+    EQUITY_OPTION_000024                 0.00      0.00%
+    EQUITY_OPTION_000136                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  798,804,945,567,162.25 (IM = 2,008,738,330,956.92)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000005       188,553,532,175,153.25  10986.98%
+    IR_SWAP_000057       179,039,566,754,878.84  10432.61%
+    EQUITY_OPTION_000118 58,981,085,222,788.22   3436.82%
+    IR_SWAP_000027       -55,281,279,261,383.38  -3221.23%
+    IR_SWAP_000190       42,871,178,269,911.37   2498.10%
+    EQUITY_OPTION_000000 41,794,135,232,332.95   2435.34%
+    EQUITY_OPTION_000121 41,794,135,232,332.95   2435.34%
+    EQUITY_OPTION_000120 36,967,868,438,687.33   2154.11%
+    EQUITY_OPTION_000145 36,967,868,438,687.33   2154.11%
+    EQUITY_OPTION_000154 36,967,868,438,687.33   2154.11%
+    EQUITY_OPTION_000026 31,317,076,286,039.04   1824.84%
+    EQUITY_OPTION_000059 31,317,076,286,039.04   1824.84%
+    IR_SWAP_000184       30,754,769,071,880.11   1792.08%
+    IR_SWAP_000098       26,585,058,420,507.79   1549.11%
+    IR_SWAP_000075       -23,718,218,225,077.59  -1382.06%
+    IR_SWAP_000193       -22,859,905,388,496.00  -1332.04%
+    EQUITY_OPTION_000135 19,980,273,551,103.07   1164.25%
+    IR_SWAP_000120       -4,767,214,497,147.43   -277.78%
+    EQUITY_OPTION_000117 4,407,227,552,084.50    256.81%
+    EQUITY_OPTION_000186 4,407,227,552,084.50    256.81%
+    EQUITY_OPTION_000172 3,103,316,902,735.96    180.83%
+    EQUITY_OPTION_000180 3,103,316,902,735.96    180.83%
+    EQUITY_OPTION_000129 3,103,316,902,735.96    180.83%
+    IR_SWAP_000183       -2,067,414,963,510.84   -120.47%
+    IR_SWAP_000073       -2,067,414,963,510.83   -120.47%
+    IR_SWAP_000059       1,384,627,618,643.66     80.68%
+    IR_SWAP_000119       1,384,627,618,643.66     80.68%
+    IR_SWAP_000067       1,231,682,207,357.43     71.77%
+    IR_SWAP_000013       1,191,947,870,130.60     69.45%
+    IR_SWAP_000060       1,191,947,870,130.60     69.45%
+    IR_SWAP_000015       1,019,635,310,960.48     59.41%
+    IR_SWAP_000048       1,019,635,310,960.48     59.41%
+    IR_SWAP_000172         886,987,551,115.87     51.68%
+    IR_SWAP_000046        -839,430,824,251.17    -48.91%
+    IR_SWAP_000063         831,088,805,769.35     48.43%
+    IR_SWAP_000103        -603,943,251,361.29    -35.19%
+    IR_SWAP_000137         582,542,953,208.39     33.94%
+    IR_SWAP_000097         310,758,653,317.05     18.11%
+    IR_SWAP_000044        -233,458,241,195.84    -13.60%
+    EQUITY_OPTION_000178   193,884,322,943.57     11.30%
+    EQUITY_OPTION_000035   185,259,230,459.69     10.80%
+    IR_SWAP_000039        -164,059,323,302.45     -9.56%
+    IR_SWAP_000020        -148,556,384,979.54     -8.66%
+    EQUITY_OPTION_000187    89,051,755,994.37      5.19%
+    IR_SWAP_000064          83,919,845,086.95      4.89%
+    IR_SWAP_000066         -62,562,134,766.65     -3.65%
+    IR_SWAP_000138         -42,004,058,401.04     -2.45%
+    IR_SWAP_000175          27,488,481,647.66      1.60%
+    IR_SWAP_000148         -26,478,870,462.66     -1.54%
+    EQUITY_OPTION_000013    25,941,628,706.08      1.51%
+    EQUITY_OPTION_000128    25,941,628,706.08      1.51%
+    IR_SWAP_000043          23,977,831,486.67      1.40%
+    IR_SWAP_000165         -23,173,661,678.04     -1.35%
+    IR_SWAP_000116          15,726,990,161.51      0.92%
+    EQUITY_OPTION_000080                -0.00     -0.00%
+    EQUITY_OPTION_000144                -0.00     -0.00%
+    EQUITY_OPTION_000170                -0.00     -0.00%
+    EQUITY_OPTION_000150                 0.00      0.00%
+    EQUITY_OPTION_000189                 0.00      0.00%
+    EQUITY_OPTION_000058                 0.00      0.00%
+    EQUITY_OPTION_000122                 0.00      0.00%
+    EQUITY_OPTION_000131                 0.00      0.00%
+    EQUITY_OPTION_000148                 0.00      0.00%
+    EQUITY_OPTION_000114                -0.00     -0.00%
+    EQUITY_OPTION_000030                -0.00     -0.00%
+    EQUITY_OPTION_000020                -0.00     -0.00%
+    EQUITY_OPTION_000060                 0.00      0.00%
+    EQUITY_OPTION_000151                 0.00      0.00%
+    EQUITY_OPTION_000177                 0.00      0.00%
+    EQUITY_OPTION_000027                -0.00     -0.00%
+    EQUITY_OPTION_000115                -0.00     -0.00%
+    EQUITY_OPTION_000112                 0.00      0.00%
+    EQUITY_OPTION_000199                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  720,817,457,067,311.38 (IM = 1,716,153,778,856.02)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000014 362,630,128,188,603.56   5330.43%
+    EQUITY_OPTION_000022 340,999,232,393,929.12   5012.47%
+    EQUITY_OPTION_000049 340,999,232,393,929.12   5012.47%
+    EQUITY_OPTION_000055 340,999,232,393,929.12   5012.47%
+    EQUITY_OPTION_000142 340,999,232,393,929.12   5012.47%
+    IR_SWAP_000113       42,461,669,299,593.83    624.16%
+    IR_SWAP_000030       38,981,264,597,037.98    573.00%
+    IR_SWAP_000036       38,981,264,597,037.95    573.00%
+    EQUITY_OPTION_000173 18,852,983,981,985.69    277.13%
+    EQUITY_OPTION_000074 18,852,983,981,985.68    277.13%
+    EQUITY_OPTION_000090 16,398,720,140,857.36    241.05%
+    EQUITY_OPTION_000175 16,398,720,140,857.36    241.05%
+    IR_SWAP_000196       -14,608,715,623,166.57   -214.74%
+    IR_SWAP_000135       12,008,584,462,857.38    176.52%
+    IR_SWAP_000134       11,001,840,161,160.96    161.72%
+    IR_SWAP_000154       11,001,840,161,160.96    161.72%
+    EQUITY_OPTION_000040 10,391,828,292,484.17    152.75%
+    EQUITY_OPTION_000043 10,391,828,292,484.17    152.75%
+    EQUITY_OPTION_000075 10,391,828,292,484.17    152.75%
+    IR_SWAP_000089       9,291,389,629,552.53    136.58%
+    IR_SWAP_000011       -7,767,351,740,647.07   -114.18%
+    IR_SWAP_000054       7,147,338,631,868.50    105.06%
+    IR_SWAP_000025       6,144,900,735,580.21     90.33%
+    IR_SWAP_000026       6,107,406,547,077.68     89.77%
+    IR_SWAP_000181       -5,121,673,650,113.40    -75.29%
+    IR_SWAP_000111       4,784,989,904,732.10     70.34%
+    EQUITY_OPTION_000070 3,589,522,695,227.84     52.76%
+    EQUITY_OPTION_000077 3,589,522,695,227.84     52.76%
+    EQUITY_OPTION_000007 3,589,522,695,227.84     52.76%
+    IR_SWAP_000034       -2,581,300,151,978.90    -37.94%
+    IR_SWAP_000164       1,956,794,605,708.59     28.76%
+    IR_SWAP_000002       -1,892,367,389,113.74    -27.82%
+    EQUITY_OPTION_000111 1,509,644,374,885.16     22.19%
+    EQUITY_OPTION_000126 1,509,644,374,885.16     22.19%
+    IR_SWAP_000167       1,483,176,268,802.26     21.80%
+    IR_SWAP_000147       -1,203,313,720,138.45    -17.69%
+    EQUITY_OPTION_000001  -978,865,098,466.56    -14.39%
+    EQUITY_OPTION_000044  -978,865,098,466.56    -14.39%
+    IR_SWAP_000160        -830,698,400,062.26    -12.21%
+    IR_SWAP_000007         468,456,239,908.02      6.89%
+    IR_SWAP_000159         424,977,481,135.72      6.25%
+    IR_SWAP_000195         424,977,481,135.72      6.25%
+    IR_SWAP_000176         231,668,632,349.03      3.41%
+    IR_SWAP_000095        -230,450,176,847.98     -3.39%
+    IR_SWAP_000093        -230,450,176,847.98     -3.39%
+    IR_SWAP_000109         220,329,031,999.70      3.24%
+    IR_SWAP_000006        -136,436,716,205.26     -2.01%
+    IR_SWAP_000106         122,202,583,855.11      1.80%
+    IR_SWAP_000092          62,746,860,291.22      0.92%
+    IR_SWAP_000008          62,746,860,291.22      0.92%
+    IR_SWAP_000108         -47,457,314,687.31     -0.70%
+    IR_SWAP_000090          46,922,838,667.34      0.69%
+    IR_SWAP_000189          46,922,838,667.34      0.69%
+    IR_SWAP_000123         -44,122,886,128.26     -0.65%
+    IR_SWAP_000130         -35,828,415,779.96     -0.53%
+    EQUITY_OPTION_000078    34,788,963,935.40      0.51%
+    IR_SWAP_000117          33,501,495,423.51      0.49%
+    EQUITY_OPTION_000061    -3,351,906,874.99     -0.05%
+    EQUITY_OPTION_000012                -0.00     -0.00%
+    EQUITY_OPTION_000097                -0.00     -0.00%
+    EQUITY_OPTION_000119                -0.00     -0.00%
+    EQUITY_OPTION_000028                 0.00      0.00%
+    EQUITY_OPTION_000104                 0.00      0.00%
+    EQUITY_OPTION_000116                -0.00     -0.00%
+    EQUITY_OPTION_000079                -0.00     -0.00%
+    EQUITY_OPTION_000088                 0.00      0.00%
+    EQUITY_OPTION_000005                 0.00      0.00%
+    EQUITY_OPTION_000010                -0.00     -0.00%
+    EQUITY_OPTION_000167                 0.00      0.00%
+    EQUITY_OPTION_000015                -0.00     -0.00%
+    EQUITY_OPTION_000053                -0.00     -0.00%
+    EQUITY_OPTION_000197                -0.00     -0.00%
+    EQUITY_OPTION_000155                -0.00     -0.00%
+    EQUITY_OPTION_000146                -0.00     -0.00%
+    EQUITY_OPTION_000045                 0.00      0.00%
+    EQUITY_OPTION_000130                 0.00      0.00%
+    ----------------------------------------------------
+    Sum                  1,998,935,260,167,217.50 (IM = 6,803,016,481,317.25)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000192       126,202,136,952,051.47   9426.47%
+    IR_SWAP_000121       92,982,979,802,688.84   6945.22%
+    EQUITY_OPTION_000011 77,556,761,217,898.03   5792.98%
+    EQUITY_OPTION_000046 77,556,761,217,898.03   5792.98%
+    IR_SWAP_000132       -46,147,335,882,509.38  -3446.90%
+    IR_SWAP_000022       -32,479,086,600,496.30  -2425.97%
+    IR_SWAP_000079       -32,479,086,600,496.30  -2425.97%
+    EQUITY_OPTION_000137 31,384,647,714,825.34   2344.23%
+    EQUITY_OPTION_000017 28,119,320,874,439.61   2100.33%
+    EQUITY_OPTION_000066 28,119,320,874,439.61   2100.33%
+    EQUITY_OPTION_000143 28,119,320,874,439.61   2100.33%
+    EQUITY_OPTION_000004 26,147,458,578,841.19   1953.04%
+    EQUITY_OPTION_000064 26,147,458,578,841.19   1953.04%
+    IR_SWAP_000000       23,536,627,929,294.35   1758.03%
+    IR_SWAP_000028       23,536,627,929,294.35   1758.03%
+    IR_SWAP_000040       23,536,627,929,294.35   1758.03%
+    IR_SWAP_000107       19,798,386,540,029.29   1478.81%
+    IR_SWAP_000031       16,738,534,257,608.11   1250.26%
+    IR_SWAP_000078       -14,460,766,557,584.90  -1080.12%
+    IR_SWAP_000149       9,782,006,095,272.00    730.65%
+    EQUITY_OPTION_000029 5,120,348,822,266.46    382.46%
+    EQUITY_OPTION_000094 5,120,348,822,266.46    382.46%
+    EQUITY_OPTION_000009 4,430,609,233,945.01    330.94%
+    EQUITY_OPTION_000139 4,430,609,233,945.01    330.94%
+    IR_SWAP_000169       2,960,044,555,065.44    221.10%
+    IR_SWAP_000088       2,266,932,535,740.63    169.32%
+    IR_SWAP_000194       -2,216,934,991,107.87   -165.59%
+    IR_SWAP_000142       -1,656,185,977,010.16   -123.71%
+    IR_SWAP_000127       -1,363,688,746,217.28   -101.86%
+    IR_SWAP_000056         851,943,116,998.69     63.63%
+    IR_SWAP_000052         842,739,558,859.07     62.95%
+    IR_SWAP_000077         842,739,558,859.07     62.95%
+    IR_SWAP_000102         623,976,942,835.82     46.61%
+    IR_SWAP_000019         623,976,942,835.82     46.61%
+    IR_SWAP_000146        -545,135,831,767.35    -40.72%
+    IR_SWAP_000100         483,521,604,046.06     36.12%
+    IR_SWAP_000174         373,795,237,178.56     27.92%
+    IR_SWAP_000143        -355,480,093,237.58    -26.55%
+    EQUITY_OPTION_000073   308,112,636,209.56     23.01%
+    EQUITY_OPTION_000086   308,112,636,209.56     23.01%
+    EQUITY_OPTION_000171   308,112,636,209.56     23.01%
+    IR_SWAP_000173        -240,435,737,548.28    -17.96%
+    IR_SWAP_000058         187,462,621,789.38     14.00%
+    IR_SWAP_000136        -168,354,195,965.88    -12.57%
+    IR_SWAP_000029        -133,029,223,532.45     -9.94%
+    IR_SWAP_000144        -133,029,223,532.45     -9.94%
+    IR_SWAP_000069        -130,601,033,228.67     -9.76%
+    EQUITY_OPTION_000033   130,589,168,986.20      9.75%
+    EQUITY_OPTION_000083   130,589,168,986.20      9.75%
+    EQUITY_OPTION_000105   130,589,168,986.20      9.75%
+    EQUITY_OPTION_000141   130,589,168,986.20      9.75%
+    EQUITY_OPTION_000161   130,589,168,986.20      9.75%
+    IR_SWAP_000049         127,165,396,286.16      9.50%
+    IR_SWAP_000042         127,165,396,286.16      9.50%
+    IR_SWAP_000199         120,525,971,380.26      9.00%
+    IR_SWAP_000156         119,062,347,329.27      8.89%
+    IR_SWAP_000145         101,697,146,603.54      7.60%
+    IR_SWAP_000032         101,697,146,603.54      7.60%
+    EQUITY_OPTION_000069   -69,621,610,595.97     -5.20%
+    EQUITY_OPTION_000166   -69,621,610,595.97     -5.20%
+    IR_SWAP_000016          55,659,627,045.50      4.16%
+    IR_SWAP_000166         -55,481,460,148.38     -4.14%
+    IR_SWAP_000050          35,043,173,891.79      2.62%
+    IR_SWAP_000051         -31,554,133,373.65     -2.36%
+    IR_SWAP_000125         -31,554,133,373.65     -2.36%
+    IR_SWAP_000061          30,518,626,039.80      2.28%
+    IR_SWAP_000185          30,518,626,039.80      2.28%
+    IR_SWAP_000014         -24,773,348,751.37     -1.85%
+    IR_SWAP_000010          24,282,783,294.45      1.81%
+    IR_SWAP_000065          21,387,334,247.87      1.60%
+    EQUITY_OPTION_000023    13,630,818,792.76      1.02%
+    EQUITY_OPTION_000037    13,630,818,792.76      1.02%
+    IR_SWAP_000068          12,660,237,504.45      0.95%
+    EQUITY_OPTION_000048    -9,210,853,605.51     -0.69%
+    EQUITY_OPTION_000134    -9,210,853,605.51     -0.69%
+    EQUITY_OPTION_000107                 0.00      0.00%
+    EQUITY_OPTION_000089                -0.00     -0.00%
+    EQUITY_OPTION_000093                -0.00     -0.00%
+    EQUITY_OPTION_000051                -0.00     -0.00%
+    EQUITY_OPTION_000098                -0.00     -0.00%
+    EQUITY_OPTION_000156                -0.00     -0.00%
+    EQUITY_OPTION_000162                -0.00     -0.00%
+    EQUITY_OPTION_000164                -0.00     -0.00%
+    EQUITY_OPTION_000052                 0.00      0.00%
+    EQUITY_OPTION_000153                 0.00      0.00%
+    EQUITY_OPTION_000008                 0.00      0.00%
+    EQUITY_OPTION_000198                 0.00      0.00%
+    EQUITY_OPTION_000160                -0.00     -0.00%
+    EQUITY_OPTION_000032                 0.00      0.00%
+    EQUITY_OPTION_000176                 0.00      0.00%
+    EQUITY_OPTION_000183                 0.00      0.00%
+    EQUITY_OPTION_000016                -0.00     -0.00%
+    EQUITY_OPTION_000168                -0.00     -0.00%
+    ----------------------------------------------------
+    Sum                  558,125,776,659,199.62 (IM = 1,338,806,180,786.91)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    EQUITY_OPTION_000101 133,388,547,982,558.69  20508.89%
+    IR_SWAP_000071       8,682,693,962,453.47   1334.99%
+    IR_SWAP_000012       8,273,726,877,211.82   1272.11%
+    EQUITY_OPTION_000108 7,870,397,477,306.47   1210.10%
+    EQUITY_OPTION_000163 7,870,397,477,306.47   1210.10%
+    EQUITY_OPTION_000081 6,864,806,715,862.05   1055.48%
+    EQUITY_OPTION_000038 4,846,260,713,080.26    745.13%
+    EQUITY_OPTION_000194 4,846,260,713,080.26    745.13%
+    IR_SWAP_000191       4,043,499,107,803.46    621.70%
+    IR_SWAP_000035       -3,997,497,719,305.70   -614.63%
+    IR_SWAP_000017       1,937,418,315,885.48    297.88%
+    IR_SWAP_000122       1,937,418,315,885.48    297.88%
+    IR_SWAP_000129       1,578,611,677,397.09    242.72%
+    EQUITY_OPTION_000100 1,441,226,360,873.43    221.59%
+    EQUITY_OPTION_000076 1,441,226,360,873.43    221.59%
+    IR_SWAP_000082       -1,329,295,438,800.91   -204.38%
+    IR_SWAP_000021       -1,241,782,812,312.29   -190.93%
+    IR_SWAP_000112       -1,149,448,712,129.49   -176.73%
+    IR_SWAP_000157       -1,149,448,712,129.49   -176.73%
+    EQUITY_OPTION_000149 1,137,446,534,629.21    174.89%
+    IR_SWAP_000141       -1,071,973,175,241.16   -164.82%
+    EQUITY_OPTION_000006   879,556,980,710.72    135.23%
+    EQUITY_OPTION_000192   879,556,980,710.72    135.23%
+    IR_SWAP_000133         625,174,154,001.00     96.12%
+    IR_SWAP_000131         593,217,904,511.49     91.21%
+    EQUITY_OPTION_000157   557,395,977,664.36     85.70%
+    EQUITY_OPTION_000191   557,395,977,664.36     85.70%
+    IR_SWAP_000037        -555,124,994,353.54    -85.35%
+    IR_SWAP_000047        -518,094,529,093.59    -79.66%
+    IR_SWAP_000072         512,184,799,732.44     78.75%
+    EQUITY_OPTION_000133   492,138,616,686.18     75.67%
+    EQUITY_OPTION_000184   492,138,616,686.18     75.67%
+    IR_SWAP_000105        -491,455,516,939.16    -75.56%
+    IR_SWAP_000053        -491,455,516,939.16    -75.56%
+    IR_SWAP_000074        -323,041,251,053.65    -49.67%
+    IR_SWAP_000003         287,241,825,190.30     44.16%
+    IR_SWAP_000178         241,676,232,890.55     37.16%
+    IR_SWAP_000009         232,093,550,447.58     35.69%
+    IR_SWAP_000186         232,093,550,447.58     35.69%
+    IR_SWAP_000080         197,891,107,894.94     30.43%
+    IR_SWAP_000162        -166,616,715,057.95    -25.62%
+    IR_SWAP_000096        -120,490,784,902.50    -18.53%
+    IR_SWAP_000198        -120,454,983,462.93    -18.52%
+    IR_SWAP_000139          52,856,564,453.17      8.13%
+    IR_SWAP_000115         -13,646,774,386.04     -2.10%
+    IR_SWAP_000004         -13,124,996,974.31     -2.02%
+    IR_SWAP_000062          12,577,984,749.37      1.93%
+    IR_SWAP_000126         -12,514,195,286.21     -1.92%
+    IR_SWAP_000001          -6,468,145,706.68     -0.99%
+    IR_SWAP_000128           1,344,182,843.21      0.21%
+    IR_SWAP_000083           1,295,153,541.36      0.20%
+    EQUITY_OPTION_000109                -0.00     -0.00%
+    EQUITY_OPTION_000179                 0.00      0.00%
+    EQUITY_OPTION_000181                -0.00     -0.00%
+    EQUITY_OPTION_000138                 0.00      0.00%
+    EQUITY_OPTION_000087                -0.00     -0.00%
+    EQUITY_OPTION_000103                -0.00     -0.00%
+    EQUITY_OPTION_000159                -0.00     -0.00%
+    EQUITY_OPTION_000195                -0.00     -0.00%
+    EQUITY_OPTION_000068                 0.00      0.00%
+    EQUITY_OPTION_000039                -0.00     -0.00%
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+    EQUITY_OPTION_000057                -0.00     -0.00%
+    EQUITY_OPTION_000095                -0.00     -0.00%
+    EQUITY_OPTION_000165                -0.00     -0.00%
+    EQUITY_OPTION_000169                -0.00     -0.00%
+    EQUITY_OPTION_000196                -0.00     -0.00%
+    EQUITY_OPTION_000062                -0.00     -0.00%
+    EQUITY_OPTION_000085                -0.00     -0.00%
+    EQUITY_OPTION_000096                -0.00     -0.00%
+    EQUITY_OPTION_000127                -0.00     -0.00%
+    ----------------------------------------------------
+    Sum                  190,235,833,778,957.84 (IM = 650,393,918,804.25)
+
+CRIF logged: 1667 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 400 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+
+Full Optimization v2 (method=gradient_descent, batched evaluate)...
+  [v2] Starting optimized allocation with single-evaluate pattern
+  [v2] Trades: 400, Portfolios: 5, Threads: 8
+  [v2] Precomputing trade CRIFs...
+  [v2] Building sensitivity matrix...
+  [v2] Sensitivity matrix: 400 trades x 53 risk factors x 5 portfolios
+  [v2] Recording efficient kernel (K=53 inputs)...
+  [v2] Kernel recorded in 233.30 ms
+  [v2] Initial total IM: $741,967,365,112.22
+  [v2] Per-portfolio IMs: ['$196,777,985,531', '$184,586,252,722', '$120,767,181,780', '$209,933,018,292', '$29,902,926,787']
+    [v2] Initial IM: $741,967,365,112.22
+    [v2] Gradient: max=7.77e+10, mean=4.66e+09
+    [v2] Learning rate: 3.86e-12
+    [v2] Single evaluate() time: 2.89 ms
+    [v2] Iter 0: IM = $741,967,365,112.22, moves = 0
+    [v2] Iter 10: IM = $362,108,050,963.88, moves = 0
+    [v2] Reached max iterations (20)
+    [v2] Total eval time: 42.23 ms
+  [v2] Continuous IM (before rounding): $357,565,553,330.89
+  [v2] Final total IM: $741,967,365,112.22
+  [v2] IM reduction: $0.00 (0.00%)
+  [v2] Trades moved: 0
+  [v2] Total time: 15.993s (CRIF: 14.331s, Opt: 0.333s)
+  [v2] Eval calls: 20, Avg eval time: 2.11 ms
+
+Optimization Summary:
+  Method:              gradient_descent
+  Iterations:          20 (max iters)
+  Initial IM:          $741,967,365,112.22
+  Optimized IM:        $741,967,365,112.22
+  Reduction:           0.0%
+  Trades moved:        0 of 400
+  Optimization time:   15.993 s
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0         88 2,008,738,330,956.92      6.618   1.380435     360      3.103
+  1         73 1,716,153,778,856.02      6.134   1.457730     304      3.103
+  2         76 6,803,016,481,317.25      6.066   1.572340     337      3.103
+  3         93 1,338,806,180,786.91      7.102   1.489446     392      3.103
+  4         70 650,393,918,804.25      5.733   1.346842     274      3.103
+--------------------------------------------------------------------------
+  ALL      400 12,517,108,690,721.35     31.652   7.246792    1667     15.517
+
+Timing Summary (AADC):
+  CRIF (AADC):       31.652 s (5 groups)
+  SIMM aggregation:  7.246792 s (5 groups)
+  IM gradient (AADC): 15.517 s (1667 sensitivities, single adjoint)
+  Optimization:      15.993 s (20 iterations, 0 trades moved)
+  Total:             70.409 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:53:06] --- PASS: AADC optimization gradient_descent (200 trades, 20 iters) (73s)
+[18:53:06] --- START: AADC optimization newton/BFGS (100 trades)
+[18:53:06] CMD: python -m model.simm_portfolio_aadc --trades 100 --portfolios 5 --threads 8 --trade-types ir_swap --optimize --method newton --max-iters 50
+usage: simm_portfolio_aadc.py [-h] [--trade-types TRADE_TYPES]
+                              [--trades TRADES] [--simm-buckets SIMM_BUCKETS]
+                              [--portfolios PORTFOLIOS] [--threads THREADS]
+                              [--reallocate REALLOCATE]
+                              [--no-refresh-gradients] [--optimize]
+                              [--method {auto,gradient_descent,greedy}]
+                              [--allow-partial] [--max-iters MAX_ITERS]
+                              [--lr LR] [--tol TOL]
+simm_portfolio_aadc.py: error: argument --method: invalid choice: 'newton' (choose from 'auto', 'gradient_descent', 'greedy')
+[18:53:08] --- FAIL: AADC optimization newton/BFGS (100 trades) (rc=2, 2s)
+[18:53:08] 
+[18:53:08] ============ Section 2: Analytics modules (use AADC gradient) ============
+[18:53:08] 
+[18:53:08] --- START: What-if analytics
+[18:53:08] CMD: python -m model.whatif_analytics
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+       WHAT-IF ANALYTICS DEMO
+       Margin Attribution & Scenario Analysis
+================================================================================
+
+Generating test portfolio...
+  Trades: 50
+  Risk factors: 30
+
+================================================================================
+DEMO 1: MARGIN ATTRIBUTION
+Which trades are consuming the most margin?
+================================================================================
+
+>>> Running AADC gradient method...
+
+================================================================================
+                      MARGIN ATTRIBUTION REPORT
+================================================================================
+
+Portfolio Summary:
+  Total IM:          $214,740,557,332,439
+  Number of trades:               50
+  Risk factors:                   30
+
+Computation:
+  Method:            aadc_gradient
+  Time:                   243.9 ms
+  Naive estimate:         5,000 ms
+  Speedup:                   21x
+
+--------------------------------------------------------------------------------
+TOP 10 MARGIN CONSUMERS (trades adding to margin)
+--------------------------------------------------------------------------------
+Trade ID              Contribution   % of Total           Net Sens
+--------------------------------------------------------------------------------
+IR_SWAP_000045  $59,352,522,703,519        27.6% $     -544,424,263
+IR_SWAP_000012  $52,608,146,093,720        24.5% $     -483,139,826
+IR_SWAP_000049  $32,199,772,534,548        15.0% $     -282,301,415
+IR_SWAP_000046  $30,495,980,253,411        14.2% $     -266,788,214
+IR_SWAP_000019  $15,261,866,086,710         7.1% $     -133,472,595
+IR_SWAP_000025  $10,555,499,131,361         4.9% $      -95,445,230
+IR_SWAP_000026  $10,476,603,321,162         4.9% $      -94,687,601
+IR_SWAP_000030  $9,985,157,094,901         4.6% $     -533,142,432
+IR_SWAP_000002  $9,408,614,698,542         4.4% $      445,998,434
+IR_SWAP_000018  $8,477,310,260,921         3.9% $     -415,790,463
+
+--------------------------------------------------------------------------------
+TOP 10 MARGIN REDUCERS (trades providing netting benefit)
+--------------------------------------------------------------------------------
+Trade ID              Contribution   % of Total           Net Sens
+--------------------------------------------------------------------------------
+IR_SWAP_000022  $-32,647,833,257,148       -15.2% $      295,756,593
+IR_SWAP_000005  $-23,046,179,551,755       -10.7% $    1,317,609,764
+IR_SWAP_000037  $-10,734,664,682,747        -5.0% $       97,259,686
+IR_SWAP_000047  $-5,032,815,019,024        -2.3% $       45,382,749
+IR_SWAP_000017  $-2,044,795,274,110        -1.0% $      109,143,362
+IR_SWAP_000011  $-1,988,792,027,536        -0.9% $      106,220,196
+IR_SWAP_000003  $-1,632,853,874,672        -0.8% $       14,678,071
+IR_SWAP_000007  $-1,237,758,970,248        -0.6% $      -93,293,165
+IR_SWAP_000020  $-1,232,270,298,478        -0.6% $      -55,600,510
+IR_SWAP_000039  $-1,217,700,981,626        -0.6% $      -58,051,732
+
+--------------------------------------------------------------------------------
+SUMMARY
+--------------------------------------------------------------------------------
+  Trades adding margin:        10 trades, $300,999,187,342,740
+  Trades reducing margin:      10 trades, $-86,258,630,010,301
+  Net (should ≈ Total IM):          $214,740,557,332,439
+================================================================================
+
+(Skipping naive method for 50 trades - would take ~5 seconds)
+
+================================================================================
+DEMO 2: WHAT-IF SCENARIOS
+================================================================================
+
+>>> Scenario: Unwind top 5 margin consumers
+
+------------------------------------------------------------
+WHAT-IF: Unwind Top 5 Contributors
+------------------------------------------------------------
+  Remove 5 highest margin-consuming trades
+
+  Current IM:    $214,740,557,332,439
+  Scenario IM:   $111,320,809,667
+  Change:        $-214,629,236,522,772 (-99.9%)
+  Trades:        IR_SWAP_000045, IR_SWAP_000012, IR_SWAP_000049, IR_SWAP_000046, IR_SWAP_000019
+  Compute time:  912.1 ms
+------------------------------------------------------------
+
+>>> Scenario: Add offsetting hedge
+
+------------------------------------------------------------
+WHAT-IF: Add Hedge: Offset IR_SWAP_000045
+------------------------------------------------------------
+  Add 1 hedging trade(s) to reduce margin
+
+  Current IM:    $210,337,737,942
+  Scenario IM:   $139,571,627,486
+  Change:        $-70,766,110,456 (-33.6%)
+  Trades:        HEDGE_IR_SWAP_000045
+  Compute time:  1556.3 ms
+------------------------------------------------------------
+
+>>> Scenario: Stress test - IR sensitivities +50%
+
+------------------------------------------------------------
+WHAT-IF: IR Stress +50%
+------------------------------------------------------------
+  Apply shocks: {'Risk_IRCurve': 1.5}
+
+  Current IM:    $210,337,737,942
+  Scenario IM:   $386,415,098,707
+  Change:        $176,077,360,765 (+83.7%)
+  Compute time:  1638.6 ms
+------------------------------------------------------------
+
+================================================================================
+                         DEMO COMPLETE
+================================================================================
+[18:53:20] --- PASS: What-if analytics (12s)
+[18:53:20] --- START: Pre-trade analytics
+[18:53:20] CMD: python -m model.pretrade_analytics
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+===========================================================================
+       PRE-TRADE ANALYTICS DEMO
+       Marginal IM & Bilateral vs Cleared Analysis
+===========================================================================
+
+Generating sample portfolios...
+  Goldman: 100 trades, 551 sensitivities
+  JPM: 50 trades (pay-fixed), 319 sensitivities
+  Citi: 30 trades (receive-fixed), 168 sensitivities
+
+  New trade: 10Y USD receive-fixed swap, $100M notional
+             6 sensitivities
+
+===========================================================================
+DEMO 1: COUNTERPARTY ROUTING
+Which counterparty should we route the new trade to?
+===========================================================================
+
+===========================================================================
+                    PRE-TRADE ROUTING ANALYSIS
+===========================================================================
+
+Trade: Trade with 6 sensitivities (Risk_IRCurve)
+Computation time: 4761.7 ms
+
+---------------------------------------------------------------------------
+Counterparty              Current IM     Marginal IM          New IM  Netting %
+---------------------------------------------------------------------------
+JPM                  $1,580,636,781,724 $-5,827,299,999 $1,574,809,481,725     107.6%
+Goldman              $207,223,874,906 $23,266,663,010 $230,490,537,916      69.5%
+Citi                 $482,443,623,099 $188,016,153,772 $670,459,776,871    -146.6%
+---------------------------------------------------------------------------
+
+Standalone IM (no netting): $76,235,112,526
+
+===========================================================================
+                         RECOMMENDATION
+===========================================================================
+
+  >>> Route to: JPM
+  >>> Marginal IM: $-5,827,299,999
+  >>> Savings vs Citi: $193,843,453,771
+===========================================================================
+
+===========================================================================
+DEMO 2: BILATERAL vs CLEARED
+Should we clear this trade at LCH or keep it bilateral?
+===========================================================================
+
+===========================================================================
+                 BILATERAL vs CLEARED COMPARISON
+===========================================================================
+
+Trade: Trade with 6 sensitivities
+
+---------------------------------------------------------------------------
+Option                             Marginal IM             Total IM
+---------------------------------------------------------------------------
+Bilateral (JPM)           $     -5,827,299,999 $  1,574,809,481,725
+Cleared (LCH)             $          1,792,732 $          1,792,732
+---------------------------------------------------------------------------
+Difference (Bilateral - Cleared) $     -5,829,092,731 (+100.0%)
+
+===========================================================================
+                    RECOMMENDATION: BILATERAL
+===========================================================================
+
+Bilateral saves $5,829,092,731 (-100.0%) due to netting. Existing bilateral portfolio provides netting benefit. Recommend bilateral with JPM.
+===========================================================================
+
+===========================================================================
+DEMO 3: NETTING BENEFIT ANALYSIS
+===========================================================================
+
+The new trade is RECEIVE-FIXED. How does this net with each portfolio?
+
+  Goldman: Mixed portfolio (pay + receive) -> Moderate netting
+  JPM:     All PAY-FIXED -> EXCELLENT netting (opposite direction)
+  Citi:    All RECEIVE-FIXED -> POOR netting (same direction)
+
+This explains why JPM gives the lowest marginal IM!
+
+===========================================================================
+                         DEMO COMPLETE
+===========================================================================
+[18:53:45] --- PASS: Pre-trade analytics (25s)
+[18:53:45] 
+[18:53:45] ============ Section 3: Baseline (unaffected — reference only) ============
+[18:53:45] 
+[18:53:45] --- START: Baseline IR swaps (50 trades)
+[18:53:45] CMD: python -m model.simm_portfolio_baseline --trades 50 --portfolios 5 --threads 1 --trade-types ir_swap
+================================================================================
+           SIMM Portfolio Baseline
+================================================================================
+Configuration:
+  Model:           simm_portfolio_baseline_py v2.0.0
+  Trade Types:     ir_swap
+  Trades:          50
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         1 (baseline: single-threaded)
+
+Generating market data...
+Generating 50 ir_swap trades...
+  Total trades: 50
+Portfolio allocation:
+  Group 0: 7 trades
+  Group 1: 10 trades
+  Group 2: 10 trades
+  Group 3: 13 trades
+  Group 4: 10 trades
+
+Processing groups (CRIF -> SIMM -> dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000045          55,532,540,365.78     87.13%
+    IR_SWAP_000018          28,057,375,761.61     44.02%
+    IR_SWAP_000041           5,914,828,178.00      9.28%
+    IR_SWAP_000023           4,665,854,174.04      7.32%
+    IR_SWAP_000033           1,106,576,070.26      1.74%
+    IR_SWAP_000038             951,182,568.75      1.49%
+    IR_SWAP_000024            -623,764,733.01     -0.98%
+    ----------------------------------------------------
+    Sum                     95,604,592,385.42 (IM = 63,736,392,609.10)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000005         167,798,415,004.91    170.80%
+    IR_SWAP_000027         -49,520,690,504.26    -50.41%
+    IR_SWAP_000013          26,021,694,233.36     26.49%
+    IR_SWAP_000015          24,444,606,743.39     24.88%
+    IR_SWAP_000046         -16,655,592,386.81    -16.95%
+    IR_SWAP_000020          -4,016,134,909.49     -4.09%
+    IR_SWAP_000039          -3,709,252,173.40     -3.78%
+    IR_SWAP_000048           2,571,891,309.42      2.62%
+    IR_SWAP_000043             652,389,387.08      0.66%
+    IR_SWAP_000044            -223,310,071.66     -0.23%
+    ----------------------------------------------------
+    Sum                    147,364,016,632.54 (IM = 98,242,649,889.62)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000030          53,512,543,954.99    110.35%
+    IR_SWAP_000011         -10,660,610,328.29    -21.98%
+    IR_SWAP_000002          10,302,701,248.66     21.25%
+    IR_SWAP_000025          10,092,363,340.39     20.81%
+    IR_SWAP_000026          10,028,749,036.49     20.68%
+    IR_SWAP_000036           4,828,213,824.82      9.96%
+    IR_SWAP_000034          -4,655,694,915.13     -9.60%
+    IR_SWAP_000007            -914,489,316.50     -1.89%
+    IR_SWAP_000006             542,623,885.84      1.12%
+    IR_SWAP_000008            -337,145,058.08     -0.70%
+    ----------------------------------------------------
+    Sum                     72,739,255,673.20 (IM = 48,492,836,530.93)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000049          30,892,845,223.03     84.38%
+    IR_SWAP_000019          14,618,422,267.00     39.93%
+    IR_SWAP_000022          -7,497,829,544.93    -20.48%
+    IR_SWAP_000000           5,559,944,241.75     15.19%
+    IR_SWAP_000031           3,929,951,944.91     10.73%
+    IR_SWAP_000029          -3,097,154,860.01     -8.46%
+    IR_SWAP_000042           2,971,196,201.16      8.12%
+    IR_SWAP_000032           2,887,270,789.55      7.89%
+    IR_SWAP_000040           1,117,832,321.71      3.05%
+    IR_SWAP_000016             978,830,204.76      2.67%
+    IR_SWAP_000014            -849,887,748.80     -2.32%
+    IR_SWAP_000010             789,744,290.35      2.16%
+    IR_SWAP_000028             117,095,728.63      0.32%
+    ----------------------------------------------------
+    Sum                     52,418,261,059.11 (IM = 36,610,182,354.54)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000012          35,644,993,913.98    129.18%
+    IR_SWAP_000035           8,019,284,135.89     29.06%
+    IR_SWAP_000037          -6,195,558,721.73    -22.45%
+    IR_SWAP_000021           4,300,273,423.81     15.58%
+    IR_SWAP_000017          -3,242,067,965.72    -11.75%
+    IR_SWAP_000047          -3,183,309,701.00    -11.54%
+    IR_SWAP_000009           1,830,811,670.55      6.64%
+    IR_SWAP_000004            -540,142,947.99     -1.96%
+    IR_SWAP_000003            -508,514,263.84     -1.84%
+    IR_SWAP_000001            -276,557,983.91     -1.00%
+    ----------------------------------------------------
+    Sum                     35,849,211,560.04 (IM = 27,592,680,352.30)
+
+CRIF logged: 269 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 50 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0          7  63,736,392,609.10      0.066   0.403291      41     16.165
+  1         10  98,242,649,889.62      0.096   0.493670      56     28.062
+  2         10  48,492,836,530.93      0.099   0.457900      55     25.367
+  3         13  36,610,182,354.54      0.112   0.457789      68     31.337
+  4         10  27,592,680,352.30      0.085   0.457023      49     22.493
+--------------------------------------------------------------------------
+  ALL       50 274,674,741,736.48      0.458   2.269673     269    123.423
+
+Timing Summary:
+  CRIF computation:  0.458 s (5 groups)
+  SIMM aggregation:  2.269673 s (5 groups)
+  IM gradient:       123.423 s (269 sensitivities bumped)
+  Total:             126.150 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:55:53] --- PASS: Baseline IR swaps (50 trades) (128s)
+[18:55:53] 
+[18:55:53] ============ Section 4: Thread scaling (v2 batched evaluate) ============
+[18:55:53] 
+[18:55:53] --- START: Thread scaling: optimize 100 trades, 1 threads
+[18:55:53] CMD: python -m model.simm_portfolio_aadc --trades 100 --portfolios 5 --threads 1 --trade-types ir_swap --optimize --method gradient_descent --max-iters 50
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap
+  Trades:          100
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         1 (AADC workers)
+
+Generating market data...
+Generating 100 ir_swap trades...
+  Total trades: 100
+Portfolio allocation:
+  Group 0: 18 trades
+  Group 1: 21 trades
+  Group 2: 16 trades
+  Group 3: 26 trades
+  Group 4: 19 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000091       133,431,380,068,567.56  55271.35%
+    IR_SWAP_000018       55,307,480,572,686.14  22910.05%
+    IR_SWAP_000081       52,395,850,932,432.47  21703.96%
+    IR_SWAP_000087       -14,148,394,192,248.32  -5860.70%
+    IR_SWAP_000045       13,184,120,763,920.72   5461.27%
+    IR_SWAP_000084       7,532,866,718,751.63   3120.34%
+    IR_SWAP_000070       7,349,928,528,613.43   3044.56%
+    IR_SWAP_000076       -3,653,589,270,805.00  -1513.43%
+    IR_SWAP_000085       -2,900,029,645,154.19  -1201.28%
+    IR_SWAP_000038       1,732,979,171,048.91    717.85%
+    IR_SWAP_000055       1,477,898,262,745.54    612.19%
+    IR_SWAP_000041       1,389,729,005,970.51    575.67%
+    IR_SWAP_000024       -1,313,355,097,198.45   -544.03%
+    IR_SWAP_000023       1,113,558,030,074.82    461.27%
+    IR_SWAP_000094        -481,898,920,209.90   -199.62%
+    IR_SWAP_000033         262,715,782,799.83    108.82%
+    IR_SWAP_000086         -73,158,167,864.14    -30.30%
+    IR_SWAP_000099          72,637,769,139.78     30.09%
+    ----------------------------------------------------
+    Sum                  252,680,720,313,271.38 (IM = 241,411,453,414.59)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000005       194,817,665,507,593.75  56594.47%
+    IR_SWAP_000057       183,195,134,190,031.88  53218.13%
+    IR_SWAP_000027       -55,801,828,893,727.16 -16210.41%
+    IR_SWAP_000073       -42,067,736,287,678.72 -12220.66%
+    IR_SWAP_000098       27,525,699,408,927.43   7996.21%
+    IR_SWAP_000067       24,694,292,483,071.21   7173.68%
+    IR_SWAP_000075       -22,890,186,318,779.00  -6649.59%
+    IR_SWAP_000013       19,772,919,796,607.52   5744.03%
+    IR_SWAP_000060       19,772,919,796,607.52   5744.03%
+    IR_SWAP_000048       18,297,938,663,003.11   5315.55%
+    IR_SWAP_000015       18,297,938,663,003.11   5315.55%
+    IR_SWAP_000046       -13,051,190,013,778.35  -3791.37%
+    IR_SWAP_000097       4,688,021,610,273.87   1361.87%
+    IR_SWAP_000020       -2,987,315,734,690.15   -867.81%
+    IR_SWAP_000039       -2,802,375,014,044.50   -814.09%
+    IR_SWAP_000064       1,432,078,597,500.48    416.02%
+    IR_SWAP_000059       1,422,448,617,417.70    413.22%
+    IR_SWAP_000066        -942,891,704,294.10   -273.91%
+    IR_SWAP_000063         826,250,606,035.77    240.03%
+    IR_SWAP_000043         485,509,538,817.71    141.04%
+    IR_SWAP_000044        -225,301,760,188.48    -65.45%
+    ----------------------------------------------------
+    Sum                  374,459,991,751,710.56 (IM = 344,234,435,265.33)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000036       62,293,202,660,132.74  42030.07%
+    IR_SWAP_000030       62,293,202,660,132.73  42030.07%
+    IR_SWAP_000089       15,553,854,077,448.12  10494.40%
+    IR_SWAP_000011       -12,411,822,379,139.55  -8374.42%
+    IR_SWAP_000054       11,270,991,276,654.49   7604.69%
+    IR_SWAP_000025       10,361,881,746,089.87   6991.30%
+    IR_SWAP_000026       10,298,731,324,801.83   6948.69%
+    IR_SWAP_000034       -4,407,160,543,025.92  -2973.57%
+    IR_SWAP_000002       1,228,827,498,907.39    829.11%
+    IR_SWAP_000007         413,962,562,734.29    279.31%
+    IR_SWAP_000093         138,063,229,126.00     93.15%
+    IR_SWAP_000095         138,063,229,126.00     93.15%
+    IR_SWAP_000090          41,452,441,252.79     27.97%
+    IR_SWAP_000008         -36,752,292,831.00    -24.80%
+    IR_SWAP_000092         -36,752,292,831.00    -24.80%
+    IR_SWAP_000006           3,980,056,738.67      2.69%
+    ----------------------------------------------------
+    Sum                  157,143,725,255,317.47 (IM = 148,211,048,546.92)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000022       -7,005,627,153,684.99 -39324.25%
+    IR_SWAP_000079       -7,005,627,153,684.99 -39324.25%
+    IR_SWAP_000019       5,687,759,935,724.98  31926.75%
+    IR_SWAP_000000       5,409,882,173,436.88  30366.95%
+    IR_SWAP_000028       5,409,882,173,436.88  30366.95%
+    IR_SWAP_000040       5,409,882,173,436.87  30366.95%
+    IR_SWAP_000031       3,046,935,324,544.54  17103.17%
+    IR_SWAP_000078       -2,666,342,494,986.87 -14966.81%
+    IR_SWAP_000029       -1,204,854,788,151.56  -6763.14%
+    IR_SWAP_000069       -1,184,484,797,426.25  -6648.79%
+    IR_SWAP_000042       1,156,040,331,171.08   6489.13%
+    IR_SWAP_000049       1,156,040,331,171.08   6489.13%
+    IR_SWAP_000032       1,131,168,221,854.23   6349.52%
+    IR_SWAP_000088         519,584,724,573.17   2916.55%
+    IR_SWAP_000050         484,878,980,314.83   2721.74%
+    IR_SWAP_000051        -409,426,415,707.56  -2298.21%
+    IR_SWAP_000061         397,497,426,276.30   2231.25%
+    IR_SWAP_000016         373,469,523,169.54   2096.37%
+    IR_SWAP_000014        -343,738,858,698.47  -1929.49%
+    IR_SWAP_000010         324,066,093,032.66   1819.06%
+    IR_SWAP_000065         266,698,446,731.76   1497.04%
+    IR_SWAP_000056         255,309,226,962.69   1433.11%
+    IR_SWAP_000052         252,821,697,856.11   1419.15%
+    IR_SWAP_000077         252,821,697,856.11   1419.15%
+    IR_SWAP_000068         115,311,668,578.28    647.27%
+    IR_SWAP_000058          50,715,138,051.20    284.68%
+    ----------------------------------------------------
+    Sum                  11,880,663,625,838.50 (IM = 17,815,031,937.42)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000012       23,173,946,332,965.43 110331.15%
+    IR_SWAP_000071       5,714,266,039,001.44  27205.62%
+    IR_SWAP_000035       -2,647,792,328,901.77 -12606.14%
+    IR_SWAP_000037       -2,623,017,744,377.16 -12488.19%
+    IR_SWAP_000047       -1,679,421,550,284.00  -7995.73%
+    IR_SWAP_000053       -1,579,029,192,050.10  -7517.76%
+    IR_SWAP_000017       1,335,700,706,324.45   6359.27%
+    IR_SWAP_000082        -903,027,780,125.85  -4299.32%
+    IR_SWAP_000009         870,705,423,064.99   4145.43%
+    IR_SWAP_000080         550,899,631,553.49   2622.83%
+    IR_SWAP_000021        -359,061,990,143.26  -1709.49%
+    IR_SWAP_000096        -349,806,612,199.25  -1665.43%
+    IR_SWAP_000072         308,840,557,366.62   1470.39%
+    IR_SWAP_000003         195,093,057,931.45    928.84%
+    IR_SWAP_000004        -170,078,492,922.99   -809.74%
+    IR_SWAP_000074        -164,091,826,074.65   -781.24%
+    IR_SWAP_000001         -86,701,952,922.17   -412.79%
+    IR_SWAP_000083          17,324,966,269.38     82.48%
+    IR_SWAP_000062           3,620,009,920.97     17.23%
+    ----------------------------------------------------
+    Sum                  21,608,367,254,397.04 (IM = 21,003,991,715.21)
+
+CRIF logged: 551 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 100 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+
+Full Optimization v2 (method=gradient_descent, batched evaluate)...
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+  [v2] Starting optimized allocation with single-evaluate pattern
+  [v2] Trades: 100, Portfolios: 5, Threads: 1
+  [v2] Precomputing trade CRIFs...
+  [v2] Building sensitivity matrix...
+  [v2] Sensitivity matrix: 100 trades x 20 risk factors x 5 portfolios
+  [v2] Recording efficient kernel (K=20 inputs)...
+  [v2] Kernel recorded in 152.86 ms
+  [v2] Initial total IM: $400,777,824,237.60
+  [v2] Per-portfolio IMs: ['$70,069,059,276', '$206,256,476,764', '$51,152,784,005', '$56,397,838,496', '$16,901,665,696']
+    [v2] Initial IM: $400,777,824,237.60
+    [v2] Gradient: max=7.78e+10, mean=9.15e+09
+    [v2] Learning rate: 3.86e-12
+    [v2] Single evaluate() time: 0.45 ms
+    [v2] Iter 0: IM = $400,777,824,237.60, moves = 0
+    [v2] Iter 10: IM = $267,661,019,377.46, moves = 2
+    [v2] Iter 20: IM = $275,585,173,695.83, moves = 2
+    [v2] Iter 30: IM = $277,495,996,855.05, moves = 2
+    [v2] Iter 40: IM = $280,151,695,885.41, moves = 2
+    [v2] Reached max iterations (50)
+    [v2] Total eval time: 21.78 ms
+  [v2] Continuous IM (before rounding): $282,664,531,240.85
+  [v2] Final total IM: $273,659,078,938.12
+  [v2] IM reduction: $127,118,745,299.47 (31.72%)
+  [v2] Trades moved: 2
+  [v2] Total time: 8.610s (CRIF: 7.979s, Opt: 0.203s)
+  [v2] Eval calls: 50, Avg eval time: 0.44 ms
+
+Optimization Summary:
+  Method:              gradient_descent
+  Iterations:          50 (max iters)
+  Initial IM:          $400,777,824,237.60
+  Optimized IM:        $273,659,078,938.12
+  Reduction:           31.7%
+  Trades moved:        2 of 100
+  Optimization time:   8.610 s
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0         18 241,411,453,414.59      2.192   0.520308     102      1.067
+  1         21 344,234,435,265.33      2.318   0.546530     118      1.067
+  2         16 148,211,048,546.92      1.589   0.565097      99      1.067
+  3         26  17,815,031,937.42      2.551   0.555115     138      1.067
+  4         19  21,003,991,715.21      2.192   0.553139      94      1.067
+--------------------------------------------------------------------------
+  ALL      100 772,675,960,879.47     10.843   2.740188     551      5.336
+
+Timing Summary (AADC):
+  CRIF (AADC):       10.843 s (5 groups)
+  SIMM aggregation:  2.740188 s (5 groups)
+  IM gradient (AADC): 5.336 s (551 sensitivities, single adjoint)
+  Optimization:      8.610 s (50 iterations, 2 trades moved)
+  Total:             27.529 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:56:23] --- PASS: Thread scaling: optimize 100 trades, 1 threads (30s)
+[18:56:23] --- START: Thread scaling: optimize 100 trades, 4 threads
+[18:56:23] CMD: python -m model.simm_portfolio_aadc --trades 100 --portfolios 5 --threads 4 --trade-types ir_swap --optimize --method gradient_descent --max-iters 50
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap
+  Trades:          100
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         4 (AADC workers)
+
+Generating market data...
+Generating 100 ir_swap trades...
+  Total trades: 100
+Portfolio allocation:
+  Group 0: 18 trades
+  Group 1: 21 trades
+  Group 2: 16 trades
+  Group 3: 26 trades
+  Group 4: 19 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000091       133,431,380,068,567.56  55271.35%
+    IR_SWAP_000018       55,307,480,572,686.14  22910.05%
+    IR_SWAP_000081       52,395,850,932,432.47  21703.96%
+    IR_SWAP_000087       -14,148,394,192,248.32  -5860.70%
+    IR_SWAP_000045       13,184,120,763,920.72   5461.27%
+    IR_SWAP_000084       7,532,866,718,751.63   3120.34%
+    IR_SWAP_000070       7,349,928,528,613.43   3044.56%
+    IR_SWAP_000076       -3,653,589,270,805.00  -1513.43%
+    IR_SWAP_000085       -2,900,029,645,154.19  -1201.28%
+    IR_SWAP_000038       1,732,979,171,048.91    717.85%
+    IR_SWAP_000055       1,477,898,262,745.54    612.19%
+    IR_SWAP_000041       1,389,729,005,970.51    575.67%
+    IR_SWAP_000024       -1,313,355,097,198.45   -544.03%
+    IR_SWAP_000023       1,113,558,030,074.82    461.27%
+    IR_SWAP_000094        -481,898,920,209.90   -199.62%
+    IR_SWAP_000033         262,715,782,799.83    108.82%
+    IR_SWAP_000086         -73,158,167,864.14    -30.30%
+    IR_SWAP_000099          72,637,769,139.78     30.09%
+    ----------------------------------------------------
+    Sum                  252,680,720,313,271.38 (IM = 241,411,453,414.59)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000005       194,817,665,507,593.75  56594.47%
+    IR_SWAP_000057       183,195,134,190,031.88  53218.13%
+    IR_SWAP_000027       -55,801,828,893,727.16 -16210.41%
+    IR_SWAP_000073       -42,067,736,287,678.72 -12220.66%
+    IR_SWAP_000098       27,525,699,408,927.43   7996.21%
+    IR_SWAP_000067       24,694,292,483,071.21   7173.68%
+    IR_SWAP_000075       -22,890,186,318,779.00  -6649.59%
+    IR_SWAP_000013       19,772,919,796,607.52   5744.03%
+    IR_SWAP_000060       19,772,919,796,607.52   5744.03%
+    IR_SWAP_000048       18,297,938,663,003.11   5315.55%
+    IR_SWAP_000015       18,297,938,663,003.11   5315.55%
+    IR_SWAP_000046       -13,051,190,013,778.35  -3791.37%
+    IR_SWAP_000097       4,688,021,610,273.87   1361.87%
+    IR_SWAP_000020       -2,987,315,734,690.15   -867.81%
+    IR_SWAP_000039       -2,802,375,014,044.50   -814.09%
+    IR_SWAP_000064       1,432,078,597,500.48    416.02%
+    IR_SWAP_000059       1,422,448,617,417.70    413.22%
+    IR_SWAP_000066        -942,891,704,294.10   -273.91%
+    IR_SWAP_000063         826,250,606,035.77    240.03%
+    IR_SWAP_000043         485,509,538,817.71    141.04%
+    IR_SWAP_000044        -225,301,760,188.48    -65.45%
+    ----------------------------------------------------
+    Sum                  374,459,991,751,710.56 (IM = 344,234,435,265.33)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000036       62,293,202,660,132.74  42030.07%
+    IR_SWAP_000030       62,293,202,660,132.73  42030.07%
+    IR_SWAP_000089       15,553,854,077,448.12  10494.40%
+    IR_SWAP_000011       -12,411,822,379,139.55  -8374.42%
+    IR_SWAP_000054       11,270,991,276,654.49   7604.69%
+    IR_SWAP_000025       10,361,881,746,089.87   6991.30%
+    IR_SWAP_000026       10,298,731,324,801.83   6948.69%
+    IR_SWAP_000034       -4,407,160,543,025.92  -2973.57%
+    IR_SWAP_000002       1,228,827,498,907.39    829.11%
+    IR_SWAP_000007         413,962,562,734.29    279.31%
+    IR_SWAP_000093         138,063,229,126.00     93.15%
+    IR_SWAP_000095         138,063,229,126.00     93.15%
+    IR_SWAP_000090          41,452,441,252.79     27.97%
+    IR_SWAP_000008         -36,752,292,831.00    -24.80%
+    IR_SWAP_000092         -36,752,292,831.00    -24.80%
+    IR_SWAP_000006           3,980,056,738.67      2.69%
+    ----------------------------------------------------
+    Sum                  157,143,725,255,317.47 (IM = 148,211,048,546.92)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000022       -7,005,627,153,684.99 -39324.25%
+    IR_SWAP_000079       -7,005,627,153,684.99 -39324.25%
+    IR_SWAP_000019       5,687,759,935,724.98  31926.75%
+    IR_SWAP_000000       5,409,882,173,436.88  30366.95%
+    IR_SWAP_000028       5,409,882,173,436.88  30366.95%
+    IR_SWAP_000040       5,409,882,173,436.87  30366.95%
+    IR_SWAP_000031       3,046,935,324,544.54  17103.17%
+    IR_SWAP_000078       -2,666,342,494,986.87 -14966.81%
+    IR_SWAP_000029       -1,204,854,788,151.56  -6763.14%
+    IR_SWAP_000069       -1,184,484,797,426.25  -6648.79%
+    IR_SWAP_000042       1,156,040,331,171.08   6489.13%
+    IR_SWAP_000049       1,156,040,331,171.08   6489.13%
+    IR_SWAP_000032       1,131,168,221,854.23   6349.52%
+    IR_SWAP_000088         519,584,724,573.17   2916.55%
+    IR_SWAP_000050         484,878,980,314.83   2721.74%
+    IR_SWAP_000051        -409,426,415,707.56  -2298.21%
+    IR_SWAP_000061         397,497,426,276.30   2231.25%
+    IR_SWAP_000016         373,469,523,169.54   2096.37%
+    IR_SWAP_000014        -343,738,858,698.47  -1929.49%
+    IR_SWAP_000010         324,066,093,032.66   1819.06%
+    IR_SWAP_000065         266,698,446,731.76   1497.04%
+    IR_SWAP_000056         255,309,226,962.69   1433.11%
+    IR_SWAP_000052         252,821,697,856.11   1419.15%
+    IR_SWAP_000077         252,821,697,856.11   1419.15%
+    IR_SWAP_000068         115,311,668,578.28    647.27%
+    IR_SWAP_000058          50,715,138,051.20    284.68%
+    ----------------------------------------------------
+    Sum                  11,880,663,625,838.50 (IM = 17,815,031,937.42)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000012       23,173,946,332,965.43 110331.15%
+    IR_SWAP_000071       5,714,266,039,001.44  27205.62%
+    IR_SWAP_000035       -2,647,792,328,901.77 -12606.14%
+    IR_SWAP_000037       -2,623,017,744,377.16 -12488.19%
+    IR_SWAP_000047       -1,679,421,550,284.00  -7995.73%
+    IR_SWAP_000053       -1,579,029,192,050.10  -7517.76%
+    IR_SWAP_000017       1,335,700,706,324.45   6359.27%
+    IR_SWAP_000082        -903,027,780,125.85  -4299.32%
+    IR_SWAP_000009         870,705,423,064.99   4145.43%
+    IR_SWAP_000080         550,899,631,553.49   2622.83%
+    IR_SWAP_000021        -359,061,990,143.26  -1709.49%
+    IR_SWAP_000096        -349,806,612,199.25  -1665.43%
+    IR_SWAP_000072         308,840,557,366.62   1470.39%
+    IR_SWAP_000003         195,093,057,931.45    928.84%
+    IR_SWAP_000004        -170,078,492,922.99   -809.74%
+    IR_SWAP_000074        -164,091,826,074.65   -781.24%
+    IR_SWAP_000001         -86,701,952,922.17   -412.79%
+    IR_SWAP_000083          17,324,966,269.38     82.48%
+    IR_SWAP_000062           3,620,009,920.97     17.23%
+    ----------------------------------------------------
+    Sum                  21,608,367,254,397.04 (IM = 21,003,991,715.21)
+
+CRIF logged: 551 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 100 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+
+Full Optimization v2 (method=gradient_descent, batched evaluate)...
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+  [v2] Starting optimized allocation with single-evaluate pattern
+  [v2] Trades: 100, Portfolios: 5, Threads: 4
+  [v2] Precomputing trade CRIFs...
+  [v2] Building sensitivity matrix...
+  [v2] Sensitivity matrix: 100 trades x 20 risk factors x 5 portfolios
+  [v2] Recording efficient kernel (K=20 inputs)...
+  [v2] Kernel recorded in 165.18 ms
+  [v2] Initial total IM: $400,777,824,237.60
+  [v2] Per-portfolio IMs: ['$70,069,059,276', '$206,256,476,764', '$51,152,784,005', '$56,397,838,496', '$16,901,665,696']
+    [v2] Initial IM: $400,777,824,237.60
+    [v2] Gradient: max=7.78e+10, mean=9.15e+09
+    [v2] Learning rate: 3.86e-12
+    [v2] Single evaluate() time: 0.79 ms
+    [v2] Iter 0: IM = $400,777,824,237.60, moves = 0
+    [v2] Iter 10: IM = $267,661,019,377.46, moves = 2
+    [v2] Iter 20: IM = $275,585,173,695.83, moves = 2
+    [v2] Iter 30: IM = $277,495,996,855.05, moves = 2
+    [v2] Iter 40: IM = $280,151,695,885.41, moves = 2
+    [v2] Reached max iterations (50)
+    [v2] Total eval time: 37.22 ms
+  [v2] Continuous IM (before rounding): $282,664,531,240.85
+  [v2] Final total IM: $273,659,078,938.12
+  [v2] IM reduction: $127,118,745,299.47 (31.72%)
+  [v2] Trades moved: 2
+  [v2] Total time: 9.104s (CRIF: 8.356s, Opt: 0.301s)
+  [v2] Eval calls: 50, Avg eval time: 0.74 ms
+
+Optimization Summary:
+  Method:              gradient_descent
+  Iterations:          50 (max iters)
+  Initial IM:          $400,777,824,237.60
+  Optimized IM:        $273,659,078,938.12
+  Reduction:           31.7%
+  Trades moved:        2 of 100
+  Optimization time:   9.104 s
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0         18 241,411,453,414.59      2.241   0.573291     102      1.234
+  1         21 344,234,435,265.33      2.400   0.580774     118      1.234
+  2         16 148,211,048,546.92      1.658   0.609856      99      1.234
+  3         26  17,815,031,937.42      2.610   0.600746     138      1.234
+  4         19  21,003,991,715.21      2.255   0.597811      94      1.234
+--------------------------------------------------------------------------
+  ALL      100 772,675,960,879.47     11.163   2.962478     551      6.170
+
+Timing Summary (AADC):
+  CRIF (AADC):       11.163 s (5 groups)
+  SIMM aggregation:  2.962478 s (5 groups)
+  IM gradient (AADC): 6.170 s (551 sensitivities, single adjoint)
+  Optimization:      9.104 s (50 iterations, 2 trades moved)
+  Total:             29.399 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:56:55] --- PASS: Thread scaling: optimize 100 trades, 4 threads (32s)
+[18:56:55] --- START: Thread scaling: optimize 100 trades, 8 threads
+[18:56:55] CMD: python -m model.simm_portfolio_aadc --trades 100 --portfolios 5 --threads 8 --trade-types ir_swap --optimize --method gradient_descent --max-iters 50
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+================================================================================
+           SIMM Portfolio AADC
+================================================================================
+Configuration:
+  Model:           simm_portfolio_aadc_py v4.0.0
+  Trade Types:     ir_swap
+  Trades:          100
+  SIMM Buckets:    2
+  Portfolios:      5
+  Threads:         8 (AADC workers)
+
+Generating market data...
+Generating 100 ir_swap trades...
+  Total trades: 100
+Portfolio allocation:
+  Group 0: 18 trades
+  Group 1: 21 trades
+  Group 2: 16 trades
+  Group 3: 26 trades
+  Group 4: 19 trades
+
+Processing groups (AADC CRIF -> SIMM -> batched AADC dIM/ds -> trade contributions)...
+
+  Group 0 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000091       133,431,380,068,567.56  55271.35%
+    IR_SWAP_000018       55,307,480,572,686.14  22910.05%
+    IR_SWAP_000081       52,395,850,932,432.47  21703.96%
+    IR_SWAP_000087       -14,148,394,192,248.32  -5860.70%
+    IR_SWAP_000045       13,184,120,763,920.72   5461.27%
+    IR_SWAP_000084       7,532,866,718,751.63   3120.34%
+    IR_SWAP_000070       7,349,928,528,613.43   3044.56%
+    IR_SWAP_000076       -3,653,589,270,805.00  -1513.43%
+    IR_SWAP_000085       -2,900,029,645,154.19  -1201.28%
+    IR_SWAP_000038       1,732,979,171,048.91    717.85%
+    IR_SWAP_000055       1,477,898,262,745.54    612.19%
+    IR_SWAP_000041       1,389,729,005,970.51    575.67%
+    IR_SWAP_000024       -1,313,355,097,198.45   -544.03%
+    IR_SWAP_000023       1,113,558,030,074.82    461.27%
+    IR_SWAP_000094        -481,898,920,209.90   -199.62%
+    IR_SWAP_000033         262,715,782,799.83    108.82%
+    IR_SWAP_000086         -73,158,167,864.14    -30.30%
+    IR_SWAP_000099          72,637,769,139.78     30.09%
+    ----------------------------------------------------
+    Sum                  252,680,720,313,271.38 (IM = 241,411,453,414.59)
+
+  Group 1 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000005       194,817,665,507,593.75  56594.47%
+    IR_SWAP_000057       183,195,134,190,031.88  53218.13%
+    IR_SWAP_000027       -55,801,828,893,727.16 -16210.41%
+    IR_SWAP_000073       -42,067,736,287,678.72 -12220.66%
+    IR_SWAP_000098       27,525,699,408,927.43   7996.21%
+    IR_SWAP_000067       24,694,292,483,071.21   7173.68%
+    IR_SWAP_000075       -22,890,186,318,779.00  -6649.59%
+    IR_SWAP_000013       19,772,919,796,607.52   5744.03%
+    IR_SWAP_000060       19,772,919,796,607.52   5744.03%
+    IR_SWAP_000048       18,297,938,663,003.11   5315.55%
+    IR_SWAP_000015       18,297,938,663,003.11   5315.55%
+    IR_SWAP_000046       -13,051,190,013,778.35  -3791.37%
+    IR_SWAP_000097       4,688,021,610,273.87   1361.87%
+    IR_SWAP_000020       -2,987,315,734,690.15   -867.81%
+    IR_SWAP_000039       -2,802,375,014,044.50   -814.09%
+    IR_SWAP_000064       1,432,078,597,500.48    416.02%
+    IR_SWAP_000059       1,422,448,617,417.70    413.22%
+    IR_SWAP_000066        -942,891,704,294.10   -273.91%
+    IR_SWAP_000063         826,250,606,035.77    240.03%
+    IR_SWAP_000043         485,509,538,817.71    141.04%
+    IR_SWAP_000044        -225,301,760,188.48    -65.45%
+    ----------------------------------------------------
+    Sum                  374,459,991,751,710.56 (IM = 344,234,435,265.33)
+
+  Group 2 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000036       62,293,202,660,132.74  42030.07%
+    IR_SWAP_000030       62,293,202,660,132.73  42030.07%
+    IR_SWAP_000089       15,553,854,077,448.12  10494.40%
+    IR_SWAP_000011       -12,411,822,379,139.55  -8374.42%
+    IR_SWAP_000054       11,270,991,276,654.49   7604.69%
+    IR_SWAP_000025       10,361,881,746,089.87   6991.30%
+    IR_SWAP_000026       10,298,731,324,801.83   6948.69%
+    IR_SWAP_000034       -4,407,160,543,025.92  -2973.57%
+    IR_SWAP_000002       1,228,827,498,907.39    829.11%
+    IR_SWAP_000007         413,962,562,734.29    279.31%
+    IR_SWAP_000093         138,063,229,126.00     93.15%
+    IR_SWAP_000095         138,063,229,126.00     93.15%
+    IR_SWAP_000090          41,452,441,252.79     27.97%
+    IR_SWAP_000008         -36,752,292,831.00    -24.80%
+    IR_SWAP_000092         -36,752,292,831.00    -24.80%
+    IR_SWAP_000006           3,980,056,738.67      2.69%
+    ----------------------------------------------------
+    Sum                  157,143,725,255,317.47 (IM = 148,211,048,546.92)
+
+  Group 3 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000022       -7,005,627,153,684.99 -39324.25%
+    IR_SWAP_000079       -7,005,627,153,684.99 -39324.25%
+    IR_SWAP_000019       5,687,759,935,724.98  31926.75%
+    IR_SWAP_000000       5,409,882,173,436.88  30366.95%
+    IR_SWAP_000028       5,409,882,173,436.88  30366.95%
+    IR_SWAP_000040       5,409,882,173,436.87  30366.95%
+    IR_SWAP_000031       3,046,935,324,544.54  17103.17%
+    IR_SWAP_000078       -2,666,342,494,986.87 -14966.81%
+    IR_SWAP_000029       -1,204,854,788,151.56  -6763.14%
+    IR_SWAP_000069       -1,184,484,797,426.25  -6648.79%
+    IR_SWAP_000042       1,156,040,331,171.08   6489.13%
+    IR_SWAP_000049       1,156,040,331,171.08   6489.13%
+    IR_SWAP_000032       1,131,168,221,854.23   6349.52%
+    IR_SWAP_000088         519,584,724,573.17   2916.55%
+    IR_SWAP_000050         484,878,980,314.83   2721.74%
+    IR_SWAP_000051        -409,426,415,707.56  -2298.21%
+    IR_SWAP_000061         397,497,426,276.30   2231.25%
+    IR_SWAP_000016         373,469,523,169.54   2096.37%
+    IR_SWAP_000014        -343,738,858,698.47  -1929.49%
+    IR_SWAP_000010         324,066,093,032.66   1819.06%
+    IR_SWAP_000065         266,698,446,731.76   1497.04%
+    IR_SWAP_000056         255,309,226,962.69   1433.11%
+    IR_SWAP_000052         252,821,697,856.11   1419.15%
+    IR_SWAP_000077         252,821,697,856.11   1419.15%
+    IR_SWAP_000068         115,311,668,578.28    647.27%
+    IR_SWAP_000058          50,715,138,051.20    284.68%
+    ----------------------------------------------------
+    Sum                  11,880,663,625,838.50 (IM = 17,815,031,937.42)
+
+  Group 4 Trade Contributions (Euler decomposition):
+    TradeID                Contribution (USD)    % of IM
+    ----------------------------------------------------
+    IR_SWAP_000012       23,173,946,332,965.43 110331.15%
+    IR_SWAP_000071       5,714,266,039,001.44  27205.62%
+    IR_SWAP_000035       -2,647,792,328,901.77 -12606.14%
+    IR_SWAP_000037       -2,623,017,744,377.16 -12488.19%
+    IR_SWAP_000047       -1,679,421,550,284.00  -7995.73%
+    IR_SWAP_000053       -1,579,029,192,050.10  -7517.76%
+    IR_SWAP_000017       1,335,700,706,324.45   6359.27%
+    IR_SWAP_000082        -903,027,780,125.85  -4299.32%
+    IR_SWAP_000009         870,705,423,064.99   4145.43%
+    IR_SWAP_000080         550,899,631,553.49   2622.83%
+    IR_SWAP_000021        -359,061,990,143.26  -1709.49%
+    IR_SWAP_000096        -349,806,612,199.25  -1665.43%
+    IR_SWAP_000072         308,840,557,366.62   1470.39%
+    IR_SWAP_000003         195,093,057,931.45    928.84%
+    IR_SWAP_000004        -170,078,492,922.99   -809.74%
+    IR_SWAP_000074        -164,091,826,074.65   -781.24%
+    IR_SWAP_000001         -86,701,952,922.17   -412.79%
+    IR_SWAP_000083          17,324,966,269.38     82.48%
+    IR_SWAP_000062           3,620,009,920.97     17.23%
+    ----------------------------------------------------
+    Sum                  21,608,367,254,397.04 (IM = 21,003,991,715.21)
+
+CRIF logged: 551 rows -> /home/natashamanito/ISDA-SIMM/data/crif_output.csv
+Trade contributions logged: 100 rows -> /home/natashamanito/ISDA-SIMM/data/trade_contributions.csv
+
+
+Full Optimization v2 (method=gradient_descent, batched evaluate)...
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+  [v2] Starting optimized allocation with single-evaluate pattern
+  [v2] Trades: 100, Portfolios: 5, Threads: 8
+  [v2] Precomputing trade CRIFs...
+  [v2] Building sensitivity matrix...
+  [v2] Sensitivity matrix: 100 trades x 20 risk factors x 5 portfolios
+  [v2] Recording efficient kernel (K=20 inputs)...
+  [v2] Kernel recorded in 165.66 ms
+  [v2] Initial total IM: $400,777,824,237.60
+  [v2] Per-portfolio IMs: ['$70,069,059,276', '$206,256,476,764', '$51,152,784,005', '$56,397,838,496', '$16,901,665,696']
+    [v2] Initial IM: $400,777,824,237.60
+    [v2] Gradient: max=7.78e+10, mean=9.15e+09
+    [v2] Learning rate: 3.86e-12
+    [v2] Single evaluate() time: 3.62 ms
+    [v2] Iter 0: IM = $400,777,824,237.60, moves = 0
+    [v2] Iter 10: IM = $267,661,019,377.46, moves = 2
+    [v2] Iter 20: IM = $275,585,173,695.83, moves = 2
+    [v2] Iter 30: IM = $277,495,996,855.05, moves = 2
+    [v2] Iter 40: IM = $280,151,695,885.41, moves = 2
+    [v2] Reached max iterations (50)
+    [v2] Total eval time: 97.59 ms
+  [v2] Continuous IM (before rounding): $282,664,531,240.85
+  [v2] Final total IM: $273,659,078,938.12
+  [v2] IM reduction: $127,118,745,299.47 (31.72%)
+  [v2] Trades moved: 2
+  [v2] Total time: 9.228s (CRIF: 8.460s, Opt: 0.313s)
+  [v2] Eval calls: 50, Avg eval time: 1.95 ms
+
+Optimization Summary:
+  Method:              gradient_descent
+  Iterations:          50 (max iters)
+  Initial IM:          $400,777,824,237.60
+  Optimized IM:        $273,659,078,938.12
+  Reduction:           31.7%
+  Trades moved:        2 of 100
+  Optimization time:   9.228 s
+
+Group   Trades           IM (USD)   CRIF (s)   SIMM (s)  # Sens dIM/ds (s)
+--------------------------------------------------------------------------
+  0         18 241,411,453,414.59      2.232   0.553999     102      1.263
+  1         21 344,234,435,265.33      2.360   0.553388     118      1.263
+  2         16 148,211,048,546.92      1.628   0.585290      99      1.263
+  3         26  17,815,031,937.42      2.601   0.621600     138      1.263
+  4         19  21,003,991,715.21      2.290   0.613394      94      1.263
+--------------------------------------------------------------------------
+  ALL      100 772,675,960,879.47     11.112   2.927671     551      6.314
+
+Timing Summary (AADC):
+  CRIF (AADC):       11.112 s (5 groups)
+  SIMM aggregation:  2.927671 s (5 groups)
+  IM gradient (AADC): 6.314 s (551 sensitivities, single adjoint)
+  Optimization:      9.228 s (50 iterations, 2 trades moved)
+  Total:             29.581 s
+
+Execution logged to /home/natashamanito/ISDA-SIMM/data/execution_log_portfolio.csv
+================================================================================
+[18:57:26] --- PASS: Thread scaling: optimize 100 trades, 8 threads (31s)
+[18:57:26] 
+[18:57:26] ============ Section 5: v1 vs v2 comparison ============
+[18:57:26] 
+[18:57:26] --- START: v1 vs v2 benchmark (100 trades, 5 portfolios)
+[18:57:26] CMD: python benchmark_aadc_v1_vs_v2.py --trades 100 --portfolios 5 --threads 8
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+
+AADC v1 vs v2 Benchmark
+Trades: 100, Portfolios: 5, Threads: 8
+
+Precomputing trade CRIFs...
+  CRIF computation: 10.153s
+  Sensitivity matrix: 100 trades x 89 factors x 5 portfolios
+
+Recording kernel...
+  Kernel recording: 368.44 ms
+
+Benchmarking gradient computation...
+
+
+================================================================================
+                    AADC v1 vs v2 Benchmark Results
+================================================================================
+
+Configuration:
+  Trades:           100
+  Portfolios:       5
+  Threads:          8
+  Max iterations:   50
+
+--------------------------------------------------------------------------------
+Gradient Computation Performance:
+--------------------------------------------------------------------------------
+  v1 (P evaluates): 54.15 ms
+  v2 (1 evaluate):  52.66 ms
+  SPEEDUP:          1.0x
+  Improvement:      2.7%
+
+================================================================================
+VERIFICATION:
+  Performance Gain (>10%):      FAIL (2.7%)
+================================================================================
+[18:57:39] --- PASS: v1 vs v2 benchmark (100 trades, 5 portfolios) (13s)
+[18:57:39] 
+[18:57:39] ==========================================
+[18:57:39]  Benchmark Summary
+[18:57:39] ==========================================
+[18:57:39]   Passed: 11
+[18:57:39]   Failed: 1
+[18:57:39]   Skipped: 0
+[18:57:39]   Log:    data/benchmark_v2_20260127_184845.log
+[18:57:39]   Exec log: data/execution_log_portfolio.csv
+[18:57:39] ==========================================
+[18:57:39] WARNING: 1 benchmark(s) failed — check data/benchmark_v2_20260127_184845.log for details

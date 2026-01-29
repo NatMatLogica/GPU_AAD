@@ -1,0 +1,27 @@
+======================================================================
+SIMM CUDA Implementation - Full Test Suite
+======================================================================
+
+--- Test 1: Correctness (100 portfolios, 50 factors) ---
+  Max absolute diff: 1.19e-07
+  Max relative diff: 1.87e-16
+  Status: PASS
+
+--- Test 2: Timing (simulator mode) ---
+  NumPy: 6.80 ms
+  CUDA (simulated): 155.38 ms
+  Note: Simulator is slower than real GPU
+
+--- Test 3: Gradient Validation ---
+  Max gradient diff: 5.43e-02
+  Rel gradient diff: 3.32e-03
+  Status: FAIL
+
+--- Test 4: Sample IM Values ---
+  First 5 portfolio IMs: [6.42158872e+08 5.23870491e+08 6.80009328e+08 5.55200788e+08
+ 6.65091620e+08]
+  Mean IM: $638,974,040
+
+======================================================================
+All tests completed!
+======================================================================

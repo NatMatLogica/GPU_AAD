@@ -1,0 +1,221 @@
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+AADC Trial license days remaining: 607
+===========================================================================
+       PRE-TRADE ANALYTICS DEMO
+       Marginal IM & Bilateral vs Cleared Analysis
+===========================================================================
+
+Generating sample portfolios...
+  Goldman: 100 trades, 551 sensitivities
+  JPM: 50 trades (pay-fixed), 319 sensitivities
+  Citi: 30 trades (receive-fixed), 168 sensitivities
+
+  New trade: 10Y USD receive-fixed swap, $100M notional
+             6 sensitivities
+
+===========================================================================
+DEMO 1: COUNTERPARTY ROUTING
+Which counterparty should we route the new trade to?
+===========================================================================
+
+===========================================================================
+                    PRE-TRADE ROUTING ANALYSIS
+===========================================================================
+
+Trade: Trade with 6 sensitivities (Risk_IRCurve)
+Computation time: 4946.1 ms
+
+---------------------------------------------------------------------------
+Counterparty              Current IM     Marginal IM          New IM  Netting %
+---------------------------------------------------------------------------
+JPM                  $1,580,636,781,724 $-5,827,299,999 $1,574,809,481,725     107.6%
+Goldman              $207,223,874,906 $23,266,663,010 $230,490,537,916      69.5%
+Citi                 $482,443,623,099 $188,016,153,772 $670,459,776,871    -146.6%
+---------------------------------------------------------------------------
+
+Standalone IM (no netting): $76,235,112,526
+
+===========================================================================
+                         RECOMMENDATION
+===========================================================================
+
+  >>> Route to: JPM
+  >>> Marginal IM: $-5,827,299,999
+  >>> Savings vs Citi: $193,843,453,771
+===========================================================================
+
+===========================================================================
+DEMO 2: BILATERAL vs CLEARED
+Should we clear this trade at LCH or keep it bilateral?
+===========================================================================
+
+===========================================================================
+                 BILATERAL vs CLEARED COMPARISON
+===========================================================================
+
+Trade: Trade with 6 sensitivities
+
+---------------------------------------------------------------------------
+Option                             Marginal IM             Total IM
+---------------------------------------------------------------------------
+Bilateral (JPM)           $     -5,827,299,999 $  1,574,809,481,725
+Cleared (LCH)             $          1,792,732 $          1,792,732
+---------------------------------------------------------------------------
+Difference (Bilateral - Cleared) $     -5,829,092,731 (+100.0%)
+
+===========================================================================
+                    RECOMMENDATION: BILATERAL
+===========================================================================
+
+Bilateral saves $5,829,092,731 (-100.0%) due to netting. Existing bilateral portfolio provides netting benefit. Recommend bilateral with JPM.
+===========================================================================
+
+===========================================================================
+DEMO 3: NETTING BENEFIT ANALYSIS
+===========================================================================
+
+The new trade is RECEIVE-FIXED. How does this net with each portfolio?
+
+  Goldman: Mixed portfolio (pay + receive) -> Moderate netting
+  JPM:     All PAY-FIXED -> EXCELLENT netting (opposite direction)
+  Citi:    All RECEIVE-FIXED -> POOR netting (same direction)
+
+This explains why JPM gives the lowest marginal IM!
+
+===========================================================================
+                         DEMO COMPLETE
+===========================================================================

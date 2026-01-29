@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-01-26 19:34:22",
+  "results": [
+    {
+      "backend": "CPU NumPy (MKL)",
+      "num_portfolios": 200,
+      "num_risk_factors": 20,
+      "total_time_ms": 0.3885030746459961,
+      "avg_time_ms": 0.1295010248819987,
+      "throughput_portfolios_per_sec": 1544389.3218778768,
+      "memory_mb": 0.03376,
+      "num_threads_or_gpus": 1,
+      "validated": true,
+      "notes": ""
+    },
+    {
+      "backend": "CPU Numba Parallel (96 threads)",
+      "num_portfolios": 200,
+      "num_risk_factors": 20,
+      "total_time_ms": 1.924898475408554,
+      "avg_time_ms": 0.6416328251361847,
+      "throughput_portfolios_per_sec": 311704.7510116874,
+      "memory_mb": 0.03376,
+      "num_threads_or_gpus": 1,
+      "validated": true,
+      "notes": ""
+    },
+    {
+      "backend": "CPU Multi-process (96 workers)",
+      "num_portfolios": 200,
+      "num_risk_factors": 20,
+      "total_time_ms": 1.1941809207201004,
+      "avg_time_ms": 0.39806030690670013,
+      "throughput_portfolios_per_sec": 502436.4311884964,
+      "memory_mb": 0.03376,
+      "num_threads_or_gpus": 96,
+      "validated": true,
+      "notes": ""
+    },
+    {
+      "backend": "CPU AADC (96 threads)",
+      "num_portfolios": 200,
+      "num_risk_factors": 20,
+      "total_time_ms": 116.30077660083771,
+      "avg_time_ms": 38.76692553361257,
+      "throughput_portfolios_per_sec": 5159.036917348308,
+      "memory_mb": 0.03376,
+      "num_threads_or_gpus": 1,
+      "validated": true,
+      "notes": ""
+    },
+    {
+      "backend": "CPU AADC + Greeks (96 threads)",
+      "num_portfolios": 200,
+      "num_risk_factors": 20,
+      "total_time_ms": 119.98595111072063,
+      "avg_time_ms": 39.995317036906876,
+      "throughput_portfolios_per_sec": 5000.585438926362,
+      "memory_mb": 0.03376,
+      "num_threads_or_gpus": 1,
+      "validated": true,
+      "notes": ""
+    }
+  ]
+}

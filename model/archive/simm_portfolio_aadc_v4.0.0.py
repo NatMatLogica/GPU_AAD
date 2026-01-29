@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 # Version
-MODEL_VERSION = "3.3.0"  # AADC chain rule implementation - correct SIMM calculation
+MODEL_VERSION = "4.0.0"  # v2-only: batched evaluate() everywhere, v1 sequential paths removed
 MODEL_NAME = "simm_portfolio_aadc_py"
 
 # Ensure project root is on path

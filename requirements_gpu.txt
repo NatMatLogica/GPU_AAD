@@ -1,0 +1,29 @@
+# GPU Requirements for H100 Benchmark
+# Install with: pip install -r requirements_gpu.txt
+
+# Core
+numpy>=1.24.0
+numba>=0.58.0
+
+# CUDA (requires CUDA toolkit 12.x installed)
+# For H100, use CUDA 12.x with compute capability 9.0
+cuda-python>=12.0.0
+
+# CuPy with CUDA 12.x (choose one based on your CUDA version)
+# cupy-cuda12x  # For CUDA 12.x
+cupy-cuda12x>=12.0.0
+
+# Optional: Intel MKL for optimal CPU performance
+# mkl>=2024.0.0
+
+# Profiling and visualization
+matplotlib>=3.7.0
+pandas>=2.0.0
+
+# Notes:
+# 1. Install CUDA Toolkit 12.x from NVIDIA website
+# 2. Verify with: nvcc --version
+# 3. For H100, ensure compute capability 9.0 support
+#
+# Quick install for H100 system:
+#   pip install numpy numba cupy-cuda12x matplotlib pandas

@@ -178,6 +178,8 @@ The following dimensions need to be varied in margin optimization:
 - ✓ Stress margin (shock SIMM inputs) - `model/margin_analysis.py`
 - ✓ Scenario generation framework (7 predefined scenarios)
 - ✓ Portfolio-level what-if (incremental margin, add/remove trades)
+- ✓ **Fast margin attribution** - `model/whatif_analytics.py` (AADC: O(N) vs naive O(N²))
+- ✓ What-if scenarios: unwind, hedge, stress
 
 ### Phase 3: Multi-Entity (Implemented)
 - ✓ Multi-custodian/counterparty modeling - `model/pretrade_analytics.py`

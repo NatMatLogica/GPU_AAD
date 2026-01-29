@@ -57,7 +57,7 @@ import time
 from typing import Dict, List, Tuple, Optional
 
 # Version
-MODULE_VERSION = "3.0.0"  # CRITICAL: Single evaluate() for all P portfolios (10x speedup)
+MODULE_VERSION = "4.0.0"  # Armijo line search + greedy rounding + local search (fixes convergence)
 
 try:
     import aadc
@@ -531,13 +531,14 @@ def optimize_allocation_gradient_descent_efficient(
     workers: 'aadc.ThreadPool' = None,
 ) -> Tuple[np.ndarray, List[float], int]:
     """
-    Gradient descent with simplex projection using efficient chain rule gradients.
+    Gradient descent with Armijo line search, momentum, and simplex projection.
 
     For each iteration:
     1. Compute gradient dIM/dx_tp via chain rule (small kernel + numpy)
-    2. Take gradient step: x_new = x - lr * grad
-    3. Project each row to simplex: sum_p x_tp = 1, x_tp >= 0
-    4. Check convergence
+    2. Compute momentum-smoothed direction
+    3. Armijo backtracking line search to find step size that guarantees descent
+    4. Project each row to simplex: sum_p x_tp = 1, x_tp >= 0
+    5. Check convergence
 
     Args:
         funcs: AADC Functions object from record_single_portfolio_simm_kernel
@@ -556,8 +557,17 @@ def optimize_allocation_gradient_descent_efficient(
         (optimal_allocation, im_history, num_iterations)
     """
     x = initial_allocation.copy()
+    best_x = x.copy()
     im_history = []
     T, P = x.shape
+
+    # Armijo line search parameters
+    ARMIJO_C = 1e-4       # Sufficient decrease parameter
+    ARMIJO_BETA = 0.5     # Step size reduction factor
+    ARMIJO_MAX_TRIES = 10 # Max backtracking steps before giving up
+
+    # Momentum parameter
+    MOMENTUM_BETA = 0.9
 
     # Create a single ThreadPool for all iterations (5-10% speedup)
     if workers is None:
@@ -568,14 +578,15 @@ def optimize_allocation_gradient_descent_efficient(
         funcs, sens_handles, im_output, S, x, num_threads, workers
     )
     im_history.append(total_im)
+    best_im = total_im
 
     # Compute adaptive learning rate if not provided
     grad_max = np.abs(gradient).max()
     if lr is None:
         if grad_max > 1e-10:
-            # Target step size ~0.3 (30% allocation change per iteration)
-            # This allows flipping a trade in ~3-4 iterations
-            lr = 0.3 / grad_max
+            # Target step size ~0.05 (5% allocation change per iteration)
+            # Conservative to avoid overshooting; Armijo will allow larger steps
+            lr = 0.05 / grad_max
         else:
             lr = 1e-12
 
@@ -584,6 +595,10 @@ def optimize_allocation_gradient_descent_efficient(
         print(f"    Gradient: max={grad_max:.2e}, mean={np.abs(gradient).mean():.2e}")
         print(f"    Learning rate: {lr:.2e}")
 
+    # Initialize momentum buffer
+    velocity = np.zeros_like(gradient)
+    stalled_count = 0
+
     for iteration in range(max_iters):
         if iteration > 0:
             gradient, total_im = compute_allocation_gradient_chainrule(
@@ -591,45 +606,88 @@ def optimize_allocation_gradient_descent_efficient(
             )
             im_history.append(total_im)
 
+        # Track best solution seen
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+            stalled_count = 0
+        else:
+            stalled_count += 1
+
         if verbose and iteration % 10 == 0:
             moves = int(np.sum(np.argmax(x, axis=1) != np.argmax(initial_allocation, axis=1)))
-            print(f"    Iter {iteration}: IM = ${total_im:,.2f}, moves = {moves}")
+            print(f"    Iter {iteration}: IM = ${total_im:,.2f}, best = ${best_im:,.2f}, moves = {moves}")
 
-        # Gradient step
-        x_new = x - lr * gradient
+        # Early exit if stalled for too long
+        if stalled_count >= 20:
+            if verbose:
+                print(f"    Stalled for {stalled_count} iterations, reverting to best")
+            x = best_x.copy()
+            break
 
-        # Project to simplex (each row sums to 1, all >= 0)
-        x_new = project_to_simplex(x_new)
+        # Momentum-smoothed descent direction
+        velocity = MOMENTUM_BETA * velocity + (1.0 - MOMENTUM_BETA) * gradient
+        direction = velocity
 
-        # Check convergence based on allocation change and IM change
-        alloc_change = np.abs(x_new - x).max()
-        if iteration > 0:
+        # Armijo backtracking line search
+        # Find step_size such that f(x - step * dir) <= f(x) - c * step * ||dir||^2
+        directional_deriv = np.sum(gradient * direction)  # Should be positive (gradient aligned with direction)
+        step_size = lr
+        accepted = False
+
+        for _ in range(ARMIJO_MAX_TRIES):
+            x_candidate = project_to_simplex(x - step_size * direction)
+            _, candidate_im = compute_allocation_gradient_chainrule(
+                funcs, sens_handles, im_output, S, x_candidate, num_threads, workers
+            )
+
+            # Armijo condition: sufficient decrease
+            if candidate_im <= total_im - ARMIJO_C * step_size * directional_deriv:
+                x = x_candidate
+                accepted = True
+                break
+
+            step_size *= ARMIJO_BETA
+
+        if not accepted:
+            # No step found that decreases IM; take a very small step anyway
+            # to avoid getting stuck, but don't worsen the solution
+            x_candidate = project_to_simplex(x - (lr * 0.01) * gradient)
+            _, candidate_im = compute_allocation_gradient_chainrule(
+                funcs, sens_handles, im_output, S, x_candidate, num_threads, workers
+            )
+            if candidate_im < total_im:
+                x = x_candidate
+
+        # Check convergence
+        if iteration > 0 and len(im_history) >= 2:
             rel_change = abs(im_history[-1] - im_history[-2]) / max(abs(im_history[-2]), 1e-10)
+            alloc_change = np.abs(x - best_x).max() if stalled_count == 0 else 1.0
             if rel_change < tol and alloc_change < 1e-6:
                 if verbose:
                     print(f"    Converged at iteration {iteration + 1}")
-                return x_new, im_history, iteration + 1
-
-        x = x_new
+                return x, im_history, iteration + 1
 
     if verbose:
-        print(f"    Reached max iterations ({max_iters})")
+        if stalled_count < 20:
+            print(f"    Reached max iterations ({max_iters})")
+
+    # Return best solution seen (not necessarily last)
+    x = best_x
 
     # Show allocation distribution before rounding
     if verbose:
-        # Count how many trades have "mixed" allocations (max < 0.9)
         max_allocs = x.max(axis=1)
         mixed_count = np.sum(max_allocs < 0.9)
         near_flipped = np.sum((max_allocs >= 0.4) & (max_allocs < 0.6))
         print(f"    Allocation distribution: {mixed_count} trades with max_alloc < 0.9, {near_flipped} near 50/50")
-        # Show top 5 trades with smallest max allocation (most "undecided")
         if T > 0:
             sorted_idx = np.argsort(max_allocs)[:min(5, T)]
             print(f"    Most mixed allocations (top 5):")
             for idx in sorted_idx:
                 print(f"      Trade {idx}: {x[idx]} (max={max_allocs[idx]:.3f})")
 
-    return x, im_history, max_iters
+    return x, im_history, len(im_history)
 
 
 # =============================================================================
@@ -1062,9 +1120,8 @@ def optimize_allocation_greedy(
 
 def round_to_integer_allocation(continuous_allocation: np.ndarray) -> np.ndarray:
     """
-    Round continuous allocation to integer (one-hot per row).
-
-    Each trade is assigned to the portfolio with highest allocation fraction.
+    Naive rounding: assign each trade to portfolio with highest fraction.
+    Use round_to_integer_allocation_greedy() for IM-aware rounding.
 
     Args:
         continuous_allocation: Array of shape (T, P) with values in [0, 1]
@@ -1080,6 +1137,176 @@ def round_to_integer_allocation(continuous_allocation: np.ndarray) -> np.ndarray
         result[t, best_p] = 1.0
 
     return result
+
+
+def round_to_integer_allocation_greedy(
+    continuous_allocation: np.ndarray,
+    funcs: 'aadc.Functions',
+    sens_handles: List[int],
+    im_output: int,
+    S: np.ndarray,
+    num_threads: int,
+    workers: 'aadc.ThreadPool',
+    verbose: bool = True,
+) -> np.ndarray:
+    """
+    IM-aware greedy sequential rounding.
+
+    Instead of independently rounding each trade to argmax, process trades
+    in order of confidence (highest max-fraction first = most decided trades
+    first) and for each undecided trade, try all P portfolios and pick the
+    assignment that minimizes total IM.
+
+    Args:
+        continuous_allocation: Array of shape (T, P) with values in [0, 1]
+        funcs: AADC Functions object
+        sens_handles: List of sensitivity input handles
+        im_output: IM output handle
+        S: Sensitivity matrix (T, K)
+        num_threads: AADC worker threads
+        workers: Pre-created ThreadPool
+        verbose: Print progress
+
+    Returns:
+        Array of shape (T, P) with exactly one 1.0 per row
+    """
+    T, P = continuous_allocation.shape
+    result = np.zeros((T, P))
+
+    # Sort trades by confidence: highest max-fraction first (most decided first)
+    max_fracs = continuous_allocation.max(axis=1)
+    trade_order = np.argsort(-max_fracs)  # Descending
+
+    # Threshold: trades with max_frac >= 0.8 are "decided" — use argmax directly
+    DECIDED_THRESHOLD = 0.8
+
+    decided_count = 0
+    searched_count = 0
+
+    for t in trade_order:
+        if max_fracs[t] >= DECIDED_THRESHOLD:
+            # High-confidence: assign directly
+            best_p = np.argmax(continuous_allocation[t])
+            result[t, best_p] = 1.0
+            decided_count += 1
+        else:
+            # Low-confidence: try all P portfolios, pick best
+            best_p = np.argmax(continuous_allocation[t])  # Default
+            best_im = float('inf')
+
+            for p_candidate in range(P):
+                result[t, :] = 0.0
+                result[t, p_candidate] = 1.0
+
+                # Evaluate total IM with this candidate assignment
+                _, candidate_im = compute_allocation_gradient_chainrule(
+                    funcs, sens_handles, im_output, S, result, num_threads, workers
+                )
+
+                if candidate_im < best_im:
+                    best_im = candidate_im
+                    best_p = p_candidate
+
+            result[t, :] = 0.0
+            result[t, best_p] = 1.0
+            searched_count += 1
+
+    if verbose:
+        print(f"  Greedy rounding: {decided_count} decided (>={DECIDED_THRESHOLD:.0%}), "
+              f"{searched_count} searched ({searched_count * P} IM evaluations)")
+
+    return result
+
+
+def greedy_local_search(
+    integer_allocation: np.ndarray,
+    funcs: 'aadc.Functions',
+    sens_handles: List[int],
+    im_output: int,
+    S: np.ndarray,
+    num_threads: int,
+    workers: 'aadc.ThreadPool',
+    max_rounds: int = 10,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, float]:
+    """
+    Post-rounding greedy local search to ensure the integer solution is locally optimal.
+
+    Iteratively finds the single-trade move that most reduces total IM,
+    executes it, and repeats until no improving move exists or max_rounds reached.
+
+    Args:
+        integer_allocation: Array of shape (T, P) with exactly one 1.0 per row
+        funcs: AADC Functions object
+        sens_handles: List of sensitivity input handles
+        im_output: IM output handle
+        S: Sensitivity matrix (T, K)
+        num_threads: AADC worker threads
+        workers: Pre-created ThreadPool
+        max_rounds: Maximum improvement rounds
+        verbose: Print progress
+
+    Returns:
+        (improved_allocation, final_im)
+    """
+    T, P = integer_allocation.shape
+    x = integer_allocation.copy()
+
+    _, current_im = compute_allocation_gradient_chainrule(
+        funcs, sens_handles, im_output, S, x, num_threads, workers
+    )
+
+    total_moves = 0
+
+    for round_idx in range(max_rounds):
+        best_move = None  # (trade_idx, from_p, to_p, new_im)
+        best_new_im = current_im
+
+        # For each trade, try moving to every other portfolio
+        for t in range(T):
+            current_p = np.argmax(x[t])
+
+            for p_candidate in range(P):
+                if p_candidate == current_p:
+                    continue
+
+                # Temporarily move trade t to p_candidate
+                x[t, :] = 0.0
+                x[t, p_candidate] = 1.0
+
+                _, candidate_im = compute_allocation_gradient_chainrule(
+                    funcs, sens_handles, im_output, S, x, num_threads, workers
+                )
+
+                if candidate_im < best_new_im:
+                    best_new_im = candidate_im
+                    best_move = (t, current_p, p_candidate, candidate_im)
+
+                # Restore
+                x[t, :] = 0.0
+                x[t, current_p] = 1.0
+
+        if best_move is None:
+            if verbose:
+                print(f"  Local search: no improving move found after round {round_idx + 1}")
+            break
+
+        # Execute the best move
+        t, from_p, to_p, new_im = best_move
+        x[t, :] = 0.0
+        x[t, to_p] = 1.0
+        improvement = current_im - new_im
+        current_im = new_im
+        total_moves += 1
+
+        if verbose:
+            print(f"  Local search round {round_idx + 1}: move trade {t} "
+                  f"({from_p}->{to_p}), IM -${improvement:,.0f} -> ${current_im:,.2f}")
+
+    if verbose and total_moves > 0:
+        print(f"  Local search complete: {total_moves} moves")
+
+    return x, current_im
 
 
 # =============================================================================
@@ -1251,7 +1478,7 @@ def reallocate_trades_optimal(
             workers=workers,
         )
 
-        # Step 6: Round if needed
+        # Step 6: Round if needed (greedy IM-aware rounding)
         continuous_allocation = final_allocation.copy()
         if not allow_partial:
             if verbose:
@@ -1261,20 +1488,42 @@ def reallocate_trades_optimal(
                 )
                 print(f"  Continuous IM (before rounding): ${continuous_im:,.2f}")
 
-            final_allocation = round_to_integer_allocation(final_allocation)
+            # Use greedy rounding (tries all portfolios for undecided trades)
+            final_allocation = round_to_integer_allocation_greedy(
+                final_allocation, funcs, sens_handles, im_output, S,
+                num_threads, workers, verbose=verbose,
+            )
 
+            _, rounded_im = compute_allocation_gradient_chainrule(
+                funcs, sens_handles, im_output, S, final_allocation, num_threads, workers
+            )
             if verbose:
-                # Count how allocation changed due to rounding
+                print(f"  IM after greedy rounding: ${rounded_im:,.2f}")
+
                 continuous_assignments = np.argmax(continuous_allocation, axis=1)
                 rounded_assignments = np.argmax(final_allocation, axis=1)
                 rounding_changes = int(np.sum(continuous_assignments != rounded_assignments))
                 if rounding_changes > 0:
-                    print(f"  WARNING: Rounding changed {rounding_changes} assignments!")
+                    print(f"  Greedy rounding changed {rounding_changes} assignments vs argmax")
 
-        # Step 7: Compute final IM
-        _, final_im = compute_allocation_gradient_chainrule(
-            funcs, sens_handles, im_output, S, final_allocation, num_threads, workers
-        )
+            # Step 6b: Post-rounding greedy local search
+            if verbose:
+                print("  Running post-rounding local search...")
+            final_allocation, final_im = greedy_local_search(
+                final_allocation, funcs, sens_handles, im_output, S,
+                num_threads, workers, max_rounds=10, verbose=verbose,
+            )
+
+            if verbose:
+                local_improvement = rounded_im - final_im
+                if local_improvement > 0:
+                    print(f"  Local search saved: ${local_improvement:,.0f}")
+
+        else:
+            # Partial allocation — just compute final IM
+            _, final_im = compute_allocation_gradient_chainrule(
+                funcs, sens_handles, im_output, S, final_allocation, num_threads, workers
+            )
 
     # Count moves
     initial_assignments = np.argmax(filtered_allocation, axis=1)
