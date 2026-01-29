@@ -35,6 +35,13 @@ class OptimizationHandler(http.server.SimpleHTTPRequestHandler):
 
         if parsed.path == '/run_optimization':
             self.handle_optimization(parsed.query)
+        elif parsed.path == '/optimization_demo.html' or parsed.path == '/':
+            # Serve the main visualization page
+            self.path = '/visualization/index.html'
+            super().do_GET()
+        elif parsed.path.startswith('/data/'):
+            # Serve data files directly from project root
+            super().do_GET()
         else:
             # Serve static files
             super().do_GET()

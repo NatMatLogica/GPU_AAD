@@ -14,6 +14,7 @@ import sys
 import argparse
 import numpy as np
 from pathlib import Path
+from datetime import datetime, timezone
 
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -32,9 +33,12 @@ def run_optimization_for_demo(num_trades: int, num_portfolios: int, trade_types:
 
     Returns a dict with all data needed for the HTML visualization.
     """
+    import time
     from model.trade_types import generate_market_environment, generate_trades_by_type
     from common.portfolio import allocate_portfolios, run_simm
     from model.simm_portfolio_aadc import precompute_all_trade_crifs
+
+    t_total_start = time.perf_counter()
 
     # Generate market and trades
     currencies = ['USD', 'EUR'][:min(2, num_portfolios)]
@@ -53,7 +57,9 @@ def run_optimization_for_demo(num_trades: int, num_portfolios: int, trade_types:
     group_ids = allocate_portfolios(len(trades), num_portfolios)
 
     # Precompute trade CRIFs
+    t_crif_start = time.perf_counter()
     trade_crifs = precompute_all_trade_crifs(trades, market, num_threads=4)
+    t_crif_end = time.perf_counter()
 
     # Build trade info for visualization
     trade_info = []
@@ -110,12 +116,16 @@ def run_optimization_for_demo(num_trades: int, num_portfolios: int, trade_types:
     P = num_portfolios
 
     # Build sensitivity matrix
+    t_simm_start = time.perf_counter()
     filtered_crifs = {tid: trade_crifs[tid] for tid in valid_trade_ids}
     risk_factors = _get_unique_risk_factors(filtered_crifs)
     S = _build_sensitivity_matrix(filtered_crifs, valid_trade_ids, risk_factors)
+    t_simm_end = time.perf_counter()
 
     # Record kernel
+    t_kernel_start = time.perf_counter()
     funcs, x_handles, im_output, _ = record_allocation_im_kernel(S, risk_factors, P)
+    t_kernel_end = time.perf_counter()
 
     # Initial allocation matrix
     x = np.zeros((T, P))
@@ -128,6 +138,7 @@ def run_optimization_for_demo(num_trades: int, num_portfolios: int, trade_types:
 
     # Run gradient descent with step recording
     max_iters = 50
+    t_opt_start = time.perf_counter()
 
     # First iteration to compute adaptive learning rate
     gradient, total_im = compute_allocation_gradient(
@@ -167,6 +178,8 @@ def run_optimization_for_demo(num_trades: int, num_portfolios: int, trade_types:
         x_new = x - lr * gradient
         x_new = project_to_simplex(x_new)
         x = x_new
+
+    t_opt_end = time.perf_counter()
 
     # Final rounded allocation
     final_assignments = np.argmax(x, axis=1).tolist()
@@ -208,8 +221,24 @@ def run_optimization_for_demo(num_trades: int, num_portfolios: int, trade_types:
     actual_min_maturity = min(maturities) if maturities else 0
     actual_max_maturity = max(maturities) if maturities else 0
 
+    t_total_end = time.perf_counter()
+
     # Build final result
     result = {
+        'tab': 'optimization',
+        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'performance': {
+            'crif_time_sec': round(t_crif_end - t_crif_start, 3),
+            'simm_time_sec': round(t_simm_end - t_simm_start, 3),
+            'kernel_record_time_sec': round(t_kernel_end - t_kernel_start, 3),
+            'optimize_time_sec': round(t_opt_end - t_opt_start, 3),
+            'total_time_sec': round(t_total_end - t_total_start, 3),
+            'num_iterations': len(optimization_steps),
+            'per_iteration_time_sec': round((t_opt_end - t_opt_start) / max(len(optimization_steps), 1), 4),
+            'num_risk_factors': len(risk_factors),
+            'num_trades': len(trade_info),
+            'num_portfolios': num_portfolios,
+        },
         'config': {
             'num_trades': len(trade_info),
             'num_portfolios': num_portfolios,

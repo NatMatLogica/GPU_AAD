@@ -1,8 +1,52 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
-test_*.txt
-.env
+*.egg-info/
+dist/
+*.egg
+
+# Virtual environments
 venv/
+.venv/
+env/
+
+# Build artifacts
 build/
 tmp/
+*.so
+*.o
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+
+# Test/benchmark output
+*.log
+test_*.txt
+*.txt
+!requirements*.txt
+
+# Generated files
+demo_data.json
+benchmark_results.json
+optimization_demo.html
+
+# Data outputs (keep structure, ignore contents)
+data/*.csv
+data/*.txt
+data/*.log
+data/*.json
+data/animation/
+
+# pytest
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db

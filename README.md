@@ -1,48 +1,114 @@
 # ISDA SIMM
-This is an implementation of ISDA Standard Initial Margin Model (a.k.a. [ISDA SIMM™](https://www.isda.org/category/margin/isda-simm/)) version 2.3~2.6 to calculate the initial margin of uncleared over-the-counter derivatives in Python. The implementation is soley based on the official [ISDA SIMM Methodology Documents](https://www.isda.org/a/b4ugE/ISDA-SIMM_v2.6_PUBLIC.pdf).
 
-비청산 장외파생상품 개시증거금 ISDA SIMM 산출 Python 엔진입니다
+Python implementation of ISDA Standard Initial Margin Model ([ISDA SIMM](https://www.isda.org/category/margin/isda-simm/)) v2.3-2.6 for calculating initial margin of uncleared OTC derivatives, with [AADC](https://matlogica.com/) integration for automatic sensitivity computation and gradient-based margin optimization.
 
-**Your contribution will be always welcomed!**
+Based on the official [ISDA SIMM Methodology](https://www.isda.org/a/b4ugE/ISDA-SIMM_v2.6_PUBLIC.pdf).
 
+## Features
+
+- **SIMM Calculation**: Full ISDA SIMM v2.6 aggregation (Delta, Vega, Curvature, BaseCorr)
+- **AADC Integration**: 30-50x speedup via automatic adjoint differentiation
+- **Trade Allocation Optimization**: Gradient-based netting set optimization (10-30% IM reduction)
+- **Stress Margin Analysis**: 7 predefined stress scenarios
+- **Pre-Trade Analytics**: Marginal IM, bilateral vs cleared comparison, counterparty routing
+- **What-If Analysis**: Real-time margin impact for add/remove/hedge scenarios
+- **Multi-Asset**: IR swaps, FX options, equity options, inflation swaps, cross-currency swaps
 
 ## Getting Started
-  - Place your [CRIF](https://www.isda.org/a/owEDE/risk-data-standards-v1-36-public.pdf) file under the folder "CRIF" with all columns needed for the calculation
-  - Run python -m main
+
+### Prerequisites
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+For GPU benchmarks:
+```bash
+pip install -r requirements_gpu.txt
+```
+
+### Basic SIMM Calculation
+
+Place your [CRIF](https://www.isda.org/a/owEDE/risk-data-standards-v1-36-public.pdf) file in the `CRIF/` directory and run:
+
+```bash
+python -m model.simm_baseline --trades 100 --threads 4
+```
+
+### AADC-Enabled Calculation
+
+```bash
+python -m model.simm_aadc --trades 1000 --threads 8
+```
+
+### Portfolio Optimization
+
+```bash
+python -m model.simm_portfolio_aadc \
+    --trades 100 --portfolios 5 --threads 8 \
+    --optimize --method gradient_descent
+```
+
+### Benchmark
+
+```bash
+python benchmark_simm.py --trades 1000 --threads 8
+```
+
+## Project Structure
+
+```
+ISDA-SIMM/
+├── model/                  # Trade models and SIMM implementations
+│   ├── simm_baseline.py    # NumPy baseline (bump-and-revalue)
+│   ├── simm_aadc.py        # AADC-enabled implementation
+│   ├── simm_common.py      # Shared SIMM logic
+│   ├── simm_portfolio_aadc.py      # Portfolio-level AADC calculations
+│   ├── simm_allocation_optimizer.py # Trade allocation optimization
+│   └── trade_types.py      # Trade definitions and pricing
+├── src/                    # Core SIMM calculation engine
+│   ├── agg_margins.py      # Top-level SIMM aggregation
+│   ├── margin_risk_class.py # Risk class margin calculations
+│   ├── agg_sensitivities.py # Sensitivity aggregation
+│   └── wnc.py              # Weights and correlations loader
+├── common/                 # Configuration, logging, utilities
+├── benchmark/              # Benchmarking framework (CPU vs GPU)
+├── tests/                  # Test suite
+├── scripts/                # Benchmark and utility scripts
+├── Weights_and_Corr/       # SIMM calibration parameters (v2.3-v2.7)
+├── CRIF/                   # Input CRIF data
+├── visualization/          # Interactive optimization demo
+├── docs/                   # Technical documentation
+├── data/                   # Output data (execution logs, CRIF samples)
+└── benchmark_simm.py       # Main benchmark runner
+```
+
+## Performance
+
+| Implementation | 1000 Trades | Speedup |
+|----------------|-------------|---------|
+| Baseline (NumPy) | ~45s | 1.0x |
+| AADC Python | ~2s | ~20x |
 
 ## Results Example
-|     SIMM Total     |    Add-On   |  Product Class  |  SIMM_ProductClass  |  Risk Class  |    SIMM_RiskClass    |  Risk Measure  |    SIMM_RiskMeasure   |
-|:------------------:|:-----------:|:---------------:|:-------------------:|:------------:|:--------------------:|:--------------:|:---------------------:|
-|    16,111,268,937  | 816,400,002 |    Commodity    |        289,586,229  |   Commodity  |         289,586,229  |    Curvature   |        34,987,138     |
-|                    |             |                 |                     |              |                      |      Delta     |       171,187,064     |
-|                    |             |                 |                     |              |                      |      Vega      |        83,412,026     |
-|                    |             |      Credit     |     13,774,076,995  |  CreditNonQ  |     11,473,625,787   |    Curvature   |             36,291    |
-|                    |             |                 |                     |              |                      |      Delta     |   11,472,297,989      |
-|                    |             |                 |                     |              |                      |      Vega      |          1,291,507    |
-|                    |             |                 |                     |    CreditQ   |      3,933,746,616   |    BaseCorr    |          9,044,453    |
-|                    |             |                 |                     |              |                      |    Curvature   |             33,042    |
-|                    |             |                 |                     |              |                      |      Delta     |     3,922,360,448     |
-|                    |             |                 |                     |              |                      |      Vega      |          2,308,673    |
-|                    |             |                 |                     |    Equity    |          34,785,002  |    Curvature   |                    -  |
-|                    |             |                 |                     |              |                      |      Delta     |        34,785,002     |
-|                    |             |                 |                     |              |                      |      Vega      |                    -  |
-|                    |             |                 |                     |      FX      |           7,064,086  |    Curvature   |                    -  |
-|                    |             |                 |                     |              |                      |      Delta     |          7,064,086    |
-|                    |             |                 |                     |              |                      |      Vega      |                    -  |
-|                    |             |                 |                     |     Rates    |         192,531,632  |    Curvature   |                    -  |
-|                    |             |                 |                     |              |                      |      Delta     |       192,531,632     |
-|                    |             |                 |                     |              |                      |      Vega      |                    -  |
-|                    |             |      Equity     |        464,520,787  |    Equity    |         235,482,184  |    Curvature   |          6,262,663    |
-|                    |             |                 |                     |              |                      |      Delta     |       158,843,566     |
-|                    |             |                 |                     |              |                      |      Vega      |        70,375,955     |
-|                    |             |                 |                     |     Rates    |         330,171,266  |    Curvature   |                    -  |
-|                    |             |                 |                     |              |                      |      Delta     |       330,171,266     |
-|                    |             |                 |                     |              |                      |      Vega      |                    -  |
-|                    |             |     RatesFX     |        766,684,924  |      FX      |          25,589,599  |    Curvature   |          9,061,235    |
-|                    |             |                 |                     |              |                      |      Delta     |        11,926,343     |
-|                    |             |                 |                     |              |                      |      Vega      |          4,602,021    |
-|                    |             |                 |                     |     Rates    |         759,126,165  |    Curvature   |               1,947   |
-|                    |             |                 |                     |              |                      |      Delta     |       759,108,218     |
-|                    |             |                 |                     |              |                      |      Vega      |             16,000    |
-## Warning
-If you intend to implement this for any commercial purpose, reach out to ISDA SIMM™ (isdalegal@isda.org) to obtain a proper liscense. You can find futher details [here](https://www.isda.org/2021/04/08/isda-simm-licensing-faq/).
+
+| SIMM Total | Product Class | Risk Class | Risk Measure | SIMM |
+|:---:|:---:|:---:|:---:|---:|
+| 16,111,268,937 | RatesFX | Rates | Delta | 759,108,218 |
+| | | | Curvature | 1,947 |
+| | | FX | Delta | 11,926,343 |
+| | Credit | CreditQ | Delta | 3,922,360,448 |
+| | | CreditNonQ | Delta | 11,472,297,989 |
+| | Equity | Equity | Delta | 158,843,566 |
+| | Commodity | Commodity | Delta | 171,187,064 |
+
+## Documentation
+
+- [Architecture & Technical Details](docs/architecture.md)
+- [SIMM Implementation with AADC (Practitioner's Guide)](docs/SIMM-implementation-aadc.md)
+
+## License
+
+If you intend to implement this for any commercial purpose, reach out to [ISDA SIMM](mailto:isdalegal@isda.org) to obtain a proper license. See [ISDA SIMM Licensing FAQ](https://www.isda.org/2021/04/08/isda-simm-licensing-faq/).

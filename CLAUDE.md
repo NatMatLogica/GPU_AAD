@@ -616,3 +616,53 @@ margin = calculate_simm_margin(crif)
 **For ISDA-SIMM alone**: Not needed. Current `ir_swap_aadc.py` achieves 30-50x speedup without additional abstraction.
 
 **For multi-model platform** (pricing + SIMM + XVA): Natural foundation. Investment in unified contract DSL pays off when same product definition drives multiple analytics engines.
+
+
+---
+
+## Session Summarization Instructions
+
+When a conversation is about to run out of context or needs to be handed off, create a detailed summary covering ALL of the following sections. This ensures no work is lost and the next session can continue seamlessly.
+
+### Required Summary Sections
+
+1. **Primary Request and Intent**: What the user asked for, including exact commands, configurations, and goals. Include verbatim quotes of key requirements.
+
+2. **Key Technical Concepts**: Domain-specific terms, algorithms, design patterns, and architectural decisions discussed. Include enough detail that a new session can understand the technical context without re-reading source files.
+
+3. **Files and Code Sections**: For EVERY file read or modified:
+   - Full file path
+   - Whether it was read-only or modified
+   - What was changed (with representative code snippets for non-trivial changes)
+   - New imports, functions, classes, or dataclasses added
+   - Version bumps applied
+   - Key logic and formulas implemented
+
+4. **Errors and Fixes**: Every error encountered during the session:
+   - Exact error message or behavior
+   - Root cause analysis
+   - Fix applied (or workaround used)
+   - Whether the fix was verified
+
+5. **Problem Solving**: Design decisions made, trade-offs considered, alternatives rejected. Include the reasoning behind each decision.
+
+6. **All User Messages**: Enumerate every user message chronologically with a brief description of what was asked/said.
+
+7. **Pending Tasks**: Everything that remains to be done:
+   - Exact commands to run for testing
+   - Expected outputs or success criteria
+   - Known risks or potential failure points
+
+8. **Current Work State**: What was being actively worked on when the session ended. Include the exact point of progress.
+
+9. **Optional Next Steps**: Natural continuation points for the next session.
+
+### Summary Guidelines
+
+- Include file paths with line numbers for key code locations
+- Preserve exact command-line invocations (with all flags)
+- Note any environment issues (permissions, missing dependencies, PATH problems)
+- Record version numbers before and after changes
+- Include performance baselines and expected improvements
+- Note any assumptions or approximations made in the implementation
+- If code was written but not tested, state this explicitly

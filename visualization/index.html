@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISDA SIMM Calculator - Visualization</title>
+    <title>ISDA SIMM - AADC Portfolio Optimizer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -18,13 +18,10 @@
             --text-primary: #f1f5f9;
             --text-secondary: #94a3b8;
             --border: #334155;
+            --accent: #8b5cf6;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
@@ -33,15 +30,11 @@
             line-height: 1.6;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
 
         header {
             text-align: center;
-            margin-bottom: 3rem;
+            margin-bottom: 1.5rem;
             padding: 2rem;
             background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-dark) 100%);
             border-radius: 16px;
@@ -51,15 +44,40 @@
         h1 {
             font-size: 2.5rem;
             margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .subtitle {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
+        .subtitle { color: var(--text-secondary); font-size: 1.1rem; }
+
+        /* Main Tab Navigation */
+        .main-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--border);
         }
+
+        .main-tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            position: relative;
+            bottom: -2px;
+        }
+
+        .main-tab:hover { background: var(--bg-card); color: var(--text-primary); }
+        .main-tab.active { background: var(--primary); border-color: var(--primary); color: white; }
+        .main-tab-content { display: none; }
+        .main-tab-content.active { display: block; }
 
         .grid {
             display: grid;
@@ -92,22 +110,286 @@
             border-radius: 2px;
         }
 
-        /* Hierarchy Tree */
-        .hierarchy {
-            padding: 1rem;
+        /* Performance Banner */
+        .perf-banner {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(139, 92, 246, 0.08) 100%);
+            border: 1px solid rgba(37, 99, 235, 0.3);
+            border-radius: 12px;
         }
 
-        .tree-node {
-            position: relative;
-            padding-left: 1.5rem;
-            margin: 0.5rem 0;
+        .perf-card {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
         }
+
+        .perf-card .perf-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .perf-card .perf-value.fast { color: var(--success); }
+        .perf-card .perf-value.accent { color: var(--accent); }
+
+        .perf-card .perf-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .perf-card .perf-detail {
+            font-size: 0.75rem;
+            color: var(--secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Speedup callout */
+        .speedup-callout {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(37, 99, 235, 0.08) 100%);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .speedup-callout strong { color: var(--success); }
+
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .summary-card .label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card .value {
+            font-size: 1.75rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .summary-card .value.success { color: var(--success); }
+        .summary-card .value.danger { color: var(--danger); }
+        .summary-card .value.warning { color: var(--warning); }
+
+        /* Before/After Comparison */
+        .comparison-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .comparison-container { grid-template-columns: 1fr; }
+        }
+
+        .comparison-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .comparison-section h3 {
+            text-align: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .comparison-section.before h3 { color: var(--warning); }
+        .comparison-section.after h3 { color: var(--success); }
+
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .portfolio-card {
+            background: var(--bg-dark);
+            border-radius: 8px;
+            padding: 1rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        .portfolio-card h4 { margin-bottom: 0.5rem; font-size: 0.95rem; }
+
+        .portfolio-card .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.25rem 0;
+            font-size: 0.85rem;
+        }
+
+        .portfolio-card .stat-row .label { color: var(--text-secondary); }
+        .portfolio-card .stat-row .value { font-weight: 600; }
+
+        .portfolio-card .change {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .portfolio-card .change.positive { color: var(--success); }
+        .portfolio-card .change.negative { color: var(--danger); }
+
+        /* Chart containers */
+        .chart-container { position: relative; height: 300px; }
+
+        /* SVG IM Chart */
+        .im-chart-container {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        .im-chart-container h3 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .im-chart {
+            width: 100%;
+            height: 180px;
+        }
+
+        .chart-path { fill: none; stroke: var(--primary); stroke-width: 2; }
+        .chart-area { fill: rgba(37, 99, 235, 0.1); }
+
+        /* Movement Log */
+        .movement-log {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 2rem;
+        }
+
+        .movement-log h3 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .movement-entry {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-dark);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .movement-entry .trade-name { color: var(--text-primary); font-weight: 600; }
+        .movement-entry .arrow { color: var(--primary); font-weight: bold; }
+
+        .portfolio-badge {
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .portfolio-badge.from { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .portfolio-badge.to { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+
+        /* Animation button */
+        .play-btn {
+            padding: 0.75rem 2rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 1.5rem;
+        }
+
+        .play-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
+        .play-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* Collapsible sections */
+        .collapsible {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .collapsible-header:hover { background: rgba(255, 255, 255, 0.03); }
+
+        .collapsible-header h3 {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .toggle-icon { color: var(--primary); font-size: 1.2rem; font-weight: bold; }
+
+        .collapsible-content { padding: 0 1.5rem 1.5rem; }
+
+        /* SIMM Reference */
+        .hierarchy { padding: 0.5rem; }
+
+        .tree-node { position: relative; padding-left: 1.5rem; margin: 0.5rem 0; }
 
         .tree-node::before {
             content: '';
             position: absolute;
-            left: 0;
-            top: 0;
+            left: 0; top: 0;
             height: 100%;
             width: 1px;
             background: var(--border);
@@ -116,8 +398,7 @@
         .tree-node::after {
             content: '';
             position: absolute;
-            left: 0;
-            top: 12px;
+            left: 0; top: 12px;
             width: 1rem;
             height: 1px;
             background: var(--border);
@@ -127,60 +408,38 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.5rem 1rem;
+            padding: 0.4rem 0.75rem;
             background: var(--bg-dark);
-            border-radius: 8px;
+            border-radius: 6px;
             border: 1px solid var(--border);
+            font-size: 0.85rem;
             cursor: pointer;
             transition: all 0.2s;
         }
 
-        .node-label:hover {
-            border-color: var(--primary);
-            transform: translateX(4px);
-        }
-
-        .node-label.level-0 { background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%); }
+        .node-label:hover { border-color: var(--primary); transform: translateX(4px); }
+        .node-label.level-0 { background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); }
         .node-label.level-1 { background: linear-gradient(135deg, #059669 0%, #10b981 100%); }
         .node-label.level-2 { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); }
         .node-label.level-3 { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); }
 
-        /* Formula Display */
         .formula-box {
             background: var(--bg-dark);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1rem 0;
+            padding: 1.25rem;
+            margin: 0.75rem 0;
             font-family: 'Courier New', monospace;
             overflow-x: auto;
         }
 
-        .formula-box .main {
-            font-size: 1.2rem;
-            color: var(--primary);
-            margin-bottom: 1rem;
-        }
+        .formula-box .main { font-size: 1.1rem; color: var(--primary); margin-bottom: 0.75rem; }
+        .formula-box .where { color: var(--text-secondary); font-size: 0.85rem; }
+        .formula-box .where span { color: var(--success); }
 
-        .formula-box .where {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
+        .matrix-container { overflow-x: auto; }
 
-        .formula-box .where span {
-            color: var(--success);
-        }
-
-        /* Correlation Matrix */
-        .matrix-container {
-            overflow-x: auto;
-        }
-
-        .correlation-matrix {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85rem;
-        }
+        .correlation-matrix { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 
         .correlation-matrix th,
         .correlation-matrix td {
@@ -189,73 +448,10 @@
             border: 1px solid var(--border);
         }
 
-        .correlation-matrix th {
-            background: var(--bg-dark);
-            font-weight: 600;
-        }
+        .correlation-matrix th { background: var(--bg-dark); font-weight: 600; }
 
-        .correlation-matrix td {
-            transition: all 0.2s;
-        }
-
-        .correlation-matrix td:hover {
-            transform: scale(1.1);
-        }
-
-        /* Chart Container */
-        .chart-container {
-            position: relative;
-            height: 300px;
-        }
-
-        /* Risk Class Cards */
-        .risk-classes {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-
-        .risk-class-card {
-            background: var(--bg-dark);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-
-        .risk-class-card:hover {
-            border-color: var(--primary);
-            transform: translateY(-4px);
-        }
-
-        .risk-class-card h3 {
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .risk-class-card .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--primary);
-        }
-
-        .risk-class-card .desc {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-top: 0.25rem;
-        }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.5rem;
-        }
+        /* Inner tabs */
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 
         .tab {
             padding: 0.5rem 1rem;
@@ -267,96 +463,127 @@
             transition: all 0.2s;
         }
 
-        .tab:hover, .tab.active {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: white;
+        .tab:hover, .tab.active { background: var(--primary); border-color: var(--primary); color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Risk class cards */
+        .risk-classes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.75rem;
         }
 
-        .tab-content {
-            display: none;
+        .risk-class-card {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
         }
 
-        .tab-content.active {
-            display: block;
+        .risk-class-card h3 { font-size: 0.85rem; margin-bottom: 0.25rem; }
+        .risk-class-card .value { font-size: 1.3rem; font-weight: bold; color: var(--primary); }
+        .risk-class-card .desc { font-size: 0.7rem; color: var(--text-secondary); }
+
+        /* Data Table */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+        .data-table th, .data-table td {
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
         }
 
-        /* Flow Diagram */
-        .flow-diagram {
+        .data-table th {
+            background: var(--bg-dark);
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .data-table tr:hover td { background: rgba(37, 99, 235, 0.05); }
+        .data-table .positive { color: var(--danger); }
+        .data-table .negative { color: var(--success); }
+        .data-table .highlight-row { background: rgba(37, 99, 235, 0.1); }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-success { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .badge-primary { background: rgba(37, 99, 235, 0.2); color: var(--primary); }
+
+        /* Comparison panels (bilateral vs cleared) */
+        .comparison-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 768px) { .comparison-panels { grid-template-columns: 1fr; } }
+
+        .comparison-panel {
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .comparison-panel.recommended { border-color: var(--success); }
+        .comparison-panel h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+        .comparison-panel .im-value { font-size: 2rem; font-weight: bold; margin: 0.5rem 0; }
+
+        .rationale-box {
+            background: var(--bg-dark);
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        /* Loading / Error states */
+        .loading { text-align: center; padding: 3rem; color: var(--text-secondary); }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.5s ease-out forwards; }
+
+        /* Generate command box */
+        .cmd-box {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: var(--success);
+            margin-top: 1rem;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            padding: 2rem;
-        }
-
-        .flow-step {
-            display: flex;
-            flex-direction: column;
             align-items: center;
             gap: 0.5rem;
         }
 
-        .flow-box {
-            background: var(--bg-dark);
-            border: 2px solid var(--primary);
-            border-radius: 12px;
-            padding: 1rem 1.5rem;
-            text-align: center;
-            min-width: 120px;
-        }
+        .cmd-box .prompt { color: var(--text-secondary); }
 
-        .flow-box.highlight {
-            background: var(--primary);
-        }
-
-        .flow-arrow {
-            font-size: 1.5rem;
-            color: var(--primary);
-        }
-
-        /* Info Tooltip */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip .tooltip-text {
-            visibility: hidden;
-            width: 200px;
-            background-color: var(--bg-card);
-            color: var(--text-primary);
-            text-align: center;
-            border-radius: 8px;
-            padding: 0.75rem;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -100px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            border: 1px solid var(--border);
-            font-size: 0.85rem;
-        }
-
-        .tooltip:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        /* Animation */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-
-        /* Footer */
         footer {
             text-align: center;
             padding: 2rem;
@@ -369,312 +596,256 @@
 <body>
     <div class="container">
         <header>
-            <h1>ISDA SIMM Calculator</h1>
-            <p class="subtitle">Standard Initial Margin Model v2.6 - Interactive Visualization</p>
+            <h1>ISDA SIMM Portfolio Optimizer</h1>
+            <p class="subtitle">Standard Initial Margin Model v2.6 with AADC-powered gradient optimization</p>
         </header>
 
-        <!-- Calculation Flow -->
-        <div class="card" style="margin-bottom: 2rem;">
-            <h2>Calculation Flow</h2>
-            <div class="flow-diagram">
-                <div class="flow-step">
-                    <div class="flow-box">
-                        <strong>CRIF Input</strong>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Sensitivities</div>
+        <!-- Main Tab Navigation -->
+        <div class="main-tabs">
+            <button class="main-tab active" onclick="showMainTab('optimization')">Portfolio Optimization</button>
+            <button class="main-tab" onclick="showMainTab('whatif')">What-If Analytics</button>
+            <button class="main-tab" onclick="showMainTab('pretrade')">Pre-Trade Analytics</button>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 1: Portfolio Optimization -->
+        <!-- ================================================================ -->
+        <div id="tab-optimization" class="main-tab-content active">
+            <!-- Performance Banner (populated from real data) -->
+            <div class="perf-banner" id="perfBanner" style="display: none;"></div>
+
+            <!-- AADC speedup callout -->
+            <div class="speedup-callout" id="speedupCallout" style="display: none;"></div>
+
+            <!-- Config summary -->
+            <div class="summary-cards" id="optConfigSummary"></div>
+
+            <!-- Play animation button -->
+            <div style="text-align: center;">
+                <button class="play-btn" id="playBtn" onclick="playOptimizationAnimation()" disabled>
+                    Play Optimization
+                </button>
+            </div>
+
+            <!-- Before/After Comparison -->
+            <div id="optComparison"></div>
+
+            <!-- IM Convergence Chart -->
+            <div class="im-chart-container">
+                <h3>IM Convergence Over Iterations</h3>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="imConvergenceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Movement Log -->
+            <div class="movement-log" id="movementLogContainer" style="display: none;">
+                <h3>Trade Movements</h3>
+                <div id="movementLog">
+                    <p style="color: var(--text-secondary);">No movements yet</p>
+                </div>
+            </div>
+
+            <!-- SIMM Reference (collapsed) -->
+            <div class="collapsible">
+                <div class="collapsible-header" onclick="toggleCollapsible('simmRef')">
+                    <h3>SIMM Reference: Hierarchy, Formulas & Correlations</h3>
+                    <span class="toggle-icon" id="simmRefIcon">+</span>
+                </div>
+                <div class="collapsible-content" id="simmRef" style="display: none;">
+                    <div class="grid">
+                        <!-- Hierarchy Tree -->
+                        <div>
+                            <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">SIMM Hierarchy</h2>
+                            <div class="hierarchy">
+                                <div class="tree-node">
+                                    <span class="node-label level-0">SIMM Total</span>
+                                    <div class="tree-node">
+                                        <span class="node-label level-1">RatesFX (Product Class)</span>
+                                        <div class="tree-node">
+                                            <span class="node-label level-2">Rates (Risk Class)</span>
+                                            <div class="tree-node"><span class="node-label level-3">Delta</span></div>
+                                            <div class="tree-node"><span class="node-label level-3">Vega</span></div>
+                                            <div class="tree-node"><span class="node-label level-3">Curvature</span></div>
+                                        </div>
+                                        <div class="tree-node"><span class="node-label level-2">FX (Risk Class)</span></div>
+                                    </div>
+                                    <div class="tree-node">
+                                        <span class="node-label level-1">Credit (Product Class)</span>
+                                        <div class="tree-node"><span class="node-label level-2">CreditQ</span></div>
+                                        <div class="tree-node"><span class="node-label level-2">CreditNonQ</span></div>
+                                    </div>
+                                    <div class="tree-node"><span class="node-label level-1">Equity (Product Class)</span></div>
+                                    <div class="tree-node"><span class="node-label level-1">Commodity (Product Class)</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Formulas -->
+                        <div>
+                            <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">Key Formulas</h2>
+                            <div class="tabs">
+                                <button class="tab active" onclick="showFormulaTab('f-product')">Product Level</button>
+                                <button class="tab" onclick="showFormulaTab('f-bucket')">Bucket Level</button>
+                                <button class="tab" onclick="showFormulaTab('f-gradient')">Gradient</button>
+                            </div>
+                            <div id="f-product" class="tab-content active">
+                                <div class="formula-box">
+                                    <div class="main">SIMM_pc = &radic;(&Sigma;_r &Sigma;_s &psi;_rs &times; K_r &times; K_s)</div>
+                                    <div class="where">Where:<br>
+                                        <span>r, s</span> = risk classes within product class<br>
+                                        <span>&psi;_rs</span> = cross-risk-class correlation<br>
+                                        <span>K_r</span> = margin for risk class r
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="f-bucket" class="tab-content">
+                                <div class="formula-box">
+                                    <div class="main">K_b = &radic;(&Sigma;_k WS_k&sup2; + &Sigma;_k&ne;l &rho;_kl &times; WS_k &times; WS_l)</div>
+                                    <div class="where">Where:<br>
+                                        <span>WS_k</span> = RW_k &times; s_k (weighted sensitivity)<br>
+                                        <span>&rho;_kl</span> = intra-bucket correlation<br>
+                                        <span>RW_k</span> = risk weight
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="f-gradient" class="tab-content">
+                                <div class="formula-box">
+                                    <div class="main">&part;total_IM/&part;x[t,p] = &Sigma;_k (&part;IM_p/&part;S_p[k]) &times; S[t,k]</div>
+                                    <div class="where">Where:<br>
+                                        <span>S_p[k]</span> = &Sigma;_t x[t,p] &times; S[t,k] (aggregated sens, numpy)<br>
+                                        <span>&part;IM_p/&part;S_p[k]</span> = from AADC kernel evaluation<br>
+                                        <span>S[t,k]</span> = raw trade sensitivity (precomputed)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Correlation Matrix -->
+                    <div style="margin-top: 1.5rem;">
+                        <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">Cross-Risk-Class Correlation Matrix (&psi;)</h2>
+                        <div class="matrix-container">
+                            <table class="correlation-matrix">
+                                <tr><th></th><th>Rates</th><th>FX</th><th>CreditQ</th><th>CreditNonQ</th><th>Equity</th><th>Commodity</th></tr>
+                                <tr><th>Rates</th><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.27)">0.27</td><td style="background: rgba(37, 99, 235, 0.30)">0.30</td><td style="background: rgba(37, 99, 235, 0.17)">0.17</td><td style="background: rgba(37, 99, 235, 0.31)">0.31</td><td style="background: rgba(37, 99, 235, 0.37)">0.37</td></tr>
+                                <tr><th>FX</th><td style="background: rgba(37, 99, 235, 0.27)">0.27</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td><td style="background: rgba(37, 99, 235, 0.14)">0.14</td><td style="background: rgba(37, 99, 235, 0.29)">0.29</td><td style="background: rgba(37, 99, 235, 0.38)">0.38</td></tr>
+                                <tr><th>CreditQ</th><td style="background: rgba(37, 99, 235, 0.30)">0.30</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.47)">0.47</td><td style="background: rgba(37, 99, 235, 0.50)">0.50</td><td style="background: rgba(37, 99, 235, 0.39)">0.39</td></tr>
+                                <tr><th>CreditNonQ</th><td style="background: rgba(37, 99, 235, 0.17)">0.17</td><td style="background: rgba(37, 99, 235, 0.14)">0.14</td><td style="background: rgba(37, 99, 235, 0.47)">0.47</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.42)">0.42</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td></tr>
+                                <tr><th>Equity</th><td style="background: rgba(37, 99, 235, 0.31)">0.31</td><td style="background: rgba(37, 99, 235, 0.29)">0.29</td><td style="background: rgba(37, 99, 235, 0.50)">0.50</td><td style="background: rgba(37, 99, 235, 0.42)">0.42</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.43)">0.43</td></tr>
+                                <tr><th>Commodity</th><td style="background: rgba(37, 99, 235, 0.37)">0.37</td><td style="background: rgba(37, 99, 235, 0.38)">0.38</td><td style="background: rgba(37, 99, 235, 0.39)">0.39</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td><td style="background: rgba(37, 99, 235, 0.43)">0.43</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td></tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Risk Classes -->
+                    <div style="margin-top: 1.5rem;">
+                        <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">Risk Classes</h2>
+                        <div class="risk-classes">
+                            <div class="risk-class-card"><h3>Rates (IR)</h3><div class="value">12</div><div class="desc">Tenor Buckets</div></div>
+                            <div class="risk-class-card"><h3>CreditQ</h3><div class="value">13</div><div class="desc">Sector Buckets</div></div>
+                            <div class="risk-class-card"><h3>CreditNonQ</h3><div class="value">3</div><div class="desc">HY/EM Buckets</div></div>
+                            <div class="risk-class-card"><h3>Equity</h3><div class="value">13</div><div class="desc">Sector Buckets</div></div>
+                            <div class="risk-class-card"><h3>Commodity</h3><div class="value">17</div><div class="desc">Type Buckets</div></div>
+                            <div class="risk-class-card"><h3>FX</h3><div class="value">1</div><div class="desc">Single Bucket</div></div>
+                        </div>
                     </div>
                 </div>
-                <div class="flow-arrow">→</div>
-                <div class="flow-step">
-                    <div class="flow-box">
-                        <strong>Weight</strong>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);">WS = RW × s</div>
-                    </div>
-                </div>
-                <div class="flow-arrow">→</div>
-                <div class="flow-step">
-                    <div class="flow-box">
-                        <strong>Bucket Agg</strong>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);">K_b</div>
-                    </div>
-                </div>
-                <div class="flow-arrow">→</div>
-                <div class="flow-step">
-                    <div class="flow-box">
-                        <strong>Risk Class</strong>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);">K_r</div>
-                    </div>
-                </div>
-                <div class="flow-arrow">→</div>
-                <div class="flow-step">
-                    <div class="flow-box highlight">
-                        <strong>SIMM Total</strong>
-                        <div style="font-size: 0.8rem;">IM</div>
-                    </div>
-                </div>
+            </div>
+
+            <!-- Generate new data command -->
+            <div class="cmd-box">
+                <span class="prompt">$</span>
+                <span>python scripts/export_animation_data.py --trades 15 --portfolios 3</span>
+                <span style="color: var(--text-secondary); margin-left: auto; font-size: 0.8rem;">then reload page</span>
             </div>
         </div>
 
-        <div class="grid">
-            <!-- Hierarchy Tree -->
-            <div class="card">
-                <h2>SIMM Hierarchy</h2>
-                <div class="hierarchy">
-                    <div class="tree-node">
-                        <span class="node-label level-0">SIMM Total</span>
-                        <div class="tree-node">
-                            <span class="node-label level-1">RatesFX (Product Class)</span>
-                            <div class="tree-node">
-                                <span class="node-label level-2">Rates (Risk Class)</span>
-                                <div class="tree-node"><span class="node-label level-3">Delta</span></div>
-                                <div class="tree-node"><span class="node-label level-3">Vega</span></div>
-                                <div class="tree-node"><span class="node-label level-3">Curvature</span></div>
-                            </div>
-                            <div class="tree-node">
-                                <span class="node-label level-2">FX (Risk Class)</span>
-                            </div>
-                        </div>
-                        <div class="tree-node">
-                            <span class="node-label level-1">Credit (Product Class)</span>
-                            <div class="tree-node">
-                                <span class="node-label level-2">CreditQ</span>
-                            </div>
-                            <div class="tree-node">
-                                <span class="node-label level-2">CreditNonQ</span>
-                            </div>
-                        </div>
-                        <div class="tree-node">
-                            <span class="node-label level-1">Equity (Product Class)</span>
-                        </div>
-                        <div class="tree-node">
-                            <span class="node-label level-1">Commodity (Product Class)</span>
-                        </div>
+        <!-- ================================================================ -->
+        <!-- TAB 2: What-If Analytics -->
+        <!-- ================================================================ -->
+        <div id="tab-whatif" class="main-tab-content">
+            <div id="whatif-loading" class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading What-If analytics data...</p>
+            </div>
+            <div id="whatif-content" style="display: none;">
+                <div id="whatif-summary" class="summary-cards"></div>
+
+                <div class="grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <h2>Top Margin Consumers</h2>
+                        <div id="whatif-consumers-table" style="overflow-x: auto;"></div>
+                    </div>
+                    <div class="card">
+                        <h2>Top Margin Reducers</h2>
+                        <div id="whatif-reducers-table" style="overflow-x: auto;"></div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Formulas -->
-            <div class="card">
-                <h2>Key Formulas</h2>
-                <div class="tabs">
-                    <button class="tab active" onclick="showTab('product')">Product Level</button>
-                    <button class="tab" onclick="showTab('bucket')">Bucket Level</button>
-                    <button class="tab" onclick="showTab('delta')">Delta</button>
-                </div>
-
-                <div id="product" class="tab-content active">
+                <div class="card" style="margin-bottom: 2rem;">
+                    <h2>AADC Performance Advantage</h2>
                     <div class="formula-box">
-                        <div class="main">SIMM_pc = √(Σ_r Σ_s ψ_rs × K_r × K_s)</div>
-                        <div class="where">
-                            Where:<br>
-                            <span>r, s</span> = risk classes within product class<br>
-                            <span>ψ_rs</span> = cross-risk-class correlation<br>
-                            <span>K_r</span> = margin for risk class r
+                        <div class="main">Margin Attribution: O(N&times;K) via AADC gradient vs O(N&sup2;) naive leave-one-out</div>
+                        <div class="where" style="margin-top: 0.75rem;">
+                            <span>AADC method</span>: Compute gradient &part;IM/&part;S once, then contribution[trade] = &Sigma; gradient[k] &times; sensitivity[trade,k]<br>
+                            <span>Naive method</span>: For each of N trades, remove trade and recalculate full SIMM<br>
+                            <span>Result</span>: <strong id="whatif-speedup-text"></strong>
                         </div>
                     </div>
                 </div>
 
-                <div id="bucket" class="tab-content">
-                    <div class="formula-box">
-                        <div class="main">K_b = √(Σ_k WS_k² + Σ_k Σ_l≠k ρ_kl × WS_k × WS_l)</div>
-                        <div class="where">
-                            Where:<br>
-                            <span>WS_k</span> = RW_k × s_k (weighted sensitivity)<br>
-                            <span>ρ_kl</span> = intra-bucket correlation<br>
-                            <span>RW_k</span> = risk weight
+                <div class="grid">
+                    <div class="card">
+                        <h2>Unwind &amp; Hedge Scenarios</h2>
+                        <div class="chart-container" style="height: 350px;">
+                            <canvas id="scenarioChart"></canvas>
                         </div>
                     </div>
-                </div>
-
-                <div id="delta" class="tab-content">
-                    <div class="formula-box">
-                        <div class="main">K_Delta = √(Σ_b Σ_c ρ_bc × K_b × K_c)</div>
-                        <div class="where">
-                            Where:<br>
-                            <span>b, c</span> = buckets (e.g., tenor buckets for IR)<br>
-                            <span>ρ_bc</span> = inter-bucket correlation<br>
-                            <span>K_b</span> = bucket-level margin
+                    <div class="card">
+                        <h2>Stress Scenarios</h2>
+                        <div class="chart-container" style="height: 350px;">
+                            <canvas id="stressChart"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Correlation Matrix -->
-        <div class="card" style="margin-bottom: 2rem;">
-            <h2>Cross-Risk-Class Correlation Matrix (ψ)</h2>
-            <div class="matrix-container">
-                <table class="correlation-matrix">
-                    <tr>
-                        <th></th>
-                        <th>Rates</th>
-                        <th>FX</th>
-                        <th>CreditQ</th>
-                        <th>CreditNonQ</th>
-                        <th>Equity</th>
-                        <th>Commodity</th>
-                    </tr>
-                    <tr>
-                        <th>Rates</th>
-                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
-                        <td style="background: rgba(37, 99, 235, 0.27)">0.27</td>
-                        <td style="background: rgba(37, 99, 235, 0.30)">0.30</td>
-                        <td style="background: rgba(37, 99, 235, 0.17)">0.17</td>
-                        <td style="background: rgba(37, 99, 235, 0.31)">0.31</td>
-                        <td style="background: rgba(37, 99, 235, 0.37)">0.37</td>
-                    </tr>
-                    <tr>
-                        <th>FX</th>
-                        <td style="background: rgba(37, 99, 235, 0.27)">0.27</td>
-                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
-                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
-                        <td style="background: rgba(37, 99, 235, 0.14)">0.14</td>
-                        <td style="background: rgba(37, 99, 235, 0.29)">0.29</td>
-                        <td style="background: rgba(37, 99, 235, 0.38)">0.38</td>
-                    </tr>
-                    <tr>
-                        <th>CreditQ</th>
-                        <td style="background: rgba(37, 99, 235, 0.30)">0.30</td>
-                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
-                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
-                        <td style="background: rgba(37, 99, 235, 0.47)">0.47</td>
-                        <td style="background: rgba(37, 99, 235, 0.50)">0.50</td>
-                        <td style="background: rgba(37, 99, 235, 0.39)">0.39</td>
-                    </tr>
-                    <tr>
-                        <th>CreditNonQ</th>
-                        <td style="background: rgba(37, 99, 235, 0.17)">0.17</td>
-                        <td style="background: rgba(37, 99, 235, 0.14)">0.14</td>
-                        <td style="background: rgba(37, 99, 235, 0.47)">0.47</td>
-                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
-                        <td style="background: rgba(37, 99, 235, 0.42)">0.42</td>
-                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
-                    </tr>
-                    <tr>
-                        <th>Equity</th>
-                        <td style="background: rgba(37, 99, 235, 0.31)">0.31</td>
-                        <td style="background: rgba(37, 99, 235, 0.29)">0.29</td>
-                        <td style="background: rgba(37, 99, 235, 0.50)">0.50</td>
-                        <td style="background: rgba(37, 99, 235, 0.42)">0.42</td>
-                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
-                        <td style="background: rgba(37, 99, 235, 0.43)">0.43</td>
-                    </tr>
-                    <tr>
-                        <th>Commodity</th>
-                        <td style="background: rgba(37, 99, 235, 0.37)">0.37</td>
-                        <td style="background: rgba(37, 99, 235, 0.38)">0.38</td>
-                        <td style="background: rgba(37, 99, 235, 0.39)">0.39</td>
-                        <td style="background: rgba(37, 99, 235, 0.35)">0.35</td>
-                        <td style="background: rgba(37, 99, 235, 0.43)">0.43</td>
-                        <td style="background: rgba(37, 99, 235, 1.0)">1.00</td>
-                    </tr>
-                </table>
+            <div id="whatif-error" style="display: none;" class="loading">
+                <p style="color: var(--danger);">Failed to load What-If data. Run <code>python scripts/export_animation_data.py</code> to generate.</p>
             </div>
         </div>
 
-        <div class="grid">
-            <!-- Risk Classes -->
-            <div class="card">
-                <h2>Risk Classes</h2>
-                <div class="risk-classes">
-                    <div class="risk-class-card">
-                        <h3>Rates (IR)</h3>
-                        <div class="value">12</div>
-                        <div class="desc">Tenor Buckets</div>
-                    </div>
-                    <div class="risk-class-card">
-                        <h3>CreditQ</h3>
-                        <div class="value">13</div>
-                        <div class="desc">Sector Buckets</div>
-                    </div>
-                    <div class="risk-class-card">
-                        <h3>CreditNonQ</h3>
-                        <div class="value">3</div>
-                        <div class="desc">HY/EM Buckets</div>
-                    </div>
-                    <div class="risk-class-card">
-                        <h3>Equity</h3>
-                        <div class="value">13</div>
-                        <div class="desc">Sector Buckets</div>
-                    </div>
-                    <div class="risk-class-card">
-                        <h3>Commodity</h3>
-                        <div class="value">17</div>
-                        <div class="desc">Type Buckets</div>
-                    </div>
-                    <div class="risk-class-card">
-                        <h3>FX</h3>
-                        <div class="value">1</div>
-                        <div class="desc">Single Bucket</div>
-                    </div>
-                </div>
+        <!-- ================================================================ -->
+        <!-- TAB 3: Pre-Trade Analytics -->
+        <!-- ================================================================ -->
+        <div id="tab-pretrade" class="main-tab-content">
+            <div id="pretrade-loading" class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading Pre-Trade analytics data...</p>
             </div>
+            <div id="pretrade-content" style="display: none;">
+                <div id="pretrade-trade-card" class="summary-cards" style="margin-bottom: 2rem;"></div>
 
-            <!-- IR Tenor Buckets -->
-            <div class="card">
-                <h2>Interest Rate Tenor Buckets</h2>
-                <div class="chart-container">
-                    <canvas id="tenorChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid">
-            <!-- Sample Margin Breakdown -->
-            <div class="card">
-                <h2>Sample Margin Breakdown</h2>
-                <div class="chart-container">
-                    <canvas id="marginChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Optimization Results -->
-            <div class="card">
-                <h2>Portfolio Optimization</h2>
-                <div class="chart-container">
-                    <canvas id="optimizationChart"></canvas>
-                </div>
-                <p style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
-                    Efficient allocation reduces total margin through netting benefits
-                </p>
-            </div>
-        </div>
-
-        <!-- Trade Allocation Optimization -->
-        <div class="card" style="margin-top: 2rem;">
-            <h2>Trade Allocation Optimization Algorithm</h2>
-            <div class="formula-box">
-                <div class="main">minimize Σ_p IM_p(x)</div>
-                <div class="where" style="margin-top: 1rem;">
-                    Subject to:<br>
-                    <span>Σ_p x[t,p] = 1</span> for all trades t (each trade in exactly one portfolio)<br>
-                    <span>x[t,p] ∈ {0,1}</span> (whole-trade assignment)
-                </div>
-            </div>
-            <div style="margin-top: 1.5rem;">
-                <h3 style="font-size: 1rem; margin-bottom: 1rem;">Efficient Gradient Computation (Chain Rule)</h3>
-                <div class="formula-box">
-                    <div class="main">∂total_IM/∂x[t,p] = Σ_k (∂IM_p/∂S_p[k]) × S[t,k]</div>
-                    <div class="where" style="margin-top: 1rem;">
-                        Where:<br>
-                        <span>S_p[k] = Σ_t x[t,p] × S[t,k]</span> - aggregated sensitivity (numpy)<br>
-                        <span>∂IM_p/∂S_p[k]</span> - from AADC kernel evaluation<br>
-                        <span>S[t,k]</span> - raw trade sensitivity (precomputed)
+                <div class="grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <h2>Counterparty Routing Analysis</h2>
+                        <div id="pretrade-routing-table" style="overflow-x: auto;"></div>
+                    </div>
+                    <div class="card">
+                        <h2>Marginal IM by Counterparty</h2>
+                        <div class="chart-container" style="height: 350px;">
+                            <canvas id="routingChart"></canvas>
+                        </div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <h2>Bilateral vs Cleared Comparison</h2>
+                    <div id="pretrade-comparison"></div>
+                </div>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
-                <div style="background: var(--bg-dark); padding: 1rem; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 2rem; color: var(--success);">100x</div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Faster Kernel Recording</div>
-                </div>
-                <div style="background: var(--bg-dark); padding: 1rem; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 2rem; color: var(--primary);">~100</div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Kernel Inputs (vs 25,000)</div>
-                </div>
-                <div style="background: var(--bg-dark); padding: 1rem; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 2rem; color: var(--warning);">20-30%</div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Typical IM Reduction</div>
-                </div>
+            <div id="pretrade-error" style="display: none;" class="loading">
+                <p style="color: var(--danger);">Failed to load Pre-Trade data. Run <code>python scripts/export_animation_data.py</code> to generate.</p>
             </div>
         </div>
 
@@ -687,114 +858,734 @@
     </div>
 
     <script>
-        // Tab switching
-        function showTab(tabId) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
-            document.getElementById(tabId).classList.add('active');
+    // ====================================================================
+    // Data loading layer
+    // ====================================================================
+    const dataCache = {};
+    const tabLoaded = { optimization: false, whatif: false, pretrade: false };
+
+    async function loadJSON(filename) {
+        if (dataCache[filename]) return dataCache[filename];
+        const paths = [
+            'data/animation/' + filename,
+            '../data/animation/' + filename,
+        ];
+        for (const p of paths) {
+            try {
+                const resp = await fetch(p);
+                if (!resp.ok) continue;
+                const data = await resp.json();
+                dataCache[filename] = data;
+                return data;
+            } catch (e) { /* try next */ }
+        }
+        console.warn('Could not load', filename);
+        return null;
+    }
+
+    async function loadCSV(filename) {
+        const paths = [
+            'data/' + filename,
+            '../data/' + filename,
+        ];
+        for (const p of paths) {
+            try {
+                const resp = await fetch(p);
+                if (!resp.ok) continue;
+                return await resp.text();
+            } catch (e) { /* try next */ }
+        }
+        return null;
+    }
+
+    function parseCSV(text) {
+        if (!text) return [];
+        const lines = text.trim().split('\n');
+        if (lines.length < 2) return [];
+        const headers = lines[0].split(',').map(h => h.trim());
+        return lines.slice(1).map(line => {
+            const vals = line.split(',');
+            const obj = {};
+            headers.forEach((h, i) => obj[h] = vals[i] ? vals[i].trim() : '');
+            return obj;
+        });
+    }
+
+    // ====================================================================
+    // Format helpers
+    // ====================================================================
+    function fmt(n) {
+        if (n == null) return 'N/A';
+        if (Math.abs(n) >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+        if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+        if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+        return '$' + n.toFixed(0);
+    }
+
+    function pct(n) { return (n != null ? n.toFixed(1) : '0') + '%'; }
+
+    function fmtTime(sec) {
+        if (sec == null) return 'N/A';
+        if (sec < 0.001) return (sec * 1e6).toFixed(0) + 'us';
+        if (sec < 1) return (sec * 1000).toFixed(0) + 'ms';
+        return sec.toFixed(2) + 's';
+    }
+
+    // ====================================================================
+    // Tab switching
+    // ====================================================================
+    function showMainTab(tabId) {
+        document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.main-tab-content').forEach(c => c.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        document.getElementById('tab-' + tabId).classList.add('active');
+
+        if (!tabLoaded[tabId]) {
+            tabLoaded[tabId] = true;
+            if (tabId === 'optimization') loadOptimizationTab();
+            else if (tabId === 'whatif') loadWhatIfTab();
+            else if (tabId === 'pretrade') loadPreTradeTab();
+        }
+    }
+
+    function showFormulaTab(tabId) {
+        const card = event.currentTarget.closest('.collapsible-content') || event.currentTarget.closest('.card');
+        card.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        card.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        card.querySelector('#' + tabId).classList.add('active');
+    }
+
+    function toggleCollapsible(id) {
+        const el = document.getElementById(id);
+        const icon = document.getElementById(id + 'Icon');
+        if (el.style.display === 'none') {
+            el.style.display = 'block';
+            icon.textContent = '\u2212';
+        } else {
+            el.style.display = 'none';
+            icon.textContent = '+';
+        }
+    }
+
+    // ====================================================================
+    // Optimization tab
+    // ====================================================================
+    let optData = null;
+    let imChartInstance = null;
+    let animationTimer = null;
+
+    async function loadOptimizationTab() {
+        const data = await loadJSON('optimization.json');
+        if (data && data.optimization) {
+            optData = data;
+            renderOptimizationFromJSON(data);
+        } else {
+            renderOptimizationFallback();
+        }
+    }
+
+    function renderOptimizationFromJSON(data) {
+        // Performance banner
+        renderPerformanceBanner(data.performance);
+
+        // Config summary
+        renderConfigSummary(data);
+
+        // Enable play button
+        document.getElementById('playBtn').disabled = false;
+
+        // Before/After comparison
+        renderBeforeAfter(data);
+
+        // IM convergence chart
+        renderIMChart(data.optimization.steps);
+
+        // Movement log
+        renderMovementLog(data.optimization.movements);
+    }
+
+    function renderPerformanceBanner(perf) {
+        const banner = document.getElementById('perfBanner');
+        const callout = document.getElementById('speedupCallout');
+
+        if (!perf) {
+            banner.style.display = 'none';
+            callout.style.display = 'none';
+            return;
         }
 
-        // Tenor Chart
-        const tenorCtx = document.getElementById('tenorChart').getContext('2d');
-        new Chart(tenorCtx, {
-            type: 'bar',
-            data: {
-                labels: ['2w', '1m', '3m', '6m', '1y', '2y', '3y', '5y', '10y', '15y', '20y', '30y'],
-                datasets: [{
-                    label: 'Risk Weight (bps)',
-                    data: [77, 77, 77, 77, 67, 52, 49, 47, 47, 47, 47, 47],
-                    backgroundColor: 'rgba(37, 99, 235, 0.7)',
-                    borderColor: 'rgba(37, 99, 235, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        labels: { color: '#f1f5f9' }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: '#334155' }
-                    },
-                    y: {
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: '#334155' }
-                    }
-                }
-            }
-        });
+        banner.style.display = 'grid';
+        let html = '';
 
-        // Margin Breakdown Chart
-        const marginCtx = document.getElementById('marginChart').getContext('2d');
-        new Chart(marginCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Rates', 'FX', 'CreditQ', 'Equity', 'Commodity'],
-                datasets: [{
-                    data: [45, 15, 20, 12, 8],
-                    backgroundColor: [
-                        'rgba(37, 99, 235, 0.8)',
-                        'rgba(139, 92, 246, 0.8)',
-                        'rgba(34, 197, 94, 0.8)',
-                        'rgba(245, 158, 11, 0.8)',
-                        'rgba(239, 68, 68, 0.8)'
-                    ],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: { color: '#f1f5f9' }
-                    }
-                }
-            }
-        });
+        const cards = [
+            { label: 'CRIF (AADC)', value: fmtTime(perf.crif_time_sec), detail: perf.num_trades + ' trades', cls: 'fast' },
+            { label: 'SIMM Aggregation', value: fmtTime(perf.simm_time_sec), detail: perf.num_risk_factors + ' risk factors', cls: '' },
+            { label: 'Kernel Recording', value: fmtTime(perf.kernel_record_time_sec), detail: 'AADC tape', cls: 'fast' },
+            { label: 'Optimization', value: fmtTime(perf.optimize_time_sec), detail: perf.num_iterations + ' iterations', cls: 'accent' },
+            { label: 'Total Wall Time', value: fmtTime(perf.total_time_sec), detail: 'end-to-end', cls: '' },
+        ];
 
-        // Optimization Chart
-        const optCtx = document.getElementById('optimizationChart').getContext('2d');
-        new Chart(optCtx, {
+        for (const c of cards) {
+            html += `<div class="perf-card">
+                <div class="perf-value ${c.cls}">${c.value}</div>
+                <div class="perf-label">${c.label}</div>
+                <div class="perf-detail">${c.detail}</div>
+            </div>`;
+        }
+
+        // Per-iteration timing
+        if (perf.per_iteration_time_sec) {
+            html += `<div class="perf-card">
+                <div class="perf-value fast">${fmtTime(perf.per_iteration_time_sec)}</div>
+                <div class="perf-label">Per Iteration</div>
+                <div class="perf-detail">gradient + step</div>
+            </div>`;
+        }
+
+        banner.innerHTML = html;
+
+        // Speedup callout
+        if (perf.num_risk_factors && perf.optimize_time_sec) {
+            const fdEstimate = perf.num_risk_factors * (perf.per_iteration_time_sec || 0.1);
+            callout.style.display = 'block';
+            callout.innerHTML = `<strong>${perf.num_trades} trades</strong> &times;
+                <strong>${perf.num_risk_factors} risk factors</strong> optimized in
+                <strong>${fmtTime(perf.optimize_time_sec)}</strong> using AADC single adjoint pass
+                &mdash; AADC is fast`;
+        }
+
+        // Execution log enrichment
+        if (perf.execution_log) {
+            const el = perf.execution_log;
+            const extraHtml = document.createElement('div');
+            extraHtml.className = 'perf-card';
+            extraHtml.innerHTML = `
+                <div class="perf-value fast">${fmtTime(el.im_sens_time)}</div>
+                <div class="perf-label">IM Gradient</div>
+                <div class="perf-detail">dIM/dS (AAD)</div>
+            `;
+            banner.appendChild(extraHtml);
+        }
+    }
+
+    function renderConfigSummary(data) {
+        const container = document.getElementById('optConfigSummary');
+        const cfg = data.config;
+        const opt = data.optimization;
+
+        container.innerHTML = `
+            <div class="summary-card">
+                <div class="label">Trades</div>
+                <div class="value">${cfg.num_trades}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Portfolios</div>
+                <div class="value">${cfg.num_portfolios}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Risk Factors</div>
+                <div class="value">${cfg.num_risk_factors}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Initial IM</div>
+                <div class="value warning">${fmt(data.initial_state.total_im)}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Final IM</div>
+                <div class="value success">${fmt(data.final_state.total_im)}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">IM Reduction</div>
+                <div class="value success">${pct(opt.im_reduction_pct)}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Trades Moved</div>
+                <div class="value">${opt.movements.length}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Iterations</div>
+                <div class="value">${opt.num_iterations}</div>
+            </div>
+        `;
+    }
+
+    function renderBeforeAfter(data) {
+        const container = document.getElementById('optComparison');
+        const colors = ['#2563eb', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#06b6d4', '#ec4899'];
+        const P = data.config.num_portfolios;
+
+        let html = '<div class="comparison-container">';
+
+        // Before
+        html += '<div class="comparison-section before"><h3>BEFORE Optimization &mdash; ' + fmt(data.initial_state.total_im) + '</h3><div class="portfolio-grid">';
+        for (let p = 0; p < P; p++) {
+            const pd = data.initial_state.portfolio_ims.find(x => x.portfolio === p) || { im: 0, trades: 0 };
+            html += `<div class="portfolio-card" style="border-left-color: ${colors[p % colors.length]}">
+                <h4 style="color: ${colors[p % colors.length]}">Portfolio ${p + 1}</h4>
+                <div class="stat-row"><span class="label">Trades</span><span class="value">${pd.trades}</span></div>
+                <div class="stat-row"><span class="label">IM</span><span class="value">${fmt(pd.im)}</span></div>
+            </div>`;
+        }
+        html += '</div></div>';
+
+        // After
+        html += '<div class="comparison-section after"><h3>AFTER Optimization &mdash; ' + fmt(data.final_state.total_im) + '</h3><div class="portfolio-grid">';
+        for (let p = 0; p < P; p++) {
+            const before = data.initial_state.portfolio_ims.find(x => x.portfolio === p) || { im: 0, trades: 0 };
+            const after = data.final_state.portfolio_ims.find(x => x.portfolio === p) || { im: 0, trades: 0 };
+            const change = after.im - before.im;
+            const changeClass = change <= 0 ? 'positive' : 'negative';
+            const tradeChange = after.trades - before.trades;
+            const tStr = tradeChange > 0 ? '+' + tradeChange : '' + tradeChange;
+
+            html += `<div class="portfolio-card" style="border-left-color: ${colors[p % colors.length]}">
+                <h4 style="color: ${colors[p % colors.length]}">Portfolio ${p + 1}</h4>
+                <div class="stat-row"><span class="label">Trades</span><span class="value">${after.trades} <span style="color:var(--text-secondary);font-size:0.8rem;">(${tStr})</span></span></div>
+                <div class="stat-row"><span class="label">IM</span><span class="value">${fmt(after.im)}</span></div>
+                <div class="change ${changeClass}">${change <= 0 ? '\u25BC' : '\u25B2'} ${fmt(Math.abs(change))}</div>
+            </div>`;
+        }
+        html += '</div></div></div>';
+
+        container.innerHTML = html;
+    }
+
+    function renderIMChart(steps) {
+        if (!steps || !steps.length) return;
+
+        const labels = steps.map(s => s.iteration);
+        const values = steps.map(s => s.total_im / 1e6);
+
+        if (imChartInstance) imChartInstance.destroy();
+
+        const ctx = document.getElementById('imConvergenceChart').getContext('2d');
+        imChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['Iter 0', 'Iter 10', 'Iter 20', 'Iter 30', 'Iter 40', 'Iter 50'],
+                labels: labels,
                 datasets: [{
                     label: 'Total IM ($M)',
-                    data: [732, 580, 520, 498, 495, 494],
+                    data: values,
                     borderColor: 'rgba(37, 99, 235, 1)',
                     backgroundColor: 'rgba(37, 99, 235, 0.1)',
                     fill: true,
-                    tension: 0.4
+                    tension: 0.3,
+                    pointRadius: steps.length > 30 ? 0 : 3,
+                    pointHoverRadius: 5,
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        labels: { color: '#f1f5f9' }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: '#334155' }
-                    },
-                    y: {
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: '#334155' }
-                    }
+            options: chartOptions('Total IM ($M)')
+        });
+    }
+
+    function renderMovementLog(movements) {
+        const container = document.getElementById('movementLogContainer');
+        const log = document.getElementById('movementLog');
+
+        if (!movements || movements.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        const maxShow = 50;
+        const display = movements.slice(0, maxShow);
+
+        let html = '';
+        for (const m of display) {
+            html += `<div class="movement-entry">
+                <span class="trade-name">${m.trade_id}</span>
+                <span class="portfolio-badge from">P${m.from_portfolio + 1}</span>
+                <span class="arrow">&rarr;</span>
+                <span class="portfolio-badge to">P${m.to_portfolio + 1}</span>
+                <span style="color: var(--text-secondary); margin-left: auto;">${fmt(m.standalone_im)}</span>
+            </div>`;
+        }
+
+        if (movements.length > maxShow) {
+            html += `<div class="movement-entry" style="justify-content: center; color: var(--primary);">
+                ... and ${movements.length - maxShow} more movements
+            </div>`;
+        }
+
+        log.innerHTML = html;
+    }
+
+    // Animation: step through optimization iterations
+    function playOptimizationAnimation() {
+        if (!optData) return;
+
+        const btn = document.getElementById('playBtn');
+        btn.disabled = true;
+        btn.textContent = 'Playing...';
+
+        const steps = optData.optimization.steps;
+        let currentStep = 0;
+
+        if (animationTimer) clearInterval(animationTimer);
+
+        animationTimer = setInterval(() => {
+            if (currentStep >= steps.length) {
+                clearInterval(animationTimer);
+                btn.disabled = false;
+                btn.textContent = 'Play Optimization';
+                return;
+            }
+
+            const step = steps[currentStep];
+
+            // Update chart highlight
+            if (imChartInstance) {
+                const dataset = imChartInstance.data.datasets[0];
+                const colors = new Array(steps.length).fill('rgba(37, 99, 235, 0.1)');
+                colors[currentStep] = 'rgba(245, 158, 11, 0.8)';
+                // Use pointBackgroundColor for highlighting
+                dataset.pointBackgroundColor = steps.map((_, i) =>
+                    i <= currentStep ? 'rgba(37, 99, 235, 1)' : 'rgba(37, 99, 235, 0.3)'
+                );
+                dataset.pointRadius = steps.map((_, i) =>
+                    i === currentStep ? 6 : (steps.length > 30 ? 0 : 2)
+                );
+                imChartInstance.update('none');
+            }
+
+            currentStep++;
+        }, Math.max(50, 2000 / steps.length));
+    }
+
+    // ====================================================================
+    // Fallback sample data (when JSON not available)
+    // ====================================================================
+    function renderOptimizationFallback() {
+        // Minimal fallback rendering
+        document.getElementById('perfBanner').style.display = 'none';
+        document.getElementById('speedupCallout').style.display = 'none';
+
+        document.getElementById('optConfigSummary').innerHTML = `
+            <div class="summary-card" style="grid-column: 1 / -1;">
+                <div class="label">No pre-computed data found</div>
+                <div class="value" style="font-size: 1rem;">Run the export script to generate real optimization data</div>
+            </div>
+        `;
+
+        // Show fallback chart with sample data
+        const fallbackSteps = [
+            { iteration: 0, total_im: 732e6 },
+            { iteration: 10, total_im: 580e6 },
+            { iteration: 20, total_im: 520e6 },
+            { iteration: 30, total_im: 498e6 },
+            { iteration: 40, total_im: 495e6 },
+            { iteration: 50, total_im: 494e6 },
+        ];
+        renderIMChart(fallbackSteps);
+
+        document.getElementById('optComparison').innerHTML = `
+            <div class="loading">
+                <p>Generate data with: <code>python scripts/export_animation_data.py --trades 15 --portfolios 3</code></p>
+                <p style="margin-top: 0.5rem; color: var(--text-secondary);">Then reload this page to see real optimization results.</p>
+            </div>
+        `;
+    }
+
+    // ====================================================================
+    // What-If tab
+    // ====================================================================
+    async function loadWhatIfTab() {
+        const data = await loadJSON('whatif.json');
+        const loadingEl = document.getElementById('whatif-loading');
+        const contentEl = document.getElementById('whatif-content');
+        const errorEl = document.getElementById('whatif-error');
+
+        if (!data) {
+            loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        renderWhatIf(data);
+    }
+
+    function renderWhatIf(data) {
+        const ps = data.portfolio_summary;
+        const attr = data.attribution;
+        const speedup = attr.speedup || (attr.naive_time_estimate_ms > 0
+            ? Math.round(attr.naive_time_estimate_ms / Math.max(attr.computation_time_ms, 1))
+            : '?');
+        const aadcTime = attr.computation_time_ms < 1000
+            ? attr.computation_time_ms.toFixed(0) + ' ms'
+            : (attr.computation_time_ms / 1000).toFixed(1) + ' s';
+        const naiveTime = attr.naive_time_estimate_ms < 1000
+            ? attr.naive_time_estimate_ms.toFixed(0) + ' ms'
+            : (attr.naive_time_estimate_ms / 1000).toFixed(1) + ' s';
+
+        document.getElementById('whatif-summary').innerHTML = `
+            <div class="summary-card">
+                <div class="label">Total IM</div>
+                <div class="value">${fmt(ps.total_im)}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Trades / Risk Factors</div>
+                <div class="value">${ps.num_trades} / ${ps.num_risk_factors}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">AADC Attribution Time</div>
+                <div class="value success">${aadcTime}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Naive Estimate</div>
+                <div class="value danger">${naiveTime}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">AADC Speedup</div>
+                <div class="value success">${speedup}x</div>
+            </div>
+        `;
+
+        const contributions = attr.trade_contributions || [];
+        const consumers = contributions.filter(c => c.is_margin_additive === true || c.is_margin_additive === 'True').slice(0, 10);
+        const reducers = contributions.filter(c => c.is_margin_additive === false || c.is_margin_additive === 'False').slice(0, 10);
+
+        document.getElementById('whatif-consumers-table').innerHTML = buildAttributionTable(consumers, 'positive');
+        document.getElementById('whatif-reducers-table').innerHTML = buildAttributionTable(reducers, 'negative');
+
+        const speedupEl = document.getElementById('whatif-speedup-text');
+        if (speedupEl) {
+            speedupEl.textContent = `${ps.num_trades} trades attributed in ${aadcTime} (AADC) vs estimated ${naiveTime} (naive) = ${speedup}x speedup`;
+        }
+
+        renderScenarioChart(data.scenarios);
+        renderStressChart(data.scenarios.stress);
+    }
+
+    function buildAttributionTable(items, colorClass) {
+        if (!items.length) return '<p style="color: var(--text-secondary); padding: 1rem;">No data</p>';
+        let html = `<table class="data-table">
+            <thead><tr><th>Trade ID</th><th>Contribution</th><th>% of Total</th><th>Net Sensitivity</th></tr></thead><tbody>`;
+        for (const c of items) {
+            html += `<tr>
+                <td>${c.trade_id}</td>
+                <td class="${colorClass}">${fmt(c.marginal_contribution)}</td>
+                <td>${pct(c.contribution_pct)}</td>
+                <td>${fmt(c.net_sensitivity)}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    let scenarioChartInstance = null;
+    function renderScenarioChart(scenarios) {
+        const labels = [];
+        const currentValues = [];
+        const scenarioValues = [];
+
+        if (scenarios.unwind && scenarios.unwind.current_im) {
+            labels.push('Unwind Top 5');
+            currentValues.push(scenarios.unwind.current_im / 1e6);
+            scenarioValues.push(scenarios.unwind.scenario_im / 1e6);
+        }
+        if (scenarios.hedge && scenarios.hedge.current_im) {
+            labels.push('Add Hedge');
+            currentValues.push(scenarios.hedge.current_im / 1e6);
+            scenarioValues.push(scenarios.hedge.scenario_im / 1e6);
+        }
+
+        if (!labels.length) return;
+        if (scenarioChartInstance) scenarioChartInstance.destroy();
+
+        scenarioChartInstance = new Chart(document.getElementById('scenarioChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Current IM ($M)', data: currentValues, backgroundColor: 'rgba(37, 99, 235, 0.7)' },
+                    { label: 'Scenario IM ($M)', data: scenarioValues, backgroundColor: 'rgba(34, 197, 94, 0.7)' }
+                ]
+            },
+            options: chartOptions()
+        });
+    }
+
+    let stressChartInstance = null;
+    function renderStressChart(stressData) {
+        if (!stressData || !stressData.length) return;
+        if (stressChartInstance) stressChartInstance.destroy();
+
+        stressChartInstance = new Chart(document.getElementById('stressChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: stressData.map(s => s.scenario_name),
+                datasets: [
+                    { label: 'Base IM ($M)', data: stressData.map(s => s.current_im / 1e6), backgroundColor: 'rgba(37, 99, 235, 0.7)' },
+                    { label: 'Stressed IM ($M)', data: stressData.map(s => s.scenario_im / 1e6), backgroundColor: 'rgba(239, 68, 68, 0.7)' }
+                ]
+            },
+            options: chartOptions()
+        });
+    }
+
+    // ====================================================================
+    // Pre-Trade tab
+    // ====================================================================
+    async function loadPreTradeTab() {
+        const data = await loadJSON('pretrade.json');
+        const loadingEl = document.getElementById('pretrade-loading');
+        const contentEl = document.getElementById('pretrade-content');
+        const errorEl = document.getElementById('pretrade-error');
+
+        if (!data) {
+            loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        renderPreTrade(data);
+    }
+
+    function renderPreTrade(data) {
+        const trade = data.new_trade;
+
+        document.getElementById('pretrade-trade-card').innerHTML = `
+            <div class="summary-card">
+                <div class="label">Trade Type</div>
+                <div class="value" style="font-size: 1.2rem;">${trade.type}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Notional</div>
+                <div class="value">${fmt(trade.notional)}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Currency</div>
+                <div class="value">${trade.currency}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Maturity</div>
+                <div class="value">${trade.maturity}Y</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Standalone IM</div>
+                <div class="value warning">${fmt(trade.standalone_im)}</div>
+            </div>
+        `;
+
+        const routing = data.routing;
+        const cpResults = routing.counterparty_results || [];
+
+        let tableHtml = `<table class="data-table">
+            <thead><tr><th>Counterparty</th><th>Current IM</th><th>Marginal IM</th><th>New IM</th><th>Netting %</th></tr></thead><tbody>`;
+
+        for (const r of cpResults) {
+            const isRec = r.counterparty === routing.recommended_counterparty;
+            tableHtml += `<tr class="${isRec ? 'highlight-row' : ''}">
+                <td>${r.counterparty} ${isRec ? '<span class="badge badge-success">Recommended</span>' : ''}</td>
+                <td>${fmt(r.current_im)}</td>
+                <td>${fmt(r.marginal_im)}</td>
+                <td>${fmt(r.new_im)}</td>
+                <td>${pct(r.netting_benefit_pct)}</td>
+            </tr>`;
+        }
+        tableHtml += '</tbody></table>';
+
+        if (routing.margin_savings) {
+            tableHtml += `<p style="margin-top: 1rem; color: var(--success); font-weight: 600;">
+                Margin savings vs worst option: ${fmt(routing.margin_savings)}</p>`;
+        }
+
+        document.getElementById('pretrade-routing-table').innerHTML = tableHtml;
+        renderRoutingChart(cpResults, routing.recommended_counterparty);
+
+        const bvc = data.bilateral_vs_cleared;
+        if (bvc) renderBilateralVsCleared(bvc);
+    }
+
+    let routingChartInstance = null;
+    function renderRoutingChart(results, recommended) {
+        if (!results.length) return;
+        if (routingChartInstance) routingChartInstance.destroy();
+
+        routingChartInstance = new Chart(document.getElementById('routingChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: results.map(r => r.counterparty),
+                datasets: [{
+                    label: 'Marginal IM ($M)',
+                    data: results.map(r => r.marginal_im / 1e6),
+                    backgroundColor: results.map(r =>
+                        r.counterparty === recommended ? 'rgba(34, 197, 94, 0.8)' : 'rgba(37, 99, 235, 0.6)'
+                    ),
+                    borderWidth: 0
+                }]
+            },
+            options: chartOptions()
+        });
+    }
+
+    function renderBilateralVsCleared(bvc) {
+        const isClearBetter = bvc.recommendation === 'CLEAR';
+        const isBilateralBetter = bvc.recommendation === 'BILATERAL';
+
+        let badgeClass, badgeText;
+        if (bvc.recommendation === 'CLEAR') { badgeClass = 'badge-success'; badgeText = 'CLEAR'; }
+        else if (bvc.recommendation === 'BILATERAL') { badgeClass = 'badge-primary'; badgeText = 'BILATERAL'; }
+        else { badgeClass = 'badge-warning'; badgeText = 'INDIFFERENT'; }
+
+        document.getElementById('pretrade-comparison').innerHTML = `
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <span class="badge ${badgeClass}" style="font-size: 1rem; padding: 0.4rem 1.5rem;">
+                    Recommendation: ${badgeText}
+                </span>
+            </div>
+            <div class="comparison-panels">
+                <div class="comparison-panel ${isBilateralBetter ? 'recommended' : ''}">
+                    <h3>Bilateral (${bvc.bilateral_counterparty})</h3>
+                    <div class="im-value" style="color: ${isBilateralBetter ? 'var(--success)' : 'var(--text-primary)'}">
+                        ${fmt(bvc.bilateral_marginal_im)}
+                    </div>
+                    <div style="color: var(--text-secondary);">ISDA SIMM Marginal IM</div>
+                </div>
+                <div class="comparison-panel ${isClearBetter ? 'recommended' : ''}">
+                    <h3>Cleared (${bvc.clearing_venue})</h3>
+                    <div class="im-value" style="color: ${isClearBetter ? 'var(--success)' : 'var(--text-primary)'}">
+                        ${fmt(bvc.cleared_marginal_im)}
+                    </div>
+                    <div style="color: var(--text-secondary);">CCP Marginal IM</div>
+                </div>
+            </div>
+            <div class="rationale-box">${bvc.rationale}</div>
+        `;
+    }
+
+    // ====================================================================
+    // Common chart options
+    // ====================================================================
+    function chartOptions(yLabel) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#f1f5f9' } }
+            },
+            scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: '#334155' },
+                    title: yLabel ? { display: true, text: yLabel, color: '#94a3b8' } : undefined
                 }
             }
-        });
+        };
+    }
+
+    // ====================================================================
+    // Boot
+    // ====================================================================
+    tabLoaded.optimization = true;
+    loadOptimizationTab();
     </script>
 </body>
 </html>
