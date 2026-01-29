@@ -271,7 +271,12 @@ def optimize_allocation_cuda(
     K = S.shape[1]
 
     x = initial_allocation.copy()
+    best_x = x.copy()
     im_history = []
+
+    # Backtracking line search parameters
+    LS_BETA = 0.5
+    LS_MAX_TRIES = 10
 
     eval_start = time.perf_counter()
 
@@ -285,21 +290,24 @@ def optimize_allocation_cuda(
     )
     total_im = float(np.sum(im_values))
     im_history.append(total_im)
+    best_im = total_im
 
     # Chain rule: dIM/dx[t,p] = sum_k (dIM_p/dS_p[k]) * S[t,k]
     # grad_S is (P, K), S is (T, K)
     # gradient[t,p] = sum_k grad_S[p,k] * S[t,k] = S @ grad_S.T
     gradient = np.dot(S, grad_S.T)  # (T, P)
 
-    # Auto learning rate
+    # Auto learning rate (conservative)
     grad_max = np.abs(gradient).max()
     if lr is None:
-        lr = 0.3 / grad_max if grad_max > 1e-10 else 1e-12
+        lr = 1.0 / grad_max if grad_max > 1e-10 else 1e-12
 
     if verbose:
         print(f"    Initial IM: ${total_im:,.2f}")
         print(f"    Gradient: max={grad_max:.2e}")
         print(f"    Learning rate: {lr:.2e}")
+
+    stalled_count = 0
 
     for iteration in range(max_iters):
         if iteration > 0:
@@ -315,33 +323,77 @@ def optimize_allocation_cuda(
 
             gradient = np.dot(S, grad_S.T)
 
+        # Track best solution
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+            stalled_count = 0
+        else:
+            stalled_count += 1
+
         if verbose and iteration % 10 == 0:
             moves = int(np.sum(np.argmax(x, axis=1) != np.argmax(initial_allocation, axis=1)))
-            print(f"    Iter {iteration}: IM = ${total_im:,.2f}, moves = {moves}")
+            print(f"    Iter {iteration}: IM = ${total_im:,.2f}, best = ${best_im:,.2f}, moves = {moves}")
 
-        # Gradient step
-        x_new = x - lr * gradient
+        # Early exit if stalled
+        if stalled_count >= 20:
+            if verbose:
+                print(f"    Stalled for {stalled_count} iterations, reverting to best")
+            x = best_x.copy()
+            break
 
-        # Project to simplex
-        x_new = _project_to_simplex(x_new)
+        # Monotone backtracking line search
+        step_size = lr
+        accepted = False
+
+        for _ in range(LS_MAX_TRIES):
+            x_candidate = _project_to_simplex(x - step_size * gradient)
+
+            agg_S_c = np.dot(S.T, x_candidate)
+            im_values_c, _ = compute_simm_and_gradient_cuda(
+                agg_S_c.T, risk_weights, risk_class_idx, device
+            )
+            candidate_im = float(np.sum(im_values_c))
+
+            if candidate_im < total_im:
+                x = x_candidate
+                accepted = True
+                break
+
+            step_size *= LS_BETA
 
         # Check convergence
-        if iteration > 0:
+        if iteration > 0 and len(im_history) >= 2:
             rel_change = abs(im_history[-1] - im_history[-2]) / max(abs(im_history[-2]), 1e-10)
-            alloc_change = np.abs(x_new - x).max()
-            if rel_change < tol and alloc_change < 1e-6:
+            if rel_change < tol:
                 if verbose:
                     print(f"    Converged at iteration {iteration + 1}")
                 break
 
-        x = x_new
+    # Round to integer allocation
+    rounded_x = np.zeros_like(best_x)
+    for t in range(T):
+        rounded_x[t, np.argmax(best_x[t])] = 1.0
+
+    # Greedy local search on integer allocation
+    if verbose:
+        print(f"    Running greedy local search...")
+    greedy_x, greedy_im, greedy_moves = _greedy_local_search_cuda(
+        S, rounded_x, risk_weights, risk_class_idx, device,
+        max_rounds=max_iters, verbose=verbose,
+    )
+
+    if greedy_im < best_im:
+        best_x = greedy_x
+        best_im = greedy_im
 
     eval_time = time.perf_counter() - eval_start
 
-    if verbose and iteration == max_iters - 1:
+    if verbose and stalled_count < 20 and iteration == max_iters - 1:
         print(f"    Reached max iterations ({max_iters})")
 
-    return x, im_history, iteration + 1, eval_time
+    # Always return best solution seen
+    return best_x, im_history, iteration + 1, eval_time
 
 
 def _project_to_simplex(x: np.ndarray) -> np.ndarray:
@@ -362,6 +414,98 @@ def _project_to_simplex(x: np.ndarray) -> np.ndarray:
             result[t] = np.maximum(v - theta, 0)
 
     return result
+
+
+def _greedy_local_search_cuda(
+    S: np.ndarray,
+    integer_allocation: np.ndarray,
+    risk_weights: np.ndarray,
+    risk_class_idx: np.ndarray,
+    device: int = 0,
+    max_rounds: int = 50,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, float, int]:
+    """
+    Gradient-guided greedy local search for CUDA optimizer.
+
+    Uses gradient to identify promising single-trade moves, verifies each
+    with actual IM evaluation.
+
+    Returns:
+        (improved_allocation, final_im, total_moves)
+    """
+    T, P = integer_allocation.shape
+    x = integer_allocation.copy()
+    total_moves = 0
+
+    # Initial evaluation
+    agg_S_T = (S.T @ x).T
+    im_values, grad_S = compute_simm_and_gradient_cuda(
+        agg_S_T, risk_weights, risk_class_idx, device
+    )
+    current_im = float(np.sum(im_values))
+    gradient = np.dot(S, grad_S.T)
+
+    for round_idx in range(max_rounds):
+        current_assignments = np.argmax(x, axis=1)
+        current_grads = gradient[np.arange(T), current_assignments]
+        best_targets = np.argmin(gradient, axis=1)
+
+        mask = best_targets != current_assignments
+        if not np.any(mask):
+            break
+
+        candidate_indices = np.where(mask)[0]
+        expected_improvement = current_grads - np.min(gradient, axis=1)
+        sorted_candidates = candidate_indices[
+            np.argsort(expected_improvement[candidate_indices])[::-1]
+        ]
+
+        accepted = False
+        max_tries = min(len(sorted_candidates), T // 5 + 5)
+
+        for try_idx in range(max_tries):
+            t = sorted_candidates[try_idx]
+            from_p = current_assignments[t]
+            to_p = best_targets[t]
+
+            x[t, :] = 0.0
+            x[t, to_p] = 1.0
+
+            agg_S_T_c = (S.T @ x).T
+            im_values_c, _ = compute_simm_and_gradient_cuda(
+                agg_S_T_c, risk_weights, risk_class_idx, device
+            )
+            candidate_im = float(np.sum(im_values_c))
+
+            if candidate_im < current_im:
+                improvement = current_im - candidate_im
+                current_im = candidate_im
+                total_moves += 1
+                accepted = True
+
+                if verbose:
+                    print(f"    Greedy round {round_idx+1}: move trade {t} "
+                          f"(p{from_p}->p{to_p}), IM -${improvement:,.0f}")
+
+                # Recompute gradient
+                agg_S_T = (S.T @ x).T
+                im_values, grad_S = compute_simm_and_gradient_cuda(
+                    agg_S_T, risk_weights, risk_class_idx, device
+                )
+                gradient = np.dot(S, grad_S.T)
+                break
+            else:
+                x[t, :] = 0.0
+                x[t, from_p] = 1.0
+
+        if not accepted:
+            break
+
+    if verbose and total_moves > 0:
+        print(f"    Greedy search: {total_moves} moves, final IM ${current_im:,.2f}")
+
+    return x, current_im, total_moves
 
 
 def _round_to_integer(x: np.ndarray) -> np.ndarray:

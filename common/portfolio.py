@@ -40,7 +40,9 @@ LOG_COLUMNS = [
     "trade_types",
     "num_trades", "num_simm_buckets", "num_portfolios", "num_threads",
     # Timing
-    "crif_time_sec", "simm_time_sec", "im_sens_time_sec",
+    "crif_time_sec", "crif_kernel_recording_sec",
+    "simm_time_sec",
+    "im_sens_time_sec", "im_kernel_recording_sec",
     # Group and results
     "group_id", "num_group_trades",
     "im_result",
@@ -65,6 +67,7 @@ LOG_COLUMNS = [
     "optimize_iterations",
     "optimize_im_reduction_pct",
     "optimize_converged",
+    "optimize_max_iters",
     "status",
 ]
 
@@ -93,8 +96,8 @@ def parse_common_args(description: str) -> argparse.Namespace:
     parser.add_argument("--optimize", action="store_true",
                         help="Run full allocation optimization (AADC only)")
     parser.add_argument("--method", type=str, default="auto",
-                        choices=["auto", "gradient_descent", "greedy"],
-                        help="Optimization method: auto (picks based on size), gradient_descent, greedy")
+                        choices=["auto", "gradient_descent", "adam", "bfgs", "greedy"],
+                        help="Optimization method: auto (picks based on size), gradient_descent, adam, bfgs, greedy")
     parser.add_argument("--allow-partial", action="store_true",
                         help="Allow partial trade allocation across portfolios")
     parser.add_argument("--max-iters", type=int, default=100,
@@ -285,8 +288,10 @@ def print_results_table(group_results: List[dict], num_trades_actual: int):
     print("-" * 74)
     total_im = 0.0
     total_crif_time = 0.0
+    total_crif_kernel_recording = 0.0
     total_simm_time = 0.0
     total_grad_time = 0.0
+    total_im_kernel_recording = 0.0
     total_num_sens = 0
     for res in group_results:
         print(f"  {res['group_id']:<5} {res['num_group_trades']:>6} "
@@ -295,8 +300,10 @@ def print_results_table(group_results: List[dict], num_trades_actual: int):
               f"{res['im_sens_time_sec']:>10.3f}")
         total_im += res["im_result"]
         total_crif_time += res["crif_time_sec"]
+        total_crif_kernel_recording += res.get("crif_kernel_recording_sec", 0.0)
         total_simm_time += res["simm_time_sec"]
         total_grad_time += res["im_sens_time_sec"]
+        total_im_kernel_recording += res.get("im_kernel_recording_sec", 0.0)
         total_num_sens += res["num_im_sensitivities"]
     print("-" * 74)
     print(f"  {'ALL':<5} {num_trades_actual:>6} "
@@ -308,8 +315,10 @@ def print_results_table(group_results: List[dict], num_trades_actual: int):
     return {
         "total_im": total_im,
         "total_crif_time": total_crif_time,
+        "total_crif_kernel_recording": total_crif_kernel_recording,
         "total_simm_time": total_simm_time,
         "total_grad_time": total_grad_time,
+        "total_im_kernel_recording": total_im_kernel_recording,
         "total_num_sens": total_num_sens,
     }
 
@@ -349,8 +358,10 @@ def build_log_rows(
             "num_group_trades": res["num_group_trades"],
             "im_result": res["im_result"],
             "crif_time_sec": res["crif_time_sec"],
+            "crif_kernel_recording_sec": res.get("crif_kernel_recording_sec", ""),
             "simm_time_sec": res["simm_time_sec"],
             "im_sens_time_sec": res["im_sens_time_sec"],
+            "im_kernel_recording_sec": res.get("im_kernel_recording_sec", ""),
             "num_im_sensitivities": res["num_im_sensitivities"],
             "reallocate_n": res.get("reallocate_n", ""),
             "reallocate_time_sec": res.get("reallocate_time_sec", ""),
@@ -369,6 +380,7 @@ def build_log_rows(
             "optimize_iterations": res.get("optimize_iterations", ""),
             "optimize_im_reduction_pct": res.get("optimize_im_reduction_pct", ""),
             "optimize_converged": res.get("optimize_converged", ""),
+            "optimize_max_iters": res.get("optimize_max_iters", ""),
             "status": "success",
         }
         log_rows.append(row)
@@ -387,8 +399,10 @@ def build_log_rows(
         "num_group_trades": num_trades_actual,
         "im_result": totals["total_im"],
         "crif_time_sec": totals["total_crif_time"],
+        "crif_kernel_recording_sec": totals.get("total_crif_kernel_recording", ""),
         "simm_time_sec": totals["total_simm_time"],
         "im_sens_time_sec": totals["total_grad_time"],
+        "im_kernel_recording_sec": totals.get("total_im_kernel_recording", ""),
         "num_im_sensitivities": totals["total_num_sens"],
         "reallocate_n": totals.get("reallocate_n", ""),
         "reallocate_time_sec": totals.get("reallocate_time_sec", ""),
@@ -407,6 +421,7 @@ def build_log_rows(
         "optimize_iterations": totals.get("optimize_iterations", ""),
         "optimize_im_reduction_pct": totals.get("optimize_im_reduction_pct", ""),
         "optimize_converged": totals.get("optimize_converged", ""),
+        "optimize_max_iters": totals.get("optimize_max_iters", ""),
         "status": "success",
     }
     log_rows.append(agg_row)

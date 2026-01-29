@@ -824,8 +824,16 @@
                 <p>Loading Pre-Trade analytics data...</p>
             </div>
             <div id="pretrade-content" style="display: none;">
-                <div id="pretrade-trade-card" class="summary-cards" style="margin-bottom: 2rem;"></div>
+                <!-- Portfolio & New Trade Summary -->
+                <div id="pretrade-portfolio-banner" class="perf-banner" style="margin-bottom: 2rem;"></div>
 
+                <!-- Section 1: Marginal IM with AADC Timing -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <h2>Marginal IM &mdash; AADC vs Baseline</h2>
+                    <div id="pretrade-marginal-im"></div>
+                </div>
+
+                <!-- Section 2: Counterparty Routing -->
                 <div class="grid" style="margin-bottom: 2rem;">
                     <div class="card">
                         <h2>Counterparty Routing Analysis</h2>
@@ -839,6 +847,7 @@
                     </div>
                 </div>
 
+                <!-- Section 3: Bilateral vs Cleared -->
                 <div class="card">
                     <h2>Bilateral vs Cleared Comparison</h2>
                     <div id="pretrade-comparison"></div>
@@ -1449,44 +1458,112 @@
 
     function renderPreTrade(data) {
         const trade = data.new_trade;
+        const portfolio = data.portfolio || {};
+        const marginal = data.marginal_im || {};
+        const timing = marginal.timing || {};
+        const aadcTiming = timing.aadc || {};
 
-        document.getElementById('pretrade-trade-card').innerHTML = `
-            <div class="summary-card">
-                <div class="label">Trade Type</div>
-                <div class="value" style="font-size: 1.2rem;">${trade.type}</div>
+        // ---- Portfolio & New Trade Banner ----
+        document.getElementById('pretrade-portfolio-banner').innerHTML = `
+            <div class="perf-card">
+                <div class="perf-value">${(portfolio.num_trades || 0).toLocaleString()}</div>
+                <div class="perf-label">Portfolio Trades</div>
             </div>
-            <div class="summary-card">
-                <div class="label">Notional</div>
-                <div class="value">${fmt(trade.notional)}</div>
+            <div class="perf-card">
+                <div class="perf-value">${portfolio.num_risk_factors || 0}</div>
+                <div class="perf-label">Risk Factors</div>
             </div>
-            <div class="summary-card">
-                <div class="label">Currency</div>
-                <div class="value">${trade.currency}</div>
+            <div class="perf-card">
+                <div class="perf-value">${fmt(portfolio.current_im)}</div>
+                <div class="perf-label">Current IM</div>
             </div>
-            <div class="summary-card">
-                <div class="label">Maturity</div>
-                <div class="value">${trade.maturity}Y</div>
+            <div class="perf-card">
+                <div class="perf-value accent">${trade.type}</div>
+                <div class="perf-label">New Trade</div>
+                <div class="perf-detail">${fmt(trade.notional)} ${trade.currency} ${trade.maturity}Y</div>
             </div>
-            <div class="summary-card">
-                <div class="label">Standalone IM</div>
-                <div class="value warning">${fmt(trade.standalone_im)}</div>
+            <div class="perf-card">
+                <div class="perf-value warning">${fmt(trade.standalone_im)}</div>
+                <div class="perf-label">Standalone IM</div>
             </div>
         `;
 
+        // ---- Marginal IM with AADC Timing ----
+        const speedup = timing.speedup || 'N/A';
+        const baselineMs = timing.baseline_full_recalc_ms || 0;
+
+        document.getElementById('pretrade-marginal-im').innerHTML = `
+            <div class="comparison-panels" style="margin-bottom: 1.5rem;">
+                <div class="comparison-panel">
+                    <h3 style="color: var(--warning);">Before</h3>
+                    <div class="im-value">${fmt(marginal.im_before)}</div>
+                    <div style="color: var(--text-secondary);">Portfolio IM</div>
+                </div>
+                <div class="comparison-panel">
+                    <h3 style="color: var(--success);">After Adding Trade</h3>
+                    <div class="im-value" style="color: var(--success);">${fmt(marginal.im_after)}</div>
+                    <div style="color: var(--text-secondary);">Marginal IM: ${fmt(marginal.marginal_im)}</div>
+                </div>
+            </div>
+
+            <div class="speedup-callout">
+                AADC computes marginal IM in <strong>${(aadcTiming.total_ms || 0).toFixed(1)} ms</strong>
+                vs baseline full recalculation in <strong>${baselineMs.toFixed(1)} ms</strong>
+                &mdash; <strong>${speedup}</strong> speedup
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div>
+                    <h3 style="font-size: 1rem; margin-bottom: 0.75rem; color: var(--success);">AADC Timing Breakdown</h3>
+                    <table class="data-table">
+                        <tbody>
+                            <tr><td>Kernel Recording</td><td style="text-align: right; font-weight: 600; color: var(--primary);">${(aadcTiming.kernel_recording_ms || 0).toFixed(1)} ms</td></tr>
+                            <tr><td>Gradient Evaluation</td><td style="text-align: right; font-weight: 600; color: var(--primary);">${(aadcTiming.gradient_eval_ms || 0).toFixed(1)} ms</td></tr>
+                            <tr><td>Marginal IM (dot product)</td><td style="text-align: right; font-weight: 600; color: var(--primary);">${(aadcTiming.marginal_im_ms || 0).toFixed(2)} ms</td></tr>
+                            <tr class="highlight-row"><td><strong>AADC Total</strong></td><td style="text-align: right; font-weight: 700; color: var(--success);"><strong>${(aadcTiming.total_ms || 0).toFixed(1)} ms</strong></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h3 style="font-size: 1rem; margin-bottom: 0.75rem; color: var(--warning);">Baseline (Full Recalculation)</h3>
+                    <table class="data-table">
+                        <tbody>
+                            <tr><td>Full SIMM Recalculation</td><td style="text-align: right; font-weight: 600; color: var(--warning);">${baselineMs.toFixed(1)} ms</td></tr>
+                            <tr><td colspan="2" style="color: var(--text-secondary); font-size: 0.85rem; padding-top: 0.75rem;">
+                                Recomputes entire SIMM aggregation with ${portfolio.num_risk_factors || 0} risk factors after adding the new trade.
+                                AADC avoids this by reusing the pre-computed gradient.
+                            </td></tr>
+                        </tbody>
+                    </table>
+                    <div style="margin-top: 1rem; text-align: center; padding: 0.75rem; background: rgba(34,197,94,0.08); border-radius: 8px; border: 1px solid rgba(34,197,94,0.2);">
+                        <span style="font-size: 1.4rem; font-weight: 700; color: var(--success);">${speedup}</span>
+                        <span style="color: var(--text-secondary); margin-left: 0.5rem;">faster</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // ---- Counterparty Routing ----
         const routing = data.routing;
         const cpResults = routing.counterparty_results || [];
 
         let tableHtml = `<table class="data-table">
-            <thead><tr><th>Counterparty</th><th>Current IM</th><th>Marginal IM</th><th>New IM</th><th>Netting %</th></tr></thead><tbody>`;
+            <thead><tr>
+                <th>Counterparty</th><th>Trades</th><th>Current IM</th><th>Marginal IM</th><th>New IM</th><th>Netting %</th><th>AADC Time</th>
+            </tr></thead><tbody>`;
 
         for (const r of cpResults) {
             const isRec = r.counterparty === routing.recommended_counterparty;
+            const cpTiming = r.timing || {};
+            const cpTotal = (cpTiming.kernel_recording_ms || 0) + (cpTiming.gradient_eval_ms || 0) + (cpTiming.marginal_im_ms || 0);
             tableHtml += `<tr class="${isRec ? 'highlight-row' : ''}">
-                <td>${r.counterparty} ${isRec ? '<span class="badge badge-success">Recommended</span>' : ''}</td>
+                <td>${r.counterparty} ${isRec ? '<span class="badge badge-success">Best</span>' : ''}</td>
+                <td>${(r.num_trades || 0).toLocaleString()}</td>
                 <td>${fmt(r.current_im)}</td>
-                <td>${fmt(r.marginal_im)}</td>
+                <td style="color: ${r.marginal_im < 0 ? 'var(--success)' : 'var(--danger)'}; font-weight: 600;">${fmt(r.marginal_im)}</td>
                 <td>${fmt(r.new_im)}</td>
                 <td>${pct(r.netting_benefit_pct)}</td>
+                <td style="color: var(--text-secondary);">${cpTotal.toFixed(0)} ms</td>
             </tr>`;
         }
         tableHtml += '</tbody></table>';
@@ -1494,6 +1571,10 @@
         if (routing.margin_savings) {
             tableHtml += `<p style="margin-top: 1rem; color: var(--success); font-weight: 600;">
                 Margin savings vs worst option: ${fmt(routing.margin_savings)}</p>`;
+        }
+        if (routing.computation_time_ms) {
+            tableHtml += `<p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.85rem;">
+                Total routing computation: ${routing.computation_time_ms.toFixed(0)} ms for ${cpResults.length} counterparties</p>`;
         }
 
         document.getElementById('pretrade-routing-table').innerHTML = tableHtml;
@@ -1513,15 +1594,15 @@
             data: {
                 labels: results.map(r => r.counterparty),
                 datasets: [{
-                    label: 'Marginal IM ($M)',
-                    data: results.map(r => r.marginal_im / 1e6),
+                    label: 'Marginal IM ($B)',
+                    data: results.map(r => r.marginal_im / 1e9),
                     backgroundColor: results.map(r =>
                         r.counterparty === recommended ? 'rgba(34, 197, 94, 0.8)' : 'rgba(37, 99, 235, 0.6)'
                     ),
                     borderWidth: 0
                 }]
             },
-            options: chartOptions()
+            options: chartOptions('Marginal IM ($B)')
         });
     }
 

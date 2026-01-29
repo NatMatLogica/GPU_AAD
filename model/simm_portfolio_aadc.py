@@ -2323,13 +2323,13 @@ def main():
         # 2. Run SIMM
         portfolio, base_im, simm_time = run_simm(group_crif)
         group_ims[group] = base_im
-        group_meta[group] = (num_group_trades, crif_time, simm_time, base_im)
+        group_meta[group] = (num_group_trades, crif_time, crif_record_time, simm_time, base_im)
 
     _v2_kernel_state = None
 
     # Phase 2: Compute IM gradients using v2 kernel (K risk-factor inputs)
     # Single kernel with K inputs evaluated once for ALL portfolios simultaneously
-    groups_needing_gradient = [g for g in group_meta if group_meta[g][3] > 0.0]
+    groups_needing_gradient = [g for g in group_meta if group_meta[g][4] > 0.0]
 
     if groups_needing_gradient:
         from model.simm_portfolio_aadc_v2 import (
@@ -2372,9 +2372,11 @@ def main():
 
         # Record v2 full kernel (K inputs - much smaller than N CRIF rows)
         print(f"  Recording v2 kernel: K={K} risk factor inputs (vs N={len(combined_crif)} CRIF rows)")
+        im_kernel_record_start = time.perf_counter()
         funcs, sens_handles, im_output = record_single_portfolio_simm_kernel_v2_full(
             K, factor_metadata
         )
+        im_kernel_recording_sec = time.perf_counter() - im_kernel_record_start
 
         # Create shared ThreadPool
         workers = aadc.ThreadPool(num_threads)
@@ -2406,7 +2408,7 @@ def main():
             grad_matrix_kp[k, :] = results[1][im_output][sens_handles[k]]
 
         for idx, group in enumerate(groups_needing_gradient):
-            base_im = group_meta[group][3]
+            base_im = group_meta[group][4]
 
             # Map v2 gradient (dIM_g/dAggS[k]) to CRIF-row gradient (dIM_g/dAmount[i])
             group_crif = group_crifs[group]
@@ -2454,22 +2456,30 @@ def main():
         }
 
     # Phase 3: Build group results
+    # im_kernel_recording_sec is shared across all groups (single kernel for all portfolios)
+    im_kernel_rec = im_kernel_recording_sec if groups_needing_gradient else 0.0
+    per_group_im_kernel_rec = im_kernel_rec / len(groups_needing_gradient) if groups_needing_gradient else 0.0
+
     for group in group_meta:
-        num_group_trades, crif_time, simm_time, base_im = group_meta[group]
+        num_group_trades, crif_time, crif_rec_time, simm_time, base_im = group_meta[group]
         if group in groups_needing_gradient:
             grad_time = per_group_grad_time
             num_sens = len(group_gradients[group])
+            group_im_kernel_rec = per_group_im_kernel_rec
         else:
             grad_time = 0.0
             num_sens = 0
+            group_im_kernel_rec = 0.0
 
         group_results.append({
             "group_id": group,
             "num_group_trades": num_group_trades,
             "im_result": base_im,
             "crif_time_sec": crif_time,
+            "crif_kernel_recording_sec": crif_rec_time,
             "simm_time_sec": simm_time,
             "im_sens_time_sec": grad_time,
+            "im_kernel_recording_sec": group_im_kernel_rec,
             "num_im_sensitivities": num_sens,
         })
 
@@ -2570,6 +2580,62 @@ def main():
             res["im_realloc_estimate"] = realloc_result.get("im_estimate", "")
             res["realloc_estimate_matches"] = realloc_result.get("matches", "")
 
+    # Write optimization history sidecar (for visualization)
+    if opt_result is not None and opt_result.get('im_history'):
+        import json as _json
+        history_dir = Path(__file__).parent.parent / "data" / "optimization_history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+
+        # Per-config filename
+        types_slug = trade_types_str.replace(',', '_')
+        history_filename = f"{types_slug}_{num_trades_actual}t_{num_portfolios}p.json"
+        history_file = history_dir / history_filename
+
+        initial_assignments = np.argmax(initial_allocation, axis=1).tolist()
+        final_assignments = np.argmax(opt_result['final_allocation'], axis=1).tolist()
+        movements = []
+        for i, tid in enumerate(opt_result.get('trade_ids', [])):
+            if initial_assignments[i] != final_assignments[i]:
+                movements.append({
+                    'trade_id': tid,
+                    'from_portfolio': initial_assignments[i],
+                    'to_portfolio': final_assignments[i],
+                })
+        history_data = {
+            'generated_at': totals.get('timestamp', ''),
+            'config': {
+                'trade_types': trade_types_str,
+                'num_trades': num_trades_actual,
+                'num_portfolios': num_portfolios,
+                'model_version': MODEL_VERSION,
+                'method': args.method,
+            },
+            'im_history': [float(x) for x in opt_result['im_history']],
+            'initial_im': float(opt_result['initial_im']),
+            'final_im': float(opt_result['final_im']),
+            'num_iterations': opt_result['num_iterations'],
+            'converged': opt_result['converged'],
+            'trades_moved': opt_result['trades_moved'],
+            'trade_ids': opt_result.get('trade_ids', []),
+            'initial_assignments': initial_assignments,
+            'final_assignments': final_assignments,
+            'movements': movements,
+            'v2_metrics': {k: float(v) for k, v in opt_result.get('v2_metrics', {}).items()},
+        }
+        with open(history_file, 'w') as f:
+            _json.dump(history_data, f, indent=2)
+        print(f"Optimization history written to {history_file}")
+
+        # Also write manifest listing all available history files
+        manifest_file = history_dir / "manifest.json"
+        manifest_entries = []
+        for hf in sorted(history_dir.glob("*.json")):
+            if hf.name == "manifest.json":
+                continue
+            manifest_entries.append(hf.name)
+        with open(manifest_file, 'w') as f:
+            _json.dump({"files": manifest_entries}, f, indent=2)
+
     # Add optimization info to totals (if used)
     if opt_result is not None:
         opt_reduction_pct = (1.0 - opt_result['final_im'] / opt_result['initial_im']) * 100 if opt_result['initial_im'] > 0 else 0.0
@@ -2581,6 +2647,7 @@ def main():
         totals["optimize_iterations"] = opt_result['num_iterations']
         totals["optimize_im_reduction_pct"] = opt_reduction_pct
         totals["optimize_converged"] = opt_result['converged']
+        totals["optimize_max_iters"] = args.max_iters
 
         # Also add to each group result for per-group log rows
         for res in group_results:
@@ -2592,6 +2659,7 @@ def main():
             res["optimize_iterations"] = opt_result['num_iterations']
             res["optimize_im_reduction_pct"] = opt_reduction_pct
             res["optimize_converged"] = opt_result['converged']
+            res["optimize_max_iters"] = args.max_iters
 
     # Timing summary
     total_time = totals["total_crif_time"] + totals["total_simm_time"] + totals["total_grad_time"]

@@ -31,7 +31,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
 # Version
-MODULE_VERSION = "2.0.0"
+MODULE_VERSION = "2.1.0"  # Fixed GD optimizer: Armijo line search, best-tracking, conservative lr
 
 try:
     import aadc
@@ -657,15 +657,27 @@ def optimize_allocation_gradient_descent_v2(
     workers: 'aadc.ThreadPool' = None,
 ) -> Tuple[np.ndarray, List[float], int, float]:
     """
-    Gradient descent with simplex projection using v2 optimized single-evaluate pattern.
+    Gradient descent with Armijo line search, best-tracking, and simplex projection.
+
+    Uses v2 optimized single-evaluate pattern for fast multi-portfolio evaluation.
+
+    Safeguards:
+    - Armijo backtracking line search guarantees each accepted step reduces IM
+    - Best-solution tracking reverts to best seen if stalled
+    - Never returns a solution worse than the initial allocation
 
     Returns:
         (optimal_allocation, im_history, num_iterations, total_eval_time)
     """
     x = initial_allocation.copy()
+    best_x = x.copy()
     im_history = []
     T, P = x.shape
     total_eval_time = 0.0
+
+    # Backtracking line search parameters
+    LS_BETA = 0.5         # Step size reduction factor
+    LS_MAX_TRIES = 10     # Max backtracking steps
 
     if workers is None:
         workers = aadc.ThreadPool(num_threads)
@@ -677,12 +689,16 @@ def optimize_allocation_gradient_descent_v2(
     total_im = float(np.sum(all_ims))
     im_history.append(total_im)
     total_eval_time += eval_time
+    best_im = total_im
 
     # Compute adaptive learning rate
+    # Must be large enough that lr * max_gradient_diff >= 1.0 to flip
+    # one-hot assignments through simplex projection. Start large,
+    # line search will backtrack if needed.
     grad_max = np.abs(gradient).max()
     if lr is None:
         if grad_max > 1e-10:
-            lr = 0.3 / grad_max
+            lr = 1.0 / grad_max
         else:
             lr = 1e-12
 
@@ -691,6 +707,8 @@ def optimize_allocation_gradient_descent_v2(
         print(f"    [v2] Gradient: max={grad_max:.2e}, mean={np.abs(gradient).mean():.2e}")
         print(f"    [v2] Learning rate: {lr:.2e}")
         print(f"    [v2] Single evaluate() time: {eval_time*1000:.2f} ms")
+
+    stalled_count = 0
 
     for iteration in range(max_iters):
         if iteration > 0:
@@ -701,33 +719,211 @@ def optimize_allocation_gradient_descent_v2(
             im_history.append(total_im)
             total_eval_time += eval_time
 
+        # Track best solution seen
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+            stalled_count = 0
+        else:
+            stalled_count += 1
+
         if verbose and iteration % 10 == 0:
             moves = int(np.sum(np.argmax(x, axis=1) != np.argmax(initial_allocation, axis=1)))
-            print(f"    [v2] Iter {iteration}: IM = ${total_im:,.2f}, moves = {moves}")
+            print(f"    [v2] Iter {iteration}: IM = ${total_im:,.2f}, best = ${best_im:,.2f}, moves = {moves}")
 
-        # Gradient step
-        x_new = x - lr * gradient
+        # Early exit if stalled for too long
+        if stalled_count >= 20:
+            if verbose:
+                print(f"    [v2] Stalled for {stalled_count} iterations, reverting to best")
+            x = best_x.copy()
+            break
 
-        # Project to simplex
-        x_new = project_to_simplex_v2(x_new)
+        # Monotone backtracking line search
+        # Accept any step that strictly decreases IM; halve step size if not
+        step_size = lr
+        accepted = False
+
+        for _ in range(LS_MAX_TRIES):
+            x_candidate = project_to_simplex_v2(x - step_size * gradient)
+
+            _, candidate_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+                funcs, sens_handles, im_output, S, x_candidate, num_threads, workers
+            )
+            candidate_im = float(np.sum(candidate_ims))
+            total_eval_time += eval_time
+
+            if candidate_im < total_im:
+                x = x_candidate
+                accepted = True
+                break
+
+            step_size *= LS_BETA
 
         # Check convergence
-        alloc_change = np.abs(x_new - x).max()
-        if iteration > 0:
+        if iteration > 0 and len(im_history) >= 2:
             rel_change = abs(im_history[-1] - im_history[-2]) / max(abs(im_history[-2]), 1e-10)
-            if rel_change < tol and alloc_change < 1e-6:
+            if rel_change < tol:
                 if verbose:
                     print(f"    [v2] Converged at iteration {iteration + 1}")
                     print(f"    [v2] Total eval time: {total_eval_time*1000:.2f} ms ({iteration+1} iterations)")
-                return x_new, im_history, iteration + 1, total_eval_time
-
-        x = x_new
+                return best_x, im_history, iteration + 1, total_eval_time
 
     if verbose:
-        print(f"    [v2] Reached max iterations ({max_iters})")
+        if stalled_count < 20:
+            print(f"    [v2] Reached max iterations ({max_iters})")
         print(f"    [v2] Total eval time: {total_eval_time*1000:.2f} ms")
 
-    return x, im_history, max_iters, total_eval_time
+    # Always return best solution seen
+    return best_x, im_history, max_iters, total_eval_time
+
+
+# =============================================================================
+# v2 Adam Optimizer
+# =============================================================================
+
+def optimize_allocation_adam_v2(
+    funcs: 'aadc.Functions',
+    sens_handles: List[int],
+    im_output: int,
+    S: np.ndarray,
+    initial_allocation: np.ndarray,
+    num_threads: int,
+    max_iters: int = 100,
+    lr: float = None,
+    tol: float = 1e-6,
+    verbose: bool = True,
+    workers: 'aadc.ThreadPool' = None,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+) -> Tuple[np.ndarray, List[float], int, float]:
+    """
+    Adam optimizer with simplex projection, backtracking line search, and best-tracking.
+
+    Uses adaptive per-parameter learning rates via exponential moving averages
+    of gradients (first moment) and squared gradients (second moment).
+
+    Returns:
+        (optimal_allocation, im_history, num_iterations, total_eval_time)
+    """
+    x = initial_allocation.copy()
+    best_x = x.copy()
+    im_history = []
+    T, P = x.shape
+    total_eval_time = 0.0
+
+    # Adam moment estimates
+    m = np.zeros_like(x)  # First moment (mean of gradients)
+    v = np.zeros_like(x)  # Second moment (mean of squared gradients)
+
+    # Backtracking line search parameters
+    LS_BETA = 0.5
+    LS_MAX_TRIES = 10
+
+    if workers is None:
+        workers = aadc.ThreadPool(num_threads)
+
+    # First evaluation
+    gradient, all_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+        funcs, sens_handles, im_output, S, x, num_threads, workers
+    )
+    total_im = float(np.sum(all_ims))
+    im_history.append(total_im)
+    total_eval_time += eval_time
+    best_im = total_im
+
+    # Compute adaptive learning rate
+    grad_max = np.abs(gradient).max()
+    if lr is None:
+        if grad_max > 1e-10:
+            lr = 1.0 / grad_max
+        else:
+            lr = 1e-12
+
+    if verbose:
+        print(f"    [v2-Adam] Initial IM: ${total_im:,.2f}")
+        print(f"    [v2-Adam] Gradient: max={grad_max:.2e}, mean={np.abs(gradient).mean():.2e}")
+        print(f"    [v2-Adam] Learning rate: {lr:.2e}")
+        print(f"    [v2-Adam] Single evaluate() time: {eval_time*1000:.2f} ms")
+
+    stalled_count = 0
+
+    for iteration in range(max_iters):
+        if iteration > 0:
+            gradient, all_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+                funcs, sens_handles, im_output, S, x, num_threads, workers
+            )
+            total_im = float(np.sum(all_ims))
+            im_history.append(total_im)
+            total_eval_time += eval_time
+
+        # Track best solution seen
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+            stalled_count = 0
+        else:
+            stalled_count += 1
+
+        if verbose and iteration % 10 == 0:
+            moves = int(np.sum(np.argmax(x, axis=1) != np.argmax(initial_allocation, axis=1)))
+            print(f"    [v2-Adam] Iter {iteration}: IM = ${total_im:,.2f}, best = ${best_im:,.2f}, moves = {moves}")
+
+        # Early exit if stalled for too long
+        if stalled_count >= 20:
+            if verbose:
+                print(f"    [v2-Adam] Stalled for {stalled_count} iterations, reverting to best")
+            x = best_x.copy()
+            break
+
+        # Adam moment updates
+        t_step = iteration + 1  # 1-indexed for bias correction
+        m = beta1 * m + (1 - beta1) * gradient
+        v = beta2 * v + (1 - beta2) * (gradient ** 2)
+
+        # Bias-corrected estimates
+        m_hat = m / (1 - beta1 ** t_step)
+        v_hat = v / (1 - beta2 ** t_step)
+
+        # Adam direction
+        adam_step = m_hat / (np.sqrt(v_hat) + eps)
+
+        # Monotone backtracking line search
+        step_size = lr
+        accepted = False
+
+        for _ in range(LS_MAX_TRIES):
+            x_candidate = project_to_simplex_v2(x - step_size * adam_step)
+
+            _, candidate_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+                funcs, sens_handles, im_output, S, x_candidate, num_threads, workers
+            )
+            candidate_im = float(np.sum(candidate_ims))
+            total_eval_time += eval_time
+
+            if candidate_im < total_im:
+                x = x_candidate
+                accepted = True
+                break
+
+            step_size *= LS_BETA
+
+        # Check convergence
+        if iteration > 0 and len(im_history) >= 2:
+            rel_change = abs(im_history[-1] - im_history[-2]) / max(abs(im_history[-2]), 1e-10)
+            if rel_change < tol:
+                if verbose:
+                    print(f"    [v2-Adam] Converged at iteration {iteration + 1}")
+                    print(f"    [v2-Adam] Total eval time: {total_eval_time*1000:.2f} ms ({iteration+1} iterations)")
+                return best_x, im_history, iteration + 1, total_eval_time
+
+    if verbose:
+        if stalled_count < 20:
+            print(f"    [v2-Adam] Reached max iterations ({max_iters})")
+        print(f"    [v2-Adam] Total eval time: {total_eval_time*1000:.2f} ms")
+
+    # Always return best solution seen
+    return best_x, im_history, max_iters, total_eval_time
 
 
 # =============================================================================

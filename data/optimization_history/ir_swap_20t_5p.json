@@ -1,0 +1,124 @@
+{
+  "generated_at": "",
+  "config": {
+    "trade_types": "ir_swap",
+    "num_trades": 20,
+    "num_portfolios": 5,
+    "model_version": "5.0.0",
+    "method": "bfgs"
+  },
+  "im_history": [
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377,
+    227106019404.8377
+  ],
+  "initial_im": 227106019404.8377,
+  "final_im": 93896387183.80031,
+  "num_iterations": 50,
+  "converged": false,
+  "trades_moved": 4,
+  "trade_ids": [
+    "IR_SWAP_000000",
+    "IR_SWAP_000001",
+    "IR_SWAP_000002",
+    "IR_SWAP_000003",
+    "IR_SWAP_000004",
+    "IR_SWAP_000005",
+    "IR_SWAP_000006",
+    "IR_SWAP_000007",
+    "IR_SWAP_000008",
+    "IR_SWAP_000009",
+    "IR_SWAP_000010",
+    "IR_SWAP_000011",
+    "IR_SWAP_000012",
+    "IR_SWAP_000013",
+    "IR_SWAP_000014",
+    "IR_SWAP_000015",
+    "IR_SWAP_000016",
+    "IR_SWAP_000017",
+    "IR_SWAP_000018",
+    "IR_SWAP_000019"
+  ],
+  "initial_assignments": [
+    3,
+    4,
+    2,
+    4,
+    4,
+    1,
+    2,
+    2,
+    2,
+    4,
+    3,
+    2,
+    4,
+    1,
+    3,
+    1,
+    3,
+    4,
+    0,
+    3
+  ],
+  "final_assignments": [
+    3,
+    4,
+    4,
+    4,
+    4,
+    0,
+    2,
+    2,
+    2,
+    4,
+    3,
+    2,
+    4,
+    3,
+    3,
+    2,
+    3,
+    4,
+    0,
+    3
+  ],
+  "movements": [
+    {
+      "trade_id": "IR_SWAP_000002",
+      "from_portfolio": 2,
+      "to_portfolio": 4
+    },
+    {
+      "trade_id": "IR_SWAP_000005",
+      "from_portfolio": 1,
+      "to_portfolio": 0
+    },
+    {
+      "trade_id": "IR_SWAP_000013",
+      "from_portfolio": 1,
+      "to_portfolio": 3
+    },
+    {
+      "trade_id": "IR_SWAP_000015",
+      "from_portfolio": 1,
+      "to_portfolio": 2
+    }
+  ],
+  "v2_metrics": {
+    "crif_time": 2.5637186095118523,
+    "kernel_time": 0.15245461277663708,
+    "opt_time": 0.4306302759796381,
+    "greedy_time": 0.029115725308656693,
+    "greedy_moves": 5.0,
+    "total_eval_time": 0.26611512526869774,
+    "avg_eval_time": 0.005322302505373955
+  }
+}

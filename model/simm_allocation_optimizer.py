@@ -561,13 +561,9 @@ def optimize_allocation_gradient_descent_efficient(
     im_history = []
     T, P = x.shape
 
-    # Armijo line search parameters
-    ARMIJO_C = 1e-4       # Sufficient decrease parameter
-    ARMIJO_BETA = 0.5     # Step size reduction factor
-    ARMIJO_MAX_TRIES = 10 # Max backtracking steps before giving up
-
-    # Momentum parameter
-    MOMENTUM_BETA = 0.9
+    # Backtracking line search parameters
+    LS_BETA = 0.5         # Step size reduction factor
+    LS_MAX_TRIES = 10     # Max backtracking steps
 
     # Create a single ThreadPool for all iterations (5-10% speedup)
     if workers is None:
@@ -584,9 +580,9 @@ def optimize_allocation_gradient_descent_efficient(
     grad_max = np.abs(gradient).max()
     if lr is None:
         if grad_max > 1e-10:
-            # Target step size ~0.05 (5% allocation change per iteration)
-            # Conservative to avoid overshooting; Armijo will allow larger steps
-            lr = 0.05 / grad_max
+            # Must be large enough to flip one-hot assignments through
+            # simplex projection. Line search will backtrack if needed.
+            lr = 1.0 / grad_max
         else:
             lr = 1e-12
 
@@ -595,8 +591,6 @@ def optimize_allocation_gradient_descent_efficient(
         print(f"    Gradient: max={grad_max:.2e}, mean={np.abs(gradient).mean():.2e}")
         print(f"    Learning rate: {lr:.2e}")
 
-    # Initialize momentum buffer
-    velocity = np.zeros_like(gradient)
     stalled_count = 0
 
     for iteration in range(max_iters):
@@ -625,39 +619,22 @@ def optimize_allocation_gradient_descent_efficient(
             x = best_x.copy()
             break
 
-        # Momentum-smoothed descent direction
-        velocity = MOMENTUM_BETA * velocity + (1.0 - MOMENTUM_BETA) * gradient
-        direction = velocity
-
-        # Armijo backtracking line search
-        # Find step_size such that f(x - step * dir) <= f(x) - c * step * ||dir||^2
-        directional_deriv = np.sum(gradient * direction)  # Should be positive (gradient aligned with direction)
+        # Monotone backtracking line search
         step_size = lr
         accepted = False
 
-        for _ in range(ARMIJO_MAX_TRIES):
-            x_candidate = project_to_simplex(x - step_size * direction)
+        for _ in range(LS_MAX_TRIES):
+            x_candidate = project_to_simplex(x - step_size * gradient)
             _, candidate_im = compute_allocation_gradient_chainrule(
                 funcs, sens_handles, im_output, S, x_candidate, num_threads, workers
             )
 
-            # Armijo condition: sufficient decrease
-            if candidate_im <= total_im - ARMIJO_C * step_size * directional_deriv:
+            if candidate_im < total_im:
                 x = x_candidate
                 accepted = True
                 break
 
-            step_size *= ARMIJO_BETA
-
-        if not accepted:
-            # No step found that decreases IM; take a very small step anyway
-            # to avoid getting stuck, but don't worsen the solution
-            x_candidate = project_to_simplex(x - (lr * 0.01) * gradient)
-            _, candidate_im = compute_allocation_gradient_chainrule(
-                funcs, sens_handles, im_output, S, x_candidate, num_threads, workers
-            )
-            if candidate_im < total_im:
-                x = x_candidate
+            step_size *= LS_BETA
 
         # Check convergence
         if iteration > 0 and len(im_history) >= 2:

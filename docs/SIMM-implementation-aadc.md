@@ -159,17 +159,21 @@ gradient = S @ dIM_dS.T  # (T, P)
 
 ### 3.4 Implemented Use Cases
 
-| Use Case | Module | Method | AADC Advantage |
-|---|---|---|---|
-| CRIF generation (sensitivities) | `simm_portfolio_aadc.py` | `compute_crif_aadc()` | Single pass vs K bumps per trade |
-| Per-trade margin contribution (Euler) | `simm_portfolio_aadc.py` | `compute_trade_contributions()` | O(1) per trade via gradient dot product |
-| What-if: unwind top contributors | `whatif_analytics.py` | `whatif_unwind_top_contributors()` | AADC identifies contributors in O(N×K) |
-| What-if: add hedge | `whatif_analytics.py` | `whatif_add_hedge()` | Pre-computed gradient for marginal IM |
-| What-if: stress scenarios | `whatif_analytics.py` | `whatif_stress_scenario()` | Instant re-evaluation via kernel |
-| Counterparty routing (pre-trade) | `pretrade_analytics.py` | `analyze_trade_routing()` | O(1) marginal IM via gradient |
-| Bilateral vs cleared comparison | `pretrade_analytics.py` | `compare_bilateral_vs_cleared()` | Both SIMM and CCP IM in one pass |
-| Top-N trade reallocation (greedy) | `simm_portfolio_aadc.py` | `reallocate_trades()` | Gradient identifies best moves |
-| Full allocation optimization | `simm_allocation_optimizer.py` | `reallocate_trades_optimal()` | Gradient descent on IM surface |
+| Use Case | AADC Advantage |
+|---|---|
+| CRIF generation | Single pass vs K bumps/trade |
+| Euler margin attribution | O(1) per trade via gradient |
+| What-if: unwind/hedge/stress | Gradient or instant re-eval via kernel |
+| Counterparty routing | O(1) marginal IM per counterparty |
+| Bilateral vs cleared | Both IMs in one pass |
+| Greedy reallocation | Gradient identifies best moves |
+| Full optimization | Gradient descent on IM surface |
+
+Key functions: `compute_crif_aadc()`, `compute_trade_contributions()`,
+`whatif_unwind_top_contributors()`, `whatif_add_hedge()`,
+`whatif_stress_scenario()`, `analyze_trade_routing()`,
+`compare_bilateral_vs_cleared()`, `reallocate_trades()`,
+`reallocate_trades_optimal()`.
 
 ---
 
@@ -406,24 +410,7 @@ Measured with the Python AADC pipeline (`model/simm_portfolio_aadc.py`):
 | Batched evaluation (1000 portfolios) | ~3.3 μs each | Amortized via single `evaluate()` |
 | CRIF generation (IR swap, AADC) | ~0.8 ms/trade | vs ~12 ms/trade bump-and-revalue |
 
-### 6.3 IR Swap: Baseline vs AADC (Python, 100 Trades)
-
-Head-to-head on identical 100 IR swap trades, `price_with_greeks` mode (1 thread):
-
-| Metric | Baseline (bump-and-revalue) | AADC Python |
-|---|---|---|
-| Eval time (pricing) | 1.78 s | 0.04 s |
-| Greek computation | Included in eval (13 bumps × 100 trades) | 3.56 s (recording + adjoint) |
-| Total time | **1.78 s** | **3.60 s** |
-| Sensitivities computed | 1,200 (100 trades × 12 tenors) | 1,200 |
-| SIMM result | $993,168,368,386 | $993,168,368,386 |
-| Accuracy | Reference | Match to machine precision |
-
-Source: `data/execution_log.csv` rows for `ir_swap_baseline_py` v1.1.0 and `ir_swap_aadc_py` v1.1.0.
-
-Note: For single-trade-type pricing the baseline is competitive because bump-and-revalue is simple. AADC's advantage appears in the **gradient** use case (next sections).
-
-### 6.4 End-to-End Pipeline: Baseline vs AADC
+### 6.3 End-to-End Pipeline: Baseline vs AADC
 
 The decisive comparison — full pipeline including CRIF, SIMM, and **IM gradient** (`dIM/dSensitivity`):
 
@@ -451,15 +438,15 @@ Source: `data/execution_log_portfolio.csv` (2026-01-28), `simm_portfolio_baselin
 
 The gradient is where AADC dominates. The baseline needs one bump-and-revalue pass per sensitivity; AADC computes all gradients in a single adjoint pass per group. At 200 multi-asset trades with 830 sensitivities, the baseline gradient takes **~8.7 minutes** — and this scales linearly with trade count.
 
-### 6.5 Scaling: AADC v3.3.0 Pipeline at Production Sizes
+### 6.4 Scaling: AADC v3.3.0 Pipeline at Production Sizes
 
-| Config | Trades | Types | Portfolios | CRIF | SIMM | Gradient | Optimization | Total |
-|---|---|---|---|---|---|---|---|---|
-| Small | 100 | IR | 3 | 11.0 s | 1.8 s | 7.3 s | 13.5 s (20 iter) | **20.1 s** |
-| Medium | 500 | IR | 5 | 39.3 s | 2.9 s | 57.3 s | 45.8 s (100 iter) | **99.5 s** |
-| Large | 1,000 | IR+EQ | 5 | 52.4 s | 7.5 s | 76.5 s | — | **~136.3 s** |
-| Large-MA | 1,500 | IR+EQ+FX | 5 | 64.2 s | 7.7 s | 125.7 s | — | **197.6 s** |
-| XL | 3,000 | IR+EQ+FX | 10 | 130.0 s | 14.0 s | 316.3 s | 47.6 s (100 iter) | **~508 s** |
+| Config | CRIF | SIMM | Gradient | Optim. | Total |
+|---|---|---|---|---|---|
+| Small: 100 IR, 3 grp | 11.0 s | 1.8 s | 7.3 s | 13.5 s | **20.1 s** |
+| Med: 500 IR, 5 grp | 39.3 s | 2.9 s | 57.3 s | 45.8 s | **99.5 s** |
+| Large: 1K IR+EQ, 5 grp | 52.4 s | 7.5 s | 76.5 s | — | **~136 s** |
+| Large-MA: 1.5K multi, 5 grp | 64.2 s | 7.7 s | 125.7 s | — | **198 s** |
+| XL: 3K multi, 10 grp | 130.0 s | 14.0 s | 316.3 s | 47.6 s | **~508 s** |
 
 Source: `data/execution_log_portfolio.csv` (2026-01-27 to 2026-01-29), `simm_portfolio_aadc_py` v3.3.0. All runs on 8 AADC threads.
 
@@ -468,14 +455,14 @@ Key observations:
 - SIMM aggregation scales with number of sensitivities (~2.4ms per sensitivity per group)
 - Gradient dominates at larger scales; iterative reallocation (500 trades, 50 moves) is expensive due to gradient refresh after each batch
 
-### 6.6 Allocation Optimization Results (v3.3.0)
+### 6.5 Allocation Optimization Results (v3.3.0)
 
-| Config | Initial IM | Optimized IM | Reduction | Trades Moved | Iters | Converged | Time |
-|---|---|---|---|---|---|---|---|
-| 100 IR, 3 groups | $170.4B | $60.8B | **64.3%** | 10 | 20 | Yes | 13.5 s |
-| 100 IR, 3 groups (100 iter) | $170.4B | $60.6B | **64.5%** | 11 | 100 | No | 13.6 s |
-| 500 IR, 5 groups | $1,179.1B | $940.2B | **20.3%** | 23 | 100 | No | 53.3 s |
-| 500 IR, 5 groups (run 2) | $1,179.1B | $940.2B | **20.3%** | 23 | 100 | No | 45.8 s |
+| Config | Initial IM | Optimized IM | Reduction | Moved | Iters | Time |
+|---|---|---|---|---|---|---|
+| 100 IR, 3 grp | $170.4B | $60.8B | **64.3%** | 10 | 20 (conv.) | 13.5 s |
+| 100 IR, 3 grp (100 it) | $170.4B | $60.6B | **64.5%** | 11 | 100 | 13.6 s |
+| 500 IR, 5 grp | $1,179.1B | $940.2B | **20.3%** | 23 | 100 | 53.3 s |
+| 500 IR, 5 grp (run 2) | $1,179.1B | $940.2B | **20.3%** | 23 | 100 | 45.8 s |
 
 Source: `data/execution_log_portfolio.csv` (2026-01-27), `simm_portfolio_aadc_py` v3.3.0.
 
@@ -489,7 +476,7 @@ The 100-trade/3-group case converges early (20 iterations) with a **64.3% IM red
 
 > **Note**: The archived v4.0.0 produced 0% IM reduction (optimizer broken). The results above are from v3.3.0 which correctly implements the AADC chain rule for gradient computation.
 
-### 6.7 AADC Thread Scaling (v3.3.0, 100 IR Trades, 5 Portfolios)
+### 6.6 AADC Thread Scaling (v3.3.0, 100 IR Trades, 5 Portfolios)
 
 Systematic thread sweep on the AADC gradient pipeline (100 IR trades, 5 portfolios, 551 sensitivities).
 Source: `data/execution_log_portfolio.csv` (2026-01-27), `simm_portfolio_aadc_py` v3.3.0.
@@ -510,7 +497,7 @@ Source: `data/execution_log_portfolio.csv` (2026-01-27), thread sweep rows 55-96
 
 CRIF generation (kernel recording) shows slight *degradation* with more threads (10.8s → 11.7s), consistent with contention on the Python GIL during recording.
 
-### 6.8 CPU SIMM Throughput (Raw Aggregation, No Gradient)
+### 6.7 CPU SIMM Throughput (Raw Aggregation, No Gradient)
 
 Pure SIMM aggregation benchmark — evaluating the SIMM formula only (no CRIF, no gradient):
 
@@ -525,9 +512,9 @@ Pure SIMM aggregation benchmark — evaluating the SIMM formula only (no CRIF, n
 
 Source: `bench_results.txt`, `bench_aadc_test.txt`, `data/execution_log.csv`.
 
-AADC is ~300x slower than NumPy for raw SIMM evaluation — but that comparison misses the point. AADC's 40ms includes the **full gradient** (`dIM/dS` for all 20 risk factors). Computing the equivalent gradient via finite differences in NumPy would require 20 × 0.13ms = 2.6ms — still faster in this microbenchmark, but AADC gradients are **exact** (no bump-size sensitivity) and the cost advantage reverses at production scale (see Section 6.4).
+AADC is ~300x slower than NumPy for raw SIMM evaluation — but that comparison misses the point. AADC's 40ms includes the **full gradient** (`dIM/dS` for all 20 risk factors). Computing the equivalent gradient via finite differences in NumPy would require 20 × 0.13ms = 2.6ms — still faster in this microbenchmark, but AADC gradients are **exact** (no bump-size sensitivity) and the cost advantage reverses at production scale (see Section 6.3).
 
-### 6.9 Benchmark: AADC Python vs Acadia Java (SIMM v2.5)
+### 6.8 Benchmark: AADC Python vs Acadia Java (SIMM v2.5)
 
 Using identical sensitivity inputs (46 IR + 12 FX sensitivities from Acadia's official SIMM v2.5 unit tests):
 
@@ -541,28 +528,28 @@ IR matches to within 0.02% (rounding). FX discrepancy is -7.6%, attributable to 
 
 **Speed comparison (pure SIMM aggregation, no AADC gradient):**
 
-| Test | Sens | Python pandas (ms) | Java (ms) | Acadia Java (measured) | Java speedup |
-|---|---|---|---|---|---|
-| All_IR | 46 | 240.3 ± 16.4 | ~7.5 | 7.46 ± 4.60 | 113x |
-| All_FX | 12 | 61.8 ± 7.2 | ~1.5 | 1.52 ± 0.09 | 150x |
-| IR+FX | 58 | 246.8 ± 5.4 | ~6.3 | 6.28 ± 0.40 | 152x |
+| Test | Sens | Python (ms) | Java (ms) | Speedup |
+|---|---|---|---|---|
+| All_IR | 46 | 240.3 ± 16.4 | 7.46 ± 4.60 | 113x |
+| All_FX | 12 | 61.8 ± 7.2 | 1.52 ± 0.09 | 150x |
+| IR+FX | 58 | 246.8 ± 5.4 | 6.28 ± 0.40 | 152x |
 
 Source: `bench_out.txt` (50 iterations), `benchmark_results.md`.
 
 Java is 100-150x faster for raw SIMM aggregation due to JIT compilation vs Python/pandas overhead. However, the comparison is misleading: the Python engine's purpose is not raw SIMM speed, but providing **differentiable** evaluation.
 
-### 6.10 Where AADC Wins: Gradient Computation
+### 6.9 Where AADC Wins: Gradient Computation
 
-| Task | Acadia Java | Python (no AADC) | Python + AADC |
+| Task | Java | Python | Python+AADC |
 |---|---|---|---|
-| Single SIMM evaluation | 6.3 ms | 958 ms | 958 ms |
-| SIMM + full gradient (dIM/d all) | N/A | N/A | ~0.5 ms (recorded kernel) |
-| Gradient via finite differences | N × 6.3 ms | N × 958 ms | Single adjoint pass |
-| 1000 portfolio batch evaluation | 1000 × 6.3 = 6.3s | 1000 × 958 = 958s | ~3.3 ms total |
+| Single SIMM eval | 6.3 ms | 958 ms | 958 ms |
+| SIMM + gradient | N/A | N/A | ~0.5 ms |
+| Gradient (finite diff) | N × 6.3 ms | N × 958 ms | 1 adjoint pass |
+| 1000-portfolio batch | 6.3 s | 958 s | ~3.3 ms |
 
 For allocation optimization over T=1000 trades across P=5 portfolios, the gradient `dIM/d(allocation)` has 5,000 dimensions. Via finite differences in Java: 5,000 × 6.3ms = 31.5 seconds per iteration. Via AADC chain rule: ~1ms per iteration.
 
-### 6.11 Comprehensiveness Assessment
+### 6.10 Comprehensiveness Assessment
 
 **Data we have:**
 - C++ AADC kernel micro-benchmarks (sub-microsecond per trade) -- strong
@@ -573,19 +560,19 @@ For allocation optimization over T=1000 trades across P=5 portfolios, the gradie
 - Allocation optimization results at multiple scales -- available but mixed quality
 
 **Gaps for a comprehensive guide:**
-1. ~~**No thread scaling curves.**~~ **Closed.** Section 6.7 now has a full 1/2/4/8/16/32/64 thread sweep. Finding: no scaling benefit at 551 sensitivities / 5 portfolios (workload too small for thread overhead). Larger-scale sweeps would be useful.
-2. ~~**Optimizer convergence issues.**~~ **Fixed (v3.3.0).** Section 6.6 shows 64.3% IM reduction (100 IR, 3 groups) and 20.3% reduction (500 IR, 5 groups). Armijo line search, greedy rounding, and local search resolve the discretization gap.
+1. ~~**No thread scaling curves.**~~ **Closed.** Section 6.6 now has a full 1/2/4/8/16/32/64 thread sweep. Finding: no scaling benefit at 551 sensitivities / 5 portfolios (workload too small for thread overhead). Larger-scale sweeps would be useful.
+2. ~~**Optimizer convergence issues.**~~ **Fixed (v3.3.0).** Section 6.5 shows 64.3% IM reduction (100 IR, 3 groups) and 20.3% reduction (500 IR, 5 groups). Armijo line search, greedy rounding, and local search resolve the discretization gap.
 3. **No large-scale baseline comparison.** The 55x gradient speedup is measured at 100 trades / 5 portfolios. Need 1000+ trade baseline runs for proper scaling comparison (the baseline at 100 trades already takes 299s; at 1000 trades this is impractical, which itself is the point).
-4. ~~**No multi-asset baseline.**~~ **Closed.** Section 6.4 now includes a multi-asset baseline: 200 trades (IR+EQ), 5 portfolios, 830 sensitivities, baseline gradient = 519.3s total.
+4. ~~**No multi-asset baseline.**~~ **Closed.** Section 6.3 now includes a multi-asset baseline: 200 trades (IR+EQ), 5 portfolios, 830 sensitivities, baseline gradient = 519.3s total.
 5. **AADC vs Acadia Java for gradient tasks.** We have speed data for *aggregation* but no Acadia Java benchmark for gradient/bump-and-revalue workloads (the main AADC value proposition).
 6. **No memory profiling.** Execution logs record memory but it's sparse. No systematic memory-vs-trade-count analysis.
-7. ~~**What-if and pre-trade analytics benchmarks.**~~ **Closed.** Section 6.11 now covers margin attribution (20x speedup, reconciles), what-if unwind (138ms), add hedge (17.7ms), and IR stress (7.5ms). Section 6.12 covers counterparty routing (4.9s for 3 counterparties) and bilateral vs cleared comparison.
+7. ~~**What-if and pre-trade analytics benchmarks.**~~ **Closed.** Section 6.10 now covers margin attribution (20x speedup, reconciles), what-if unwind (138ms), add hedge (17.7ms), and IR stress (7.5ms). Section 6.11 covers counterparty routing (4.9s for 3 counterparties) and bilateral vs cleared comparison.
 8. ~~**Margin attribution bug.**~~ **Fixed.** `whatif_analytics.py` was reading gradients from `results[0]` (output values) instead of `results[1][im_output]` (adjoint gradients), and using `AmountUSD` instead of `Amount` for kernel inputs. Fixed by delegating to `compute_im_gradient_aadc()`. Attribution now reconciles: net of all trade contributions = Total IM.
 9. **SIMM proxy inconsistency in what-if scenarios.** The what-if unwind/hedge/stress scenarios call `calculate_simm_margin()` which falls back to a simplified SIMM proxy (due to `'ProductClass'` error in the full `src/agg_margins.py` SIMM engine). The proxy produces IM values ~$16M while the AADC kernel produces ~$214T for the same portfolio, making cross-comparison of "current IM" vs "scenario IM" unreliable. The compute times are valid but the absolute IM figures in the hedge and stress scenarios should not be compared to the attribution's Total IM.
 
-**Verdict:** The document now has **comprehensive speed data** demonstrating AADC's gradient advantage. Gaps 1, 2, 4, 7, and 8 are closed. Key headline numbers: **55x gradient speedup** for IR-only and **74x** for multi-asset (Section 6.4), **64.3% IM reduction** via optimizer v3.3.0 (Section 6.6), multi-asset baseline comparison (Section 6.4), and thread scaling analysis (Section 6.7). The remaining open gap (9 — SIMM proxy inconsistency) affects only the what-if scenario absolute IM figures, not the core performance claims. Gap 3 (large-scale baseline) is a nice-to-have but the existing data already demonstrates the scaling argument. **This document is now suitable as a client-facing practitioner's guide**, with the caveat that what-if IM figures (Section 6.12) should be treated as illustrative until the proxy inconsistency is resolved.
+**Verdict:** The document now has **comprehensive speed data** demonstrating AADC's gradient advantage. Gaps 1, 2, 4, 7, and 8 are closed. Key headline numbers: **55x gradient speedup** for IR-only and **74x** for multi-asset (Section 6.3), **64.3% IM reduction** via optimizer v3.3.0 (Section 6.5), multi-asset baseline comparison (Section 6.3), and thread scaling analysis (Section 6.6). The remaining open gap (9 — SIMM proxy inconsistency) affects only the what-if scenario absolute IM figures, not the core performance claims. Gap 3 (large-scale baseline) is a nice-to-have but the existing data already demonstrates the scaling argument. **This document is now suitable as a client-facing practitioner's guide**, with the caveat that what-if IM figures (Section 6.11) should be treated as illustrative until the proxy inconsistency is resolved.
 
-### 6.12 What-If Analytics Benchmarks
+### 6.11 What-If Analytics Benchmarks
 
 Source: `model/whatif_analytics.py` demo output (2026-01-27, post-bugfix). Portfolio: 50 trades, 30 risk factors.
 
@@ -661,7 +648,7 @@ The top 5 trades account for 88.4% of total IM. Removing them collapses margin t
 
 Note: The hedge and stress scenarios use the simplified SIMM proxy (`calculate_simm_margin` fallback due to `'ProductClass'` error in the full SIMM engine), which produces much lower IM values (~$16M) than the AADC kernel ($214.7T). The attribution and unwind use the AADC kernel for the "current IM" but the proxy for the "scenario IM", making the absolute IM change figures unreliable for cross-comparison. The compute times are valid.
 
-### 6.13 Pre-Trade Analytics Benchmarks
+### 6.12 Pre-Trade Analytics Benchmarks
 
 Source: `model/pretrade_analytics.py` demo output (2026-01-27).
 
@@ -676,11 +663,11 @@ Source: `model/pretrade_analytics.py` demo output (2026-01-27).
 
 **Counterparty Routing Analysis:**
 
-| Counterparty | Current IM | Marginal IM | New IM | Netting % |
-|---|---|---|---|---|
-| JPM | $1,580,636,781,724 | **-$5,827,299,999** | $1,574,809,481,725 | 107.6% |
-| Goldman | $207,223,874,906 | $23,266,663,010 | $230,490,537,916 | 69.5% |
-| Citi | $482,443,623,099 | $188,016,153,772 | $670,459,776,871 | -146.6% |
+| Counterparty | Current IM | Marginal IM | Netting % |
+|---|---|---|---|
+| JPM | $1,580.6B | **-$5.8B** | 107.6% |
+| Goldman | $207.2B | $23.3B | 69.5% |
+| Citi | $482.4B | $188.0B | -146.6% |
 
 - Standalone IM (no netting): $76,235,112,526
 - **Recommendation**: Route to JPM (saves $193.8B vs Citi)
@@ -847,7 +834,7 @@ java --source 17 -cp "$CP" SimmBench.java
 
 Pre-built scripts are available for reproducing specific benchmark sections:
 
-**Section 6.4 - End-to-End Pipeline Comparison (Baseline vs AADC v3.3.0):**
+**Section 6.3 - End-to-End Pipeline Comparison (Baseline vs AADC v3.3.0):**
 
 ```bash
 cd ~/ISDA-SIMM

@@ -22,7 +22,7 @@ import pandas as pd
 import time
 from typing import Dict, List, Tuple, Optional
 
-MODULE_VERSION = "1.0.0"
+MODULE_VERSION = "1.2.0"  # Added gradient-guided greedy local search for large portfolios
 
 try:
     import aadc
@@ -41,6 +41,7 @@ from model.simm_portfolio_aadc_v2 import (
     compute_allocation_gradient_chainrule_v2,
     project_to_simplex_v2,
     optimize_allocation_gradient_descent_v2,
+    optimize_allocation_adam_v2,
     round_to_integer_allocation_v2,
     _get_factor_metadata_v2,
 )
@@ -86,7 +87,7 @@ def reallocate_trades_optimal_v2(
         initial_allocation: Starting allocation matrix of shape (T, P)
         num_threads: AADC worker threads
         allow_partial: If False, round to integer allocation at the end
-        method: 'gradient_descent' or 'newton'
+        method: 'gradient_descent', 'adam', 'bfgs', or 'newton'
         max_iters: Maximum optimization iterations
         lr: Learning rate for gradient descent
         tol: Convergence tolerance
@@ -188,6 +189,19 @@ def reallocate_trades_optimal_v2(
             filtered_allocation, num_threads,
             max_iters=max_iters, tol=tol, verbose=verbose, workers=workers,
         )
+    elif method == 'adam':
+        final_allocation, im_history, num_iters, total_eval_time = optimize_allocation_adam_v2(
+            funcs, sens_handles, im_output, S,
+            filtered_allocation, num_threads,
+            max_iters=max_iters, lr=lr, tol=tol, verbose=verbose, workers=workers,
+        )
+    elif method == 'bfgs':
+        final_allocation, im_history, num_iters, total_eval_time = optimize_allocation_newton_v2(
+            funcs, sens_handles, im_output, S,
+            filtered_allocation, num_threads,
+            max_iters=max_iters, tol=tol, verbose=verbose, workers=workers,
+            hessian_approx='bfgs',
+        )
     else:
         final_allocation, im_history, num_iters, total_eval_time = optimize_allocation_gradient_descent_v2(
             funcs, sens_handles, im_output, S,
@@ -216,11 +230,39 @@ def reallocate_trades_optimal_v2(
             if rounding_changes > 0:
                 print(f"  [v2] WARNING: Rounding changed {rounding_changes} assignments!")
 
-    # Step 7: Compute final IM
+        # Step 7: Greedy local search on integer allocation
+        # This is the primary optimization for large T where gradient descent
+        # on continuous relaxation is ineffective (gradient step overshoots).
+        # Uses gradient to identify promising single-trade moves, verifies each
+        # with actual IM evaluation. Guaranteed to never increase IM.
+        if verbose:
+            print(f"  [v2] Running gradient-guided greedy local search...")
+        greedy_start = time.perf_counter()
+        final_allocation, greedy_im, greedy_moves, greedy_eval_time = greedy_local_search_v2(
+            funcs, sens_handles, im_output, S, final_allocation, num_threads, workers,
+            max_rounds=max_iters, verbose=verbose,
+        )
+        greedy_time = time.perf_counter() - greedy_start
+        total_eval_time += greedy_eval_time
+
+        if verbose:
+            print(f"  [v2] Greedy search: {greedy_moves} moves in {greedy_time:.3f}s")
+    else:
+        greedy_time = 0.0
+        greedy_moves = 0
+
+    # Step 8: Compute final IM
     _, final_all_ims, _ = compute_all_portfolios_im_gradient_v2(
         funcs, sens_handles, im_output, S, final_allocation, num_threads, workers
     )
     final_im = float(np.sum(final_all_ims))
+
+    # Safety check: never return a solution worse than initial
+    if final_im > initial_im:
+        if verbose:
+            print(f"  [v2] WARNING: Optimizer made IM worse (${final_im:,.2f} > ${initial_im:,.2f}), reverting to initial allocation")
+        final_allocation = filtered_allocation.copy()
+        final_im = initial_im
 
     # Count moves
     initial_assignments = np.argmax(filtered_allocation, axis=1)
@@ -234,8 +276,8 @@ def reallocate_trades_optimal_v2(
         print(f"  [v2] Final total IM: ${final_im:,.2f}")
         print(f"  [v2] IM reduction: ${initial_im - final_im:,.2f} ({100*(initial_im-final_im)/initial_im:.2f}%)")
         print(f"  [v2] Trades moved: {trades_moved}")
-        print(f"  [v2] Total time: {elapsed:.3f}s (CRIF: {crif_time:.3f}s, Opt: {opt_time:.3f}s)")
-        print(f"  [v2] Eval calls: {num_iters}, Avg eval time: {total_eval_time/max(num_iters,1)*1000:.2f} ms")
+        print(f"  [v2] Total time: {elapsed:.3f}s (CRIF: {crif_time:.3f}s, GD: {opt_time:.3f}s, Greedy: {greedy_time:.3f}s)")
+        print(f"  [v2] Eval calls: {num_iters} (GD) + greedy, Total eval time: {total_eval_time*1000:.2f} ms")
 
     return {
         'final_allocation': final_allocation,
@@ -251,6 +293,8 @@ def reallocate_trades_optimal_v2(
             'crif_time': crif_time,
             'kernel_time': kernel_time,
             'opt_time': opt_time,
+            'greedy_time': greedy_time,
+            'greedy_moves': greedy_moves,
             'total_eval_time': total_eval_time,
             'avg_eval_time': total_eval_time / max(num_iters, 1),
         },
@@ -338,6 +382,9 @@ def optimize_allocation_newton_v2(
     total_im = float(np.sum(all_ims))
     im_history.append(total_im)
     total_eval_time += eval_time
+    best_im = total_im
+    best_x = x.copy()
+    stalled_count = 0
 
     if verbose:
         print(f"    [v2-Newton] Initial IM: ${total_im:,.2f}")
@@ -388,11 +435,11 @@ def optimize_allocation_newton_v2(
 
             step = -H_inv @ flat_grad
 
-        # Line search with Armijo condition
+        # Monotone backtracking line search
         alpha = 1.0
-        c = 0.5  # Sufficient decrease parameter
         rho_ls = 0.5  # Step reduction factor
 
+        accepted = False
         for _ in range(20):  # Max line search iterations
             x_new = x + alpha * step.reshape(T, P)
             x_new = project_to_simplex_v2(x_new)
@@ -403,13 +450,25 @@ def optimize_allocation_newton_v2(
             new_total_im = float(np.sum(new_all_ims))
             total_eval_time += eval_time
 
-            if new_total_im <= total_im + c * alpha * np.dot(flat_grad, step):
+            if new_total_im < total_im:
+                accepted = True
                 break
             alpha *= rho_ls
 
-        prev_x = x.flatten()
-        prev_grad = flat_grad.copy()
-        x = x_new
+        if accepted:
+            prev_x = x.flatten()
+            prev_grad = flat_grad.copy()
+            x = x_new
+        else:
+            # Line search failed — don't move, keep prev_x/prev_grad unchanged
+            prev_x = x.flatten()
+            prev_grad = flat_grad.copy()
+            stalled_count += 1
+            if stalled_count >= 10:
+                if verbose:
+                    print(f"    [v2-Newton] Stalled for {stalled_count} iterations, reverting to best")
+                x = best_x.copy()
+                break
 
         # Update gradient
         gradient, all_ims, eval_time = compute_all_portfolios_im_gradient_v2(
@@ -419,9 +478,15 @@ def optimize_allocation_newton_v2(
         im_history.append(total_im)
         total_eval_time += eval_time
 
+        # Track best solution
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+            stalled_count = 0
+
         if verbose and iteration % 5 == 0:
             moves = int(np.sum(np.argmax(x, axis=1) != np.argmax(initial_allocation, axis=1)))
-            print(f"    [v2-Newton] Iter {iteration}: IM = ${total_im:,.2f}, moves = {moves}, alpha = {alpha:.4f}")
+            print(f"    [v2-Newton] Iter {iteration}: IM = ${total_im:,.2f}, best = ${best_im:,.2f}, moves = {moves}, alpha = {alpha:.4f}")
 
         # Check convergence
         grad_norm = np.linalg.norm(gradient)
@@ -430,12 +495,155 @@ def optimize_allocation_newton_v2(
             if rel_change < tol and grad_norm < 1e-6:
                 if verbose:
                     print(f"    [v2-Newton] Converged at iteration {iteration + 1}")
-                return x, im_history, iteration + 1, total_eval_time
+                return best_x, im_history, iteration + 1, total_eval_time
 
     if verbose:
         print(f"    [v2-Newton] Reached max iterations ({max_iters})")
 
-    return x, im_history, max_iters, total_eval_time
+    # Always return best solution seen
+    return best_x, im_history, max_iters, total_eval_time
+
+
+# =============================================================================
+# v2 Gradient-Guided Greedy Local Search
+# =============================================================================
+
+def greedy_local_search_v2(
+    funcs: 'aadc.Functions',
+    sens_handles: List[int],
+    im_output: int,
+    S: np.ndarray,
+    integer_allocation: np.ndarray,
+    num_threads: int,
+    workers: 'aadc.ThreadPool' = None,
+    max_rounds: int = 50,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, float, int, float]:
+    """
+    Gradient-guided greedy local search for integer (one-hot) allocation.
+
+    Unlike pure greedy search (O(T*P) IM evaluations per round), this uses
+    the gradient to identify the most promising single-trade move, then
+    verifies it with an actual IM evaluation. Cost: ~2-3 evaluations per
+    accepted move instead of T*P.
+
+    Algorithm per round:
+    1. Compute gradient via chain rule (1 evaluate() call for all P portfolios)
+    2. For each trade t, compute expected improvement from moving to best
+       alternative portfolio: improvement[t] = grad[t, current_p] - min(grad[t, :])
+    3. Sort trades by expected improvement (descending)
+    4. Try moving the top candidate; verify IM actually decreases
+    5. If accepted, recompute gradient and repeat
+    6. If top candidate rejected, try next candidates
+    7. Stop when no improving move found or max_rounds reached
+
+    Args:
+        funcs: AADC Functions object
+        sens_handles: List of sensitivity input handles
+        im_output: IM output handle
+        S: Sensitivity matrix (T, K)
+        integer_allocation: One-hot allocation matrix (T, P)
+        num_threads: AADC worker threads
+        workers: Pre-created ThreadPool
+        max_rounds: Maximum number of accepted moves
+        verbose: Print progress
+
+    Returns:
+        (improved_allocation, final_im, total_moves, total_eval_time)
+    """
+    T, P = integer_allocation.shape
+    x = integer_allocation.copy()
+
+    if workers is None:
+        workers = aadc.ThreadPool(num_threads)
+
+    total_eval_time = 0.0
+    total_moves = 0
+
+    # Initial gradient + IM evaluation
+    gradient, all_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+        funcs, sens_handles, im_output, S, x, num_threads, workers
+    )
+    current_im = float(np.sum(all_ims))
+    total_eval_time += eval_time
+
+    if verbose:
+        print(f"    [v2-greedy] Starting IM: ${current_im:,.2f}")
+
+    for round_idx in range(max_rounds):
+        # Use gradient to rank trades by expected improvement
+        current_assignments = np.argmax(x, axis=1)  # (T,)
+
+        # For each trade, expected improvement = grad[t, current_p] - min(grad[t, :])
+        current_grads = gradient[np.arange(T), current_assignments]  # (T,)
+        best_target_grads = np.min(gradient, axis=1)  # (T,)
+        best_targets = np.argmin(gradient, axis=1)  # (T,)
+
+        expected_improvement = current_grads - best_target_grads  # (T,)
+
+        # Only consider trades where best target differs from current
+        mask = best_targets != current_assignments
+        if not np.any(mask):
+            if verbose:
+                print(f"    [v2-greedy] No candidate moves (gradient is flat)")
+            break
+
+        # Sort by expected improvement (descending), only candidates that could move
+        candidate_indices = np.where(mask)[0]
+        sorted_candidates = candidate_indices[
+            np.argsort(expected_improvement[candidate_indices])[::-1]
+        ]
+
+        # Try candidates until we find one that actually reduces IM
+        accepted = False
+        max_tries = min(len(sorted_candidates), T // 5 + 5)  # Don't try too many
+
+        for try_idx in range(max_tries):
+            t = sorted_candidates[try_idx]
+            from_p = current_assignments[t]
+            to_p = best_targets[t]
+
+            # Temporarily move trade t
+            x[t, :] = 0.0
+            x[t, to_p] = 1.0
+
+            _, candidate_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+                funcs, sens_handles, im_output, S, x, num_threads, workers
+            )
+            candidate_im = float(np.sum(candidate_ims))
+            total_eval_time += eval_time
+
+            if candidate_im < current_im:
+                # Accept the move
+                improvement = current_im - candidate_im
+                current_im = candidate_im
+                total_moves += 1
+                accepted = True
+
+                if verbose:
+                    print(f"    [v2-greedy] Round {round_idx+1}: move trade {t} "
+                          f"(p{from_p}->p{to_p}), IM -${improvement:,.0f} -> ${current_im:,.2f}")
+
+                # Recompute gradient for next round
+                gradient, all_ims, eval_time = compute_all_portfolios_im_gradient_v2(
+                    funcs, sens_handles, im_output, S, x, num_threads, workers
+                )
+                total_eval_time += eval_time
+                break
+            else:
+                # Reject - restore original assignment
+                x[t, :] = 0.0
+                x[t, from_p] = 1.0
+
+        if not accepted:
+            if verbose:
+                print(f"    [v2-greedy] No improving move found after {max_tries} candidates, stopping")
+            break
+
+    if verbose:
+        print(f"    [v2-greedy] Complete: {total_moves} moves, eval time {total_eval_time*1000:.1f} ms")
+
+    return x, current_im, total_moves, total_eval_time
 
 
 # =============================================================================

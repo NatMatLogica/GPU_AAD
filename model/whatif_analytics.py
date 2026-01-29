@@ -23,7 +23,7 @@ PRODUCTION USE CASES:
     3. Hedge recommendation: "Which trade to add to reduce margin?"
     4. Stress attribution: "Which trades hurt most under stress?"
 
-Version: 1.0.0
+Version: 1.1.0
 """
 
 import numpy as np
@@ -101,6 +101,9 @@ class MarginAttributionReport:
     # For comparison
     naive_time_estimate_ms: float       # Estimated time for O(N²) approach
 
+    # Timing breakdown (populated when using AADC)
+    timing: Optional[Dict[str, float]] = None  # kernel_recording_ms, gradient_eval_ms, attribution_ms
+
 
 @dataclass
 class WhatIfScenarioResult:
@@ -155,6 +158,7 @@ def compute_margin_attribution_aadc(
             contribution ≈ Σ_k (∂IM/∂S_k) × S_trade[k]
     """
     start_time = time.perf_counter()
+    timing_breakdown = None
 
     # -------------------------------------------------------------------------
     # Step 1: Compute AADC gradient for portfolio
@@ -163,10 +167,14 @@ def compute_margin_attribution_aadc(
         from model.simm_portfolio_aadc import compute_im_gradient_aadc
 
         n = len(portfolio_crif)
-        gradient, total_im, _, _ = compute_im_gradient_aadc(
+        gradient, total_im, recording_time, eval_time = compute_im_gradient_aadc(
             portfolio_crif, num_threads
         )
         method = "aadc_gradient"
+        timing_breakdown = {
+            "kernel_recording_ms": recording_time * 1000,
+            "gradient_eval_ms": eval_time * 1000,
+        }
 
     except Exception as e:
         # Fallback: compute total IM without gradient
@@ -192,6 +200,7 @@ def compute_margin_attribution_aadc(
     # -------------------------------------------------------------------------
     # Step 3: Compute contribution for each trade
     # -------------------------------------------------------------------------
+    attrib_start = time.perf_counter()
     contributions = []
 
     for trade_id, trade_crif in trade_sensitivities.items():
@@ -236,7 +245,11 @@ def compute_margin_attribution_aadc(
     # Top margin reducers (negative contribution - provide netting)
     reducers = [c.trade_id for c in contributions if not c.is_margin_additive][:10]
 
+    attrib_time = (time.perf_counter() - attrib_start) * 1000
     computation_time = (time.perf_counter() - start_time) * 1000
+
+    if timing_breakdown is not None:
+        timing_breakdown["attribution_ms"] = attrib_time
 
     # Estimate naive approach time: N trades × ~100ms per SIMM calc
     naive_estimate = len(trade_sensitivities) * 100  # ms
@@ -250,7 +263,8 @@ def compute_margin_attribution_aadc(
         top_margin_reducers=reducers,
         computation_method=method,
         computation_time_ms=computation_time,
-        naive_time_estimate_ms=naive_estimate
+        naive_time_estimate_ms=naive_estimate,
+        timing=timing_breakdown,
     )
 
 

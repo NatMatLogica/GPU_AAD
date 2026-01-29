@@ -1,0 +1,18 @@
+{
+  "files": [
+    "ir_swap_1000t_20p.json",
+    "ir_swap_100t_20p.json",
+    "ir_swap_200t_5p.json",
+    "ir_swap_20t_5p.json",
+    "ir_swap_2500t_20p.json",
+    "ir_swap_2500t_5p.json",
+    "ir_swap_3000t_20p.json",
+    "ir_swap_500t_10p.json",
+    "ir_swap_equity_option_fx_option_15000t_30p.json",
+    "ir_swap_equity_option_fx_option_1500t_20p.json",
+    "ir_swap_equity_option_fx_option_3000t_10p.json",
+    "ir_swap_equity_option_fx_option_3000t_20p.json",
+    "ir_swap_equity_option_fx_option_300t_10p.json",
+    "ir_swap_equity_option_fx_option_450t_5p.json"
+  ]
+}

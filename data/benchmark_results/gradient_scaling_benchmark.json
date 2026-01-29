@@ -1,0 +1,38 @@
+{
+  "benchmark": "gradient_computation_scaling",
+  "description": "AADC gradient vs bump-and-revalue for portfolio optimization",
+  "timestamp": "2026-01-29T22:08:11",
+  "num_threads": 8,
+  "results": [
+    {
+      "description": "1K trades, 20 portfolios",
+      "num_trades": 1000,
+      "num_portfolios": 20,
+      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+    },
+    {
+      "description": "5K trades, 20 portfolios",
+      "num_trades": 5000,
+      "num_portfolios": 20,
+      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+    },
+    {
+      "description": "10K trades, 20 portfolios",
+      "num_trades": 10000,
+      "num_portfolios": 20,
+      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+    },
+    {
+      "description": "50K trades, 20 portfolios",
+      "num_trades": 50000,
+      "num_portfolios": 20,
+      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+    },
+    {
+      "description": "100K trades, 20 portfolios",
+      "num_trades": 100000,
+      "num_portfolios": 20,
+      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+    }
+  ]
+}

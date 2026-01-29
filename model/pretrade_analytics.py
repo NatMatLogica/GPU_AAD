@@ -18,7 +18,7 @@ Production Use Case:
 
     This module answers that in milliseconds using pre-computed gradients.
 
-Version: 1.0.0
+Version: 1.1.0
 """
 
 import numpy as np
@@ -66,6 +66,9 @@ class MarginalIMResult:
 
     # Computation method
     used_gradient: bool = True      # True = fast gradient method, False = full recalc
+
+    # Timing breakdown (populated when using AADC gradient method)
+    timing: Optional[Dict[str, float]] = None  # kernel_recording_ms, gradient_eval_ms, marginal_im_ms
 
 
 @dataclass
@@ -403,7 +406,7 @@ def calculate_simm_margin(crif: pd.DataFrame, calculation_currency: str = 'USD')
 def compute_marginal_im_gradient(
     portfolio_crif: pd.DataFrame,
     num_threads: int = 4
-) -> Tuple[Dict[str, float], np.ndarray, float]:
+) -> Tuple[Dict[str, float], np.ndarray, float, Dict[str, float]]:
     """
     Compute the gradient dIM/dSensitivity for a portfolio.
 
@@ -422,10 +425,11 @@ def compute_marginal_im_gradient(
         num_threads: Threads for AADC evaluation
 
     Returns:
-        (gradient_by_factor, gradient_array, current_im)
+        (gradient_by_factor, gradient_array, current_im, timing)
         - gradient_by_factor: Dict mapping (RiskType, Qualifier, Bucket, Label1) -> gradient
         - gradient_array: Raw gradient array aligned with CRIF rows
         - current_im: Current portfolio IM
+        - timing: Dict with kernel_recording_ms, gradient_eval_ms
     """
     try:
         # Use AADC for exact gradient computation
@@ -438,19 +442,21 @@ def compute_marginal_im_gradient(
         # Compute gradient via adjoint
         workers = aadc.ThreadPool(num_threads)
         n = len(portfolio_crif)
-        amounts = portfolio_crif["AmountUSD"].values
+        amounts = portfolio_crif["Amount"].values
         inputs = {sens_handles[i]: np.array([float(amounts[i])]) for i in range(n)}
 
         request = {im_output: sens_handles}
+
+        eval_start = time.perf_counter()
         results = aadc.evaluate(funcs, request, inputs, workers)
+        eval_time = time.perf_counter() - eval_start
 
         current_im = float(results[0][im_output][0])
 
-        # Extract gradients
+        # Extract gradients from adjoint output (results[1])
         gradient_array = np.zeros(n)
         for i in range(n):
-            if sens_handles[i] in results[0]:
-                gradient_array[i] = float(results[0][sens_handles[i]][0])
+            gradient_array[i] = float(results[1][im_output][sens_handles[i]][0])
 
         # Build gradient-by-factor dictionary for easy lookup
         gradient_by_factor = {}
@@ -458,12 +464,18 @@ def compute_marginal_im_gradient(
             key = (row['RiskType'], row['Qualifier'], row['Bucket'], row['Label1'])
             gradient_by_factor[key] = gradient_array[i]
 
-        return gradient_by_factor, gradient_array, current_im
+        timing = {
+            "kernel_recording_ms": record_time * 1000,
+            "gradient_eval_ms": eval_time * 1000,
+        }
+
+        return gradient_by_factor, gradient_array, current_im, timing
 
     except Exception as e:
         # Fallback: numerical gradient (slower but works without AADC)
         print(f"Warning: Using numerical gradient (AADC unavailable: {e})")
 
+        bump_start = time.perf_counter()
         current_im = calculate_simm_margin(portfolio_crif)
 
         # Compute numerical gradient by bumping each sensitivity
@@ -476,12 +488,19 @@ def compute_marginal_im_gradient(
             bumped_im = calculate_simm_margin(bumped_crif)
             gradient_array[i] = (bumped_im - current_im) / epsilon
 
+        bump_time = time.perf_counter() - bump_start
+
         gradient_by_factor = {}
         for i, row in portfolio_crif.iterrows():
             key = (row['RiskType'], row['Qualifier'], row['Bucket'], row['Label1'])
             gradient_by_factor[key] = gradient_array[i]
 
-        return gradient_by_factor, gradient_array, current_im
+        timing = {
+            "kernel_recording_ms": 0.0,
+            "gradient_eval_ms": bump_time * 1000,
+        }
+
+        return gradient_by_factor, gradient_array, current_im, timing
 
 
 def compute_marginal_im_fast(
@@ -606,24 +625,34 @@ def analyze_trade_routing(
 
     for cp_name, cp_crif in counterparty_portfolios.items():
         # Get or compute gradient
+        cp_timing = None
         if use_gradient:
             if counterparty_gradients and cp_name in counterparty_gradients:
                 gradient = counterparty_gradients[cp_name]['gradient']
                 current_im = counterparty_gradients[cp_name]['current_im']
+                cp_timing = counterparty_gradients[cp_name].get('timing')
             else:
-                gradient, _, current_im = compute_marginal_im_gradient(cp_crif, num_threads)
+                gradient, _, current_im, cp_timing = compute_marginal_im_gradient(cp_crif, num_threads)
 
             # Fast marginal IM calculation
+            dot_start = time.perf_counter()
             marginal_im = compute_marginal_im_fast(new_trade_crif, gradient, current_im)
+            dot_time = (time.perf_counter() - dot_start) * 1000
             new_im = current_im + marginal_im
             used_gradient = True
+
+            if cp_timing is not None:
+                cp_timing["marginal_im_ms"] = dot_time
         else:
             # Full recalculation (slower but exact)
+            recalc_start = time.perf_counter()
             current_im = calculate_simm_margin(cp_crif)
             combined_crif = pd.concat([cp_crif, new_trade_crif], ignore_index=True)
             new_im = calculate_simm_margin(combined_crif)
+            recalc_time = (time.perf_counter() - recalc_start) * 1000
             marginal_im = new_im - current_im
             used_gradient = False
+            cp_timing = {"full_recalc_ms": recalc_time}
 
         # Calculate netting benefit
         netting_benefit = standalone_im - marginal_im
@@ -638,7 +667,8 @@ def analyze_trade_routing(
             standalone_im=standalone_im,
             netting_benefit=netting_benefit,
             netting_benefit_pct=netting_benefit_pct,
-            used_gradient=used_gradient
+            used_gradient=used_gradient,
+            timing=cp_timing,
         ))
 
     # Sort by marginal IM (lowest first)
