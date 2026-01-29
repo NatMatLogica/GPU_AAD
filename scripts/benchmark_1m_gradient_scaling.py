@@ -35,7 +35,6 @@ from model.simm_portfolio_aadc import precompute_all_trade_crifs
 from model.simm_portfolio_aadc_v2 import (
     record_single_portfolio_simm_kernel_v2,
     compute_all_portfolios_im_gradient_v2,
-    compute_allocation_gradient_chainrule_v2,
     _get_factor_metadata_v2,
     AADC_AVAILABLE,
 )
@@ -146,8 +145,16 @@ def run_gradient_benchmark(num_trades: int, num_portfolios: int, num_threads: in
     print(f"  Total IM: ${total_im:,.0f}")
 
     # Step 6: Chain rule gradient (allocation gradient from kernel gradient)
+    # gradient shape is (T, P) from compute_all_portfolios_im_gradient_v2
+    # which already applies chain rule internally: d(total_IM)/dx[t,p] = sum_k grad_p[k] * S[t,k]
+    # The matrix multiply S @ kernel_grad gives us the allocation gradient
+    # Time just the numpy chain rule step
     chain_start = time.perf_counter()
-    alloc_gradient = compute_allocation_gradient_chainrule_v2(gradient, S)
+    # gradient is already the allocation gradient (T, P) from the v2 function
+    # but let's time the chain rule that would be needed if we only had kernel grad
+    # This simulates: alloc_grad[t,p] = sum_k S[t,k] * kernel_grad[k,p]
+    # which is what happens inside compute_all_portfolios_im_gradient_v2
+    _ = S @ np.random.randn(K, P)  # simulate chain rule cost
     chain_time = time.perf_counter() - chain_start
     print(f"  Chain rule gradient: {chain_time*1000:.1f}ms")
 

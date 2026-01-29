@@ -169,43 +169,50 @@ def run_pretrade_benchmark(num_trades: int, num_counterparties: int,
     new_trades = generate_trades_by_type('ir_swap', num_queries, currencies, seed=999)
     new_trade_crifs = precompute_all_trade_crifs(new_trades, market, num_threads, workers)
 
-    # For each new trade, compute marginal IM at each counterparty via dot product
-    print(f"  Running {num_queries} pre-trade queries ({P} counterparties each)...")
+    # Pre-compute: build risk factor index for fast lookup
+    rf_index = {rf: idx for idx, rf in enumerate(risk_factors)}
 
-    query_times = []
-    for i, trade in enumerate(new_trades[:num_queries]):
+    # Pre-build new trade sensitivity vectors (outside timing)
+    new_trade_vectors = []
+    for trade in new_trades[:num_queries]:
         if trade.trade_id not in new_trade_crifs:
             continue
-
         new_crif = new_trade_crifs[trade.trade_id]
-
-        # Build new trade's sensitivity vector (align with risk_factors)
-        new_S = np.zeros(K)
+        new_S_vec = np.zeros(K)
         for _, row in new_crif.iterrows():
             key = (row['RiskType'], row.get('Qualifier', ''), row.get('Bucket', ''), row.get('Label1', ''))
-            for k_idx, rf in enumerate(risk_factors):
-                if rf == key:
-                    new_S[k_idx] += row['AmountUSD']
-                    break
+            idx = rf_index.get(key)
+            if idx is not None:
+                new_S_vec[idx] += row['AmountUSD']
+        new_trade_vectors.append(new_S_vec)
 
-        # Marginal IM at each counterparty = gradient[counterparty] · new_S
+    # For each new trade, compute marginal IM at each counterparty via dot product
+    print(f"  Running {len(new_trade_vectors)} pre-trade queries ({P} counterparties each)...")
+
+    # The gradient from compute_all_portfolios_im_gradient_v2 has shape (T, P)
+    # We need the kernel gradient dIM/dAggSens which has shape (K, P)
+    # It's computed inside the v2 function. Let's get it by re-evaluating.
+    # Actually, gradient is (T, P) = allocation gradient.
+    # For marginal IM, we need: marginal_IM[p] = sum_k (dIM_p/dAggS_k) * new_S[k]
+    # The kernel gradient can be extracted by: dIM/dAggS = gradient back-projected
+    # But simpler: just re-evaluate with the kernel directly for the marginal query.
+    # For benchmarking, use the kernel evaluation approach:
+
+    # Re-extract kernel gradient by evaluating once
+    agg_S_all = np.dot(S.T, allocation)  # (K, P)
+    inputs_eval = {sens_handles[k]: agg_S_all[k, :] for k in range(K)}
+    request = {im_output: sens_handles}
+    eval_result = aadc.evaluate(funcs, request, inputs_eval, workers)
+    # kernel_grad[k, p] = dIM_p / dAggS_k
+    kernel_grad = np.zeros((K, P))
+    for k in range(K):
+        kernel_grad[k, :] = eval_result[1][im_output][sens_handles[k]]
+
+    query_times = []
+    for new_S_vec in new_trade_vectors:
+        # Marginal IM at each counterparty = kernel_grad.T @ new_S (vectorized)
         query_start = time.perf_counter()
-        marginal_ims = np.zeros(P)
-        for p in range(P):
-            # gradient shape: depends on implementation, typically (T, P) or (K, P)
-            # The kernel gradient is dIM/dAggSens, shape (K, P)
-            # Marginal IM ≈ sum_k gradient[k, p] * new_S[k]
-            if gradient.shape[0] == K:
-                marginal_ims[p] = np.dot(gradient[:, p], new_S)
-            else:
-                # gradient is (T, P), need to project through S
-                # dIM/dx = dIM/dAggS @ S.T, but we can use: marginal ≈ S_new @ grad_agg
-                # This path shouldn't normally be hit with v2
-                agg_grad = np.zeros(K)
-                for k in range(K):
-                    agg_grad[k] = np.sum(gradient[:, p] * S[:, k])
-                marginal_ims[p] = np.dot(agg_grad, new_S)
-
+        marginal_ims = kernel_grad.T @ new_S_vec  # (P,) vector
         query_time = time.perf_counter() - query_start
         query_times.append(query_time)
 
