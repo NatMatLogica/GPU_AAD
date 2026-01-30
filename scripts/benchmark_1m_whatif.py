@@ -140,13 +140,14 @@ def run_whatif_benchmark(num_trades: int, num_threads: int = NUM_THREADS):
     print(f"  Gradient computation: {grad_avg_time*1000:.1f}ms (avg of 3)")
     print(f"  Total IM: ${total_im:,.0f}")
 
-    # Attribution: for each trade, contribution = sum_k gradient[k] * S[trade, k]
+    # Attribution: gradient from compute_all_portfolios_im_gradient_v2 already
+    # applies chain rule: gradient[t,p] = sum_k dIM_p/dAggS_k * S[t,k]
+    # So gradient[:, 0] IS the trade contributions for portfolio 0.
     print(f"  Computing attribution for {T:,} trades...")
     attrib_start = time.perf_counter()
 
-    # Vectorized: contributions = S @ gradient (for single portfolio)
-    grad_vec = gradient[:, 0] if gradient.ndim == 2 else gradient
-    contributions = S @ grad_vec  # (T,) vector of trade contributions
+    # gradient shape is (T, P) - already the allocation gradient
+    contributions = gradient[:, 0] if gradient.ndim == 2 else gradient  # (T,)
 
     attrib_time = time.perf_counter() - attrib_start
     print(f"  Attribution computation: {attrib_time*1000:.2f}ms")

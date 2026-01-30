@@ -605,6 +605,7 @@
             <button class="main-tab active" onclick="showMainTab('optimization')">Portfolio Optimization</button>
             <button class="main-tab" onclick="showMainTab('whatif')">What-If Analytics</button>
             <button class="main-tab" onclick="showMainTab('pretrade')">Pre-Trade Analytics</button>
+            <button class="main-tab" onclick="showMainTab('scaling')">Scaling Benchmarks</button>
         </div>
 
         <!-- ================================================================ -->
@@ -858,6 +859,30 @@
             </div>
         </div>
 
+        <!-- ================================================================ -->
+        <!-- TAB 4: Scaling Benchmarks -->
+        <!-- ================================================================ -->
+        <div id="tab-scaling" class="main-tab-content">
+            <div id="scaling-loading" class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading scaling benchmark data...</p>
+            </div>
+            <div id="scaling-content" style="display:none;">
+                <div id="scaling-hero" class="perf-banner" style="margin-bottom:2rem;"></div>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
+                    <button class="scaling-sub active" onclick="switchScalingSub('gradient',this)" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--primary);color:white;cursor:pointer;">Portfolio Optimization</button>
+                    <button class="scaling-sub" onclick="switchScalingSub('pretrade',this)" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;">Pre-Trade</button>
+                    <button class="scaling-sub" onclick="switchScalingSub('whatif',this)" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;">Attribution</button>
+                </div>
+                <div id="sp-gradient" class="sp-panel"><div class="card"><h2>Gradient Scaling</h2><div id="sp-gradient-body"></div></div></div>
+                <div id="sp-pretrade" class="sp-panel" style="display:none;"><div class="card"><h2>Pre-Trade Query Scaling</h2><div id="sp-pretrade-body"></div></div></div>
+                <div id="sp-whatif" class="sp-panel" style="display:none;"><div class="card"><h2>Margin Attribution Scaling</h2><div id="sp-whatif-body"></div></div></div>
+            </div>
+            <div id="scaling-error" style="display:none;" class="loading">
+                <p style="color:var(--danger);">No scaling data. Run <code>python scripts/benchmark_1m_gradient_scaling.py</code></p>
+            </div>
+        </div>
+
         <footer>
             <p>ISDA SIMM v2.6 Implementation with AADC Integration</p>
             <p style="margin-top: 0.5rem; font-size: 0.85rem;">
@@ -871,7 +896,7 @@
     // Data loading layer
     // ====================================================================
     const dataCache = {};
-    const tabLoaded = { optimization: false, whatif: false, pretrade: false };
+    const tabLoaded = { optimization: false, whatif: false, pretrade: false, scaling: false };
 
     async function loadJSON(filename) {
         if (dataCache[filename]) return dataCache[filename];
@@ -954,6 +979,7 @@
             if (tabId === 'optimization') loadOptimizationTab();
             else if (tabId === 'whatif') loadWhatIfTab();
             else if (tabId === 'pretrade') loadPreTradeTab();
+            else if (tabId === 'scaling') loadScalingTab();
         }
     }
 
@@ -1660,6 +1686,242 @@
                 }
             }
         };
+    }
+
+    // ====================================================================
+    // Scaling Benchmarks Tab
+    // ====================================================================
+    async function loadBenchmarkJSON(filename) {
+        const paths = [
+            'data/benchmark_results/' + filename,
+            '../data/benchmark_results/' + filename,
+        ];
+        for (const p of paths) {
+            try {
+                const resp = await fetch(p);
+                if (!resp.ok) continue;
+                const data = await resp.json();
+                return data;
+            } catch (e) { /* try next */ }
+        }
+        return null;
+    }
+
+    function fmtTime(ms) {
+        if (ms == null) return 'N/A';
+        if (ms < 1) return ms.toFixed(3) + 'ms';
+        if (ms < 1000) return ms.toFixed(1) + 'ms';
+        if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+        if (ms < 3600000) return (ms / 60000).toFixed(1) + 'min';
+        return (ms / 3600000).toFixed(1) + 'h';
+    }
+
+    function fmtNum(n) {
+        if (n == null) return 'N/A';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+        return n.toFixed(0);
+    }
+
+    function switchScalingSub(panel, btn) {
+        document.querySelectorAll('.sp-panel').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.scaling-sub').forEach(b => {
+            b.style.background = 'transparent';
+            b.style.color = 'var(--text-secondary)';
+        });
+        document.getElementById('sp-' + panel).style.display = 'block';
+        btn.style.background = 'var(--primary)';
+        btn.style.color = 'white';
+    }
+
+    function makeScalingTable(rows, columns) {
+        let html = '<div style="overflow-x:auto;margin:1rem 0;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
+        html += '<thead><tr>';
+        columns.forEach(c => { html += '<th style="padding:8px 12px;text-align:right;border-bottom:2px solid var(--border);color:var(--text-secondary);">' + c.label + '</th>'; });
+        html += '</tr></thead><tbody>';
+        rows.forEach(r => {
+            html += '<tr>';
+            columns.forEach(c => {
+                const v = c.format ? c.format(r[c.key], r) : r[c.key];
+                html += '<td style="padding:6px 12px;text-align:right;border-bottom:1px solid var(--border);">' + v + '</td>';
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    function makeBarChart(canvasId, labels, datasets, yLabel) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || typeof Chart === 'undefined') return;
+        new Chart(canvas, {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                    y: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        title: yLabel ? { display: true, text: yLabel, color: '#94a3b8' } : undefined
+                    }
+                }
+            }
+        });
+    }
+
+    function renderGradientScaling(data, container) {
+        const results = (data.results || []).filter(r => !r.error);
+        if (!results.length) {
+            container.innerHTML = '<p style="color:var(--danger);">No valid gradient benchmark results. Re-run <code>python scripts/benchmark_1m_gradient_scaling.py</code></p>';
+            return;
+        }
+        let html = '<h3>AADC Gradient vs Bump-and-Revalue per Optimization Iteration</h3>';
+        html += makeScalingTable(results, [
+            { key: 'num_trades', label: 'Trades', format: v => fmtNum(v) },
+            { key: 'num_portfolios', label: 'Portfolios' },
+            { key: 'num_risk_factors', label: 'K (factors)' },
+            { key: 'aadc_total_iter_ms', label: 'AADC/iter', format: v => fmtTime(v) },
+            { key: 'bump_revalue_estimate_ms', label: 'Bump/iter', format: v => fmtTime(v) },
+            { key: 'speedup', label: 'Speedup', format: v => v ? v.toFixed(0) + '×' : 'N/A' },
+        ]);
+        const cid = 'gradient-chart-' + Date.now();
+        html += '<canvas id="' + cid + '" height="250"></canvas>';
+
+        // 1M extrapolation
+        const last = results[results.length - 1];
+        if (last) {
+            const aadcPerTrade = last.aadc_total_iter_ms / last.num_trades;
+            const bumpPerTrade = last.bump_revalue_estimate_ms / (last.num_trades * last.num_portfolios);
+            const aadc1M = aadcPerTrade * 1e6;
+            const bump1M = bumpPerTrade * 1e6 * 20;
+            html += '<div style="margin-top:1.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">';
+            html += '<div class="stat-card" style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border);text-align:center;">';
+            html += '<div style="font-size:0.8rem;color:var(--text-secondary);">1M Trades AADC/iter</div>';
+            html += '<div style="font-size:1.5rem;font-weight:700;color:var(--success);">' + fmtTime(aadc1M) + '</div></div>';
+            html += '<div class="stat-card" style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border);text-align:center;">';
+            html += '<div style="font-size:0.8rem;color:var(--text-secondary);">1M Trades Bump/iter</div>';
+            html += '<div style="font-size:1.5rem;font-weight:700;color:var(--danger);">' + fmtTime(bump1M) + '</div></div>';
+            html += '<div class="stat-card" style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border);text-align:center;">';
+            html += '<div style="font-size:0.8rem;color:var(--text-secondary);">Estimated Speedup</div>';
+            html += '<div style="font-size:1.5rem;font-weight:700;color:var(--primary);">' + (bump1M / aadc1M).toFixed(0) + '×</div></div>';
+            html += '</div>';
+        }
+        container.innerHTML = html;
+
+        // Render chart
+        const labels = results.map(r => fmtNum(r.num_trades));
+        makeBarChart(cid, labels, [
+            { label: 'AADC (ms)', data: results.map(r => r.aadc_total_iter_ms), backgroundColor: '#22c55e' },
+            { label: 'Bump (ms)', data: results.map(r => r.bump_revalue_estimate_ms), backgroundColor: '#ef4444' },
+        ], 'Time per iteration (ms)');
+    }
+
+    function renderPretradeScaling(data, container) {
+        const results = (data.results || []).filter(r => !r.error);
+        if (!results.length) {
+            container.innerHTML = '<p style="color:var(--danger);">No valid pre-trade benchmark results. Re-run <code>python scripts/benchmark_1m_pretrade.py</code></p>';
+            return;
+        }
+        let html = '<h3>Pre-Trade Marginal IM Query Latency</h3>';
+        html += makeScalingTable(results, [
+            { key: 'num_trades', label: 'Trades', format: v => fmtNum(v) },
+            { key: 'num_counterparties', label: 'Portfolios' },
+            { key: 'aadc_query_avg_ms', label: 'AADC/query', format: v => fmtTime(v) },
+            { key: 'naive_query_avg_ms', label: 'Naive/query', format: v => fmtTime(v) },
+            { key: 'speedup_per_query', label: 'Speedup', format: v => v ? v.toFixed(1) + '×' : 'N/A' },
+            { key: 'queries_per_second_aadc', label: 'AADC q/s', format: v => v ? v.toFixed(1) : 'N/A' },
+        ]);
+        const cid = 'pretrade-chart-' + Date.now();
+        html += '<canvas id="' + cid + '" height="250"></canvas>';
+        container.innerHTML = html;
+
+        const labels = results.map(r => fmtNum(r.num_trades));
+        makeBarChart(cid, labels, [
+            { label: 'AADC (ms)', data: results.map(r => r.aadc_query_avg_ms), backgroundColor: '#22c55e' },
+            { label: 'Naive (ms)', data: results.map(r => r.naive_query_avg_ms), backgroundColor: '#ef4444' },
+        ], 'Time per query (ms)');
+    }
+
+    function renderWhatifScaling(data, container) {
+        const results = (data.results || []).filter(r => !r.error);
+        if (!results.length) {
+            container.innerHTML = '<p style="color:var(--danger);">No valid what-if benchmark results. Re-run <code>python scripts/benchmark_1m_whatif.py</code></p>';
+            return;
+        }
+        let html = '<h3>Margin Attribution: AADC Gradient vs Leave-One-Out</h3>';
+        html += makeScalingTable(results, [
+            { key: 'num_trades', label: 'Trades', format: v => fmtNum(v) },
+            { key: 'aadc_attribution_ms', label: 'AADC', format: v => fmtTime(v) },
+            { key: 'naive_attribution_ms', label: 'Leave-1-out', format: v => fmtTime(v) },
+            { key: 'speedup', label: 'Speedup', format: v => v ? v.toFixed(0) + '×' : 'N/A' },
+        ]);
+        const cid = 'whatif-chart-' + Date.now();
+        html += '<canvas id="' + cid + '" height="250"></canvas>';
+        container.innerHTML = html;
+
+        const labels = results.map(r => fmtNum(r.num_trades));
+        makeBarChart(cid, labels, [
+            { label: 'AADC (ms)', data: results.map(r => r.aadc_attribution_ms), backgroundColor: '#22c55e' },
+            { label: 'Leave-1-out (ms)', data: results.map(r => r.naive_attribution_ms), backgroundColor: '#ef4444' },
+        ], 'Attribution time (ms)');
+    }
+
+    async function loadScalingTab() {
+        const loading = document.getElementById('scaling-loading');
+        const content = document.getElementById('scaling-content');
+        const errDiv = document.getElementById('scaling-error');
+
+        const [gradData, pretradeData, whatifData] = await Promise.all([
+            loadBenchmarkJSON('gradient_scaling_benchmark.json'),
+            loadBenchmarkJSON('pretrade_scaling_benchmark.json'),
+            loadBenchmarkJSON('whatif_scaling_benchmark.json'),
+        ]);
+
+        const anyData = gradData || pretradeData || whatifData;
+        if (!anyData) {
+            loading.style.display = 'none';
+            errDiv.style.display = 'flex';
+            return;
+        }
+
+        // Hero stats
+        const hero = document.getElementById('scaling-hero');
+        let heroHtml = '<h2 style="margin:0 0 0.5rem 0;">AADC Scaling Benchmarks</h2>';
+        heroHtml += '<p style="color:var(--text-secondary);margin:0;">Demonstrating AADC feasibility for 1M-trade portfolios</p>';
+        heroHtml += '<div style="display:flex;gap:2rem;margin-top:1rem;flex-wrap:wrap;">';
+        if (gradData) {
+            const validGrad = (gradData.results || []).filter(r => !r.error);
+            if (validGrad.length) {
+                const last = validGrad[validGrad.length - 1];
+                heroHtml += '<div><div style="font-size:0.8rem;color:var(--text-secondary);">Max tested</div><div style="font-size:1.3rem;font-weight:700;">' + fmtNum(last.num_trades) + ' trades</div></div>';
+                heroHtml += '<div><div style="font-size:0.8rem;color:var(--text-secondary);">Gradient speedup</div><div style="font-size:1.3rem;font-weight:700;color:var(--success);">' + last.speedup.toFixed(0) + '×</div></div>';
+            }
+        }
+        if (pretradeData) {
+            const validPre = (pretradeData.results || []).filter(r => !r.error);
+            if (validPre.length) {
+                const last = validPre[validPre.length - 1];
+                heroHtml += '<div><div style="font-size:0.8rem;color:var(--text-secondary);">Pre-trade queries/s</div><div style="font-size:1.3rem;font-weight:700;color:var(--success);">' + last.queries_per_second_aadc.toFixed(0) + '</div></div>';
+            }
+        }
+        heroHtml += '</div>';
+        hero.innerHTML = heroHtml;
+
+        // Render sub-panels
+        if (gradData) renderGradientScaling(gradData, document.getElementById('sp-gradient-body'));
+        else document.getElementById('sp-gradient-body').innerHTML = '<p>No gradient data available.</p>';
+
+        if (pretradeData) renderPretradeScaling(pretradeData, document.getElementById('sp-pretrade-body'));
+        else document.getElementById('sp-pretrade-body').innerHTML = '<p>No pre-trade data available.</p>';
+
+        if (whatifData) renderWhatifScaling(whatifData, document.getElementById('sp-whatif-body'));
+        else document.getElementById('sp-whatif-body').innerHTML = '<p>No what-if data available.</p>';
+
+        loading.style.display = 'none';
+        content.style.display = 'block';
     }
 
     // ====================================================================
