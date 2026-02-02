@@ -50,6 +50,29 @@ if(EXISTS "${AADC_INCLUDE}/aadc/aadc.h")
     add_aadc_target(fx_option_aadc model/cpp/fx_option_aadc.cpp)
     add_aadc_target(xccy_swap_aadc model/cpp/xccy_swap_aadc.cpp)
 
+    # SIMM Optimizer: full pipeline with AADC SIMM kernel + allocation optimization
+    add_executable(simm_optimizer
+        model/cpp/simm_optimizer_main.cpp
+        model/cpp/vanilla_irs.cpp
+        model/cpp/equity_option.cpp
+        model/cpp/inflation_swap.cpp
+        model/cpp/fx_option.cpp
+        model/cpp/xccy_swap.cpp
+    )
+    target_include_directories(simm_optimizer PRIVATE ${AADC_INCLUDE} model/cpp)
+    target_compile_definitions(simm_optimizer PRIVATE
+        PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_compile_options(simm_optimizer PRIVATE -O3 -mavx2 -mfma -Wall)
+    target_link_directories(simm_optimizer PRIVATE ${AADC_LIB_DIR})
+    target_link_libraries(simm_optimizer PRIVATE aadc-avx2)
+    set_target_properties(simm_optimizer PROPERTIES
+        BUILD_RPATH "${AADC_LIB_DIR}"
+        INSTALL_RPATH "${AADC_LIB_DIR}"
+    )
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(simm_optimizer PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+
 else()
     message(WARNING "AADC SDK not found at ${AADC_ROOT}. AADC targets will not be built.")
 endif()
