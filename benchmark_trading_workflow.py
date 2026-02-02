@@ -22,10 +22,10 @@ Usage:
     python benchmark_trading_workflow.py --trades 5000 --portfolios 10 \\
         --new-trades 50 --optimize-iters 100 --refresh-interval 10
 
-Version: 2.7.0
+Version: 2.9.0
 """
 
-MODEL_VERSION = "2.8.0"
+MODEL_VERSION = "2.9.0"
 
 import sys
 import os
@@ -929,6 +929,25 @@ def _eval_aadc(ctx, agg_S_T):
     return im_values, gradients
 
 
+def _eval_aadc_im_only(ctx, agg_S_T):
+    """
+    Forward-only AADC evaluation: returns IM values without computing gradients.
+    Requests output with empty derivative list to skip the reverse pass.
+    """
+    P, K = agg_S_T.shape
+    workers = ctx["workers"]
+    if workers is None:
+        workers = aadc.ThreadPool(ctx["num_threads"])
+
+    inputs = {ctx["sens_handles"][k]: agg_S_T[:, k] for k in range(K)}
+    request = {ctx["im_output"]: []}  # Output requested, no derivatives
+
+    results = aadc.evaluate(ctx["funcs"], request, inputs, workers)
+
+    im_values = np.array(results[0][ctx["im_output"]])
+    return im_values
+
+
 def _eval_gpu(ctx, agg_S_T):
     """
     Evaluate full ISDA GPU kernel for P portfolios.
@@ -956,6 +975,13 @@ def _make_gpu_grad_fn(ctx):
     """Closure for GPU gradient evaluation."""
     def fn(agg_S_T):
         return _eval_gpu(ctx, agg_S_T)
+    return fn
+
+
+def _make_aadc_im_only_fn(ctx):
+    """Closure for forward-only AADC IM evaluation (no gradients)."""
+    def fn(agg_S_T):
+        return _eval_aadc_im_only(ctx, agg_S_T)
     return fn
 
 
@@ -1113,14 +1139,19 @@ def optimize_allocation(
 def greedy_local_search(
     S, integer_allocation, grad_fn,
     max_rounds=50, verbose=False, label="",
+    im_only_fn=None,
 ):
     """
     Gradient-guided greedy local search on integer (one-hot) allocations.
     Mirrors C++ greedyLocalSearch() in allocation_optimizer.h:746.
 
-    Uses AADC/GPU gradients to predict promising discrete trade moves,
-    validates top-k candidates with actual evaluation, and iterates
-    with gradient refresh until no improvement is found.
+    Optimized: maintains running agg_S with O(K) incremental updates per
+    candidate instead of O(T×K×P) full matmul. Uses forward-only im_only_fn
+    for candidate validation (no gradient computation needed).
+
+    Args:
+        im_only_fn: Forward-only evaluation function. If None, falls back to
+                     grad_fn (computing but discarding gradients).
     """
     T, P = integer_allocation.shape
     K = S.shape[1]
@@ -1132,7 +1163,7 @@ def greedy_local_search(
 
     top_k = min(T, max(20, T // 10))
 
-    # Initial evaluation
+    # Initial evaluation with full gradient (needed for candidate ranking)
     agg_S_T = np.dot(S.T, x).T  # (P, K)
     t0 = time.perf_counter()
     im_values, grad_S = grad_fn(agg_S_T)
@@ -1185,20 +1216,24 @@ def greedy_local_search(
             if t in moved_this_round:
                 continue
 
-            # Apply move
-            x[t, curr_p] = 0.0
-            x[t, new_p] = 1.0
+            # Incremental agg_S update: O(K) instead of O(T×K×P) matmul
+            agg_S_T[curr_p, :] -= S[t, :]
+            agg_S_T[new_p, :] += S[t, :]
 
-            # Validate with actual evaluation
-            agg_S_T = np.dot(S.T, x).T
+            # Forward-only evaluation (no gradient needed for validation)
             t0 = time.perf_counter()
-            im_trial, _ = grad_fn(agg_S_T)
+            if im_only_fn is not None:
+                im_trial = im_only_fn(agg_S_T)
+            else:
+                im_trial, _ = grad_fn(agg_S_T)
             total_eval_time += time.perf_counter() - t0
             num_evals += 1
             trial_im = float(np.sum(im_trial))
 
             if trial_im < total_im:
-                # Accept
+                # Accept move
+                x[t, curr_p] = 0.0
+                x[t, new_p] = 1.0
                 total_im = trial_im
                 curr_assignments[t] = new_p
                 improved = True
@@ -1208,9 +1243,9 @@ def greedy_local_search(
                     best_im = total_im
                     best_x = x.copy()
             else:
-                # Revert
-                x[t, new_p] = 0.0
-                x[t, curr_p] = 1.0
+                # Revert agg_S: O(K)
+                agg_S_T[curr_p, :] += S[t, :]
+                agg_S_T[new_p, :] -= S[t, :]
 
         im_history.append(total_im)
 
@@ -1224,8 +1259,7 @@ def greedy_local_search(
                       f"stopping at round {round_idx}")
             break
 
-        # Refresh gradients for next round
-        agg_S_T = np.dot(S.T, x).T
+        # Refresh gradients for next round (full forward+reverse, needed for ranking)
         t0 = time.perf_counter()
         im_values, grad_S = grad_fn(agg_S_T)
         total_eval_time += time.perf_counter() - t0
@@ -1904,6 +1938,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
             aadc_opt = None
             if AADC_AVAILABLE:
                 grad_fn = _make_aadc_grad_fn(ctx)
+                im_only_fn = _make_aadc_im_only_fn(ctx)
                 start = time.perf_counter()
                 aadc_opt = optimize_allocation(
                     S, allocation, grad_fn,
@@ -1914,6 +1949,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
                 greedy = greedy_local_search(
                     S, aadc_opt['final_allocation'], grad_fn,
                     max_rounds=50, verbose=verbose, label="AADC",
+                    im_only_fn=im_only_fn,
                 )
                 if greedy['final_im'] < aadc_opt['final_im']:
                     aadc_opt['final_allocation'] = greedy['final_allocation']
@@ -1928,6 +1964,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
             gpu_opt = None
             if CUDA_AVAILABLE:
                 grad_fn = _make_gpu_grad_fn(ctx)
+                gpu_im_only_fn = _make_gpu_im_only_fn(ctx)
                 start = time.perf_counter()
                 gpu_opt = optimize_allocation(
                     S, allocation, grad_fn,
@@ -1938,6 +1975,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
                 greedy = greedy_local_search(
                     S, gpu_opt['final_allocation'], grad_fn,
                     max_rounds=50, verbose=verbose, label="GPU",
+                    im_only_fn=gpu_im_only_fn,
                 )
                 if greedy['final_im'] < gpu_opt['final_im']:
                     gpu_opt['final_allocation'] = greedy['final_allocation']
@@ -2690,8 +2728,14 @@ def main():
     parser.add_argument('--output', '-o', type=str, default='auto',
                         help='Save console output to file (default: auto-generated in data/). Use "none" to disable.')
     parser.add_argument('--quiet', '-q', action='store_true')
+    parser.add_argument('--no-gpu', action='store_true',
+                        help='Disable GPU backends (CUDA and BF). Run AADC Python + C++ only.')
 
     args = parser.parse_args()
+
+    if args.no_gpu:
+        global CUDA_AVAILABLE
+        CUDA_AVAILABLE = False
     trade_types = [t.strip() for t in args.trade_types.split(',')]
 
     # Resolve output file

@@ -1,5 +1,5 @@
 // SIMM Analytics: Margin Attribution, What-If Scenarios, Pre-Trade Routing
-// Version: 1.0.0
+// Version: 1.1.0
 #pragma once
 
 #include <vector>
@@ -120,6 +120,47 @@ inline std::vector<double> computePortfolioGradientK(
         grad[k] = reinterpret_cast<double*>(&mm_g)[0];
     }
     return grad;
+}
+
+// ============================================================================
+// Helper: Forward-only single-portfolio IM from pre-aggregated agg_S[K]
+// No matmul, no reverse pass — O(K) setup + forward AADC only.
+// ============================================================================
+inline double evaluateIMFromAggSSingle(SIMMKernel& kernel, const double* agg_S) {
+    int K = kernel.K;
+    auto ws = kernel.funcs.createWorkSpace();
+    for (int k = 0; k < K; ++k) {
+        ws->setVal(kernel.sens_handles[k], mmSetConst<mmType>(agg_S[k]));
+    }
+    kernel.funcs.forward(*ws);
+    mmType mm_im = ws->val(kernel.im_output);
+    return reinterpret_cast<double*>(&mm_im)[0];
+}
+
+// ============================================================================
+// Helper: Forward+reverse single-portfolio IM + K-dimensional gradient
+// from pre-aggregated agg_S[K]. No matmul needed.
+// ============================================================================
+inline double evaluateIMAndGradFromAggS(
+    SIMMKernel& kernel, const double* agg_S, double* grad_out, int K)
+{
+    auto ws = kernel.funcs.createWorkSpace();
+    for (int k = 0; k < K; ++k) {
+        ws->setVal(kernel.sens_handles[k], mmSetConst<mmType>(agg_S[k]));
+    }
+    kernel.funcs.forward(*ws);
+    mmType mm_im = ws->val(kernel.im_output);
+    double im = reinterpret_cast<double*>(&mm_im)[0];
+
+    ws->resetDiff();
+    ws->setDiff(kernel.im_output, 1.0);
+    kernel.funcs.reverse(*ws);
+
+    for (int k = 0; k < K; ++k) {
+        mmType mm_g = ws->diff(kernel.sens_handles[k]);
+        grad_out[k] = reinterpret_cast<double*>(&mm_g)[0];
+    }
+    return im;
 }
 
 // ============================================================================

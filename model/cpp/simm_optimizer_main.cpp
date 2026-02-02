@@ -551,54 +551,104 @@ int main(int argc, char* argv[]) {
         std::cout << "================================================================================\n";
 
     } else if (mode == "whatif") {
-        // ---- What-If Mode: Unwind + Stress scenarios ----
+        // ---- What-If Mode: Pre-aggregated approach (no matmuls) ----
         std::cout << "--- What-If Mode ---\n\n";
         auto eval_start = std::chrono::high_resolution_clock::now();
+        int K = kernel.K;
 
-        // Unwind top N
+        // Aggregate all trades once: agg_total[k] = sum_t S[t,k]
+        std::vector<double> agg_total(K, 0.0);
+        for (int t = 0; t < S.T; ++t)
+            for (int k = 0; k < K; ++k)
+                agg_total[k] += S(t, k);
+
+        // One forward+reverse → base_im + gradient[K]
+        std::vector<double> grad(K);
+        double base_im = evaluateIMAndGradFromAggS(kernel, agg_total.data(), grad.data(), K);
+
+        // [1] Unwind top N: attribution via dot product, then forward-only eval
         std::cout << "  [1] Unwind top " << unwind_n << " contributors:\n";
-        auto unwind = whatIfUnwindTopN(kernel, S, num_threads, unwind_n);
-        std::cout << "      Base IM:     $" << std::fixed << std::setprecision(2) << unwind.base_im << "\n";
-        std::cout << "      Scenario IM: $" << unwind.scenario_im << "\n";
-        std::cout << "      IM change:   $" << unwind.im_change
-                  << " (" << std::setprecision(1) << unwind.im_change_pct << "%)\n";
-        std::cout << "      Trades: ";
-        for (size_t i = 0; i < std::min(size_t(5), unwind.trades_affected.size()); ++i) {
-            std::cout << unwind.trades_affected[i];
-            if (i + 1 < std::min(size_t(5), unwind.trades_affected.size())) std::cout << ", ";
-        }
-        if (unwind.trades_affected.size() > 5) std::cout << "...";
-        std::cout << "\n\n";
+        {
+            std::vector<std::pair<double, int>> contribs(S.T);
+            for (int t = 0; t < S.T; ++t) {
+                double c = 0.0;
+                for (int k = 0; k < K; ++k)
+                    c += S(t, k) * grad[k];
+                contribs[t] = {std::abs(c), t};
+            }
+            int actual_n = std::min(unwind_n, S.T);
+            std::partial_sort(contribs.begin(), contribs.begin() + actual_n, contribs.end(),
+                              [](auto& a, auto& b) { return a.first > b.first; });
 
-        // Stress: scale IR by stress_factor
+            std::vector<double> agg_unwind = agg_total;
+            for (int i = 0; i < actual_n; ++i) {
+                int tidx = contribs[i].second;
+                for (int k = 0; k < K; ++k)
+                    agg_unwind[k] -= S(tidx, k);
+            }
+            double unwind_im = evaluateIMFromAggSSingle(kernel, agg_unwind.data());
+            double change = unwind_im - base_im;
+            double change_pct = (base_im > 1e-15) ? 100.0 * change / base_im : 0.0;
+            std::cout << "      Base IM:     $" << std::fixed << std::setprecision(2) << base_im << "\n";
+            std::cout << "      Scenario IM: $" << unwind_im << "\n";
+            std::cout << "      IM change:   $" << change
+                      << " (" << std::setprecision(1) << change_pct << "%)\n";
+            std::cout << "      Trades: ";
+            for (int i = 0; i < std::min(actual_n, 5); ++i) {
+                int tidx = contribs[i].second;
+                if (tidx < static_cast<int>(S.trade_ids.size()))
+                    std::cout << S.trade_ids[tidx];
+                else
+                    std::cout << "T" << tidx;
+                if (i + 1 < std::min(actual_n, 5)) std::cout << ", ";
+            }
+            if (actual_n > 5) std::cout << "...";
+            std::cout << "\n\n";
+        }
+
+        // [2] Stress IR
         std::cout << "  [2] Stress IR by " << stress_factor << "x:\n";
-        auto stress = whatIfStressScenario(kernel, S, stress_factor, num_threads,
-                                           metadata, RiskClass::Rates);
-        std::cout << "      Base IM:     $" << std::fixed << std::setprecision(2) << stress.base_im << "\n";
-        std::cout << "      Scenario IM: $" << stress.scenario_im << "\n";
-        std::cout << "      IM change:   $" << stress.im_change
-                  << " (" << std::setprecision(1) << stress.im_change_pct << "%)\n\n";
-
-        // Stress: scale Equity by stress_factor
-        std::cout << "  [3] Stress Equity by " << stress_factor << "x:\n";
-        auto stress_eq = whatIfStressScenario(kernel, S, stress_factor, num_threads,
-                                              metadata, RiskClass::Equity);
-        std::cout << "      Base IM:     $" << std::fixed << std::setprecision(2) << stress_eq.base_im << "\n";
-        std::cout << "      Scenario IM: $" << stress_eq.scenario_im << "\n";
-        std::cout << "      IM change:   $" << stress_eq.im_change
-                  << " (" << std::setprecision(1) << stress_eq.im_change_pct << "%)\n\n";
-
-        // Marginal IM for a synthetic new trade
-        std::cout << "  [4] Marginal IM (synthetic new trade):\n";
-        double grad_im = 0.0;
-        auto grad_k = computePortfolioGradientK(kernel, S, grad_im);
-        // Create a simple new trade sensitivity vector (small IR DV01)
-        std::vector<double> new_sens(S.K, 0.0);
-        for (int k = 0; k < std::min(S.K, NUM_IR_TENORS); ++k) {
-            new_sens[k] = 1000.0;  // $1000 DV01 per tenor
+        {
+            std::vector<double> agg_stress = agg_total;
+            for (int k = 0; k < K; ++k) {
+                if (metadata[k].risk_class == RiskClass::Rates)
+                    agg_stress[k] *= stress_factor;
+            }
+            double stress_im = evaluateIMFromAggSSingle(kernel, agg_stress.data());
+            double change = stress_im - base_im;
+            double change_pct = (base_im > 1e-15) ? 100.0 * change / base_im : 0.0;
+            std::cout << "      Base IM:     $" << std::fixed << std::setprecision(2) << base_im << "\n";
+            std::cout << "      Scenario IM: $" << stress_im << "\n";
+            std::cout << "      IM change:   $" << change
+                      << " (" << std::setprecision(1) << change_pct << "%)\n\n";
         }
-        double marginal = computeMarginalIM(grad_k, new_sens, S.K);
-        std::cout << "      Marginal IM: $" << std::fixed << std::setprecision(2) << marginal << "\n";
+
+        // [3] Stress Equity
+        std::cout << "  [3] Stress Equity by " << stress_factor << "x:\n";
+        {
+            std::vector<double> agg_stress = agg_total;
+            for (int k = 0; k < K; ++k) {
+                if (metadata[k].risk_class == RiskClass::Equity)
+                    agg_stress[k] *= stress_factor;
+            }
+            double stress_im = evaluateIMFromAggSSingle(kernel, agg_stress.data());
+            double change = stress_im - base_im;
+            double change_pct = (base_im > 1e-15) ? 100.0 * change / base_im : 0.0;
+            std::cout << "      Base IM:     $" << std::fixed << std::setprecision(2) << base_im << "\n";
+            std::cout << "      Scenario IM: $" << stress_im << "\n";
+            std::cout << "      IM change:   $" << change
+                      << " (" << std::setprecision(1) << change_pct << "%)\n\n";
+        }
+
+        // [4] Marginal IM — dot product with gradient, no eval needed
+        std::cout << "  [4] Marginal IM (synthetic new trade):\n";
+        {
+            std::vector<double> new_sens(K, 0.0);
+            for (int k = 0; k < std::min(K, NUM_IR_TENORS); ++k)
+                new_sens[k] = 1000.0;
+            double marginal = computeMarginalIM(grad, new_sens, K);
+            std::cout << "      Marginal IM: $" << std::fixed << std::setprecision(2) << marginal << "\n";
+        }
 
         auto eval_end = std::chrono::high_resolution_clock::now();
         double eval_time = std::chrono::duration<double>(eval_end - eval_start).count();
@@ -943,36 +993,88 @@ int main(int argc, char* argv[]) {
             std::cout << "  Eval time: " << std::setprecision(2) << attrib.eval_time_sec * 1000 << " ms\n\n";
         }
 
-        // [WHATIF]
+        // [WHATIF] — Pre-aggregated approach: aggregate once, evaluate from agg_S
         std::cout << "[WHATIF]\n";
         {
             auto wi_start = std::chrono::high_resolution_clock::now();
+            int K = kernel.K;
 
-            auto unwind = whatIfUnwindTopN(kernel, S, num_threads, unwind_n);
-            std::cout << "  Unwind top " << unwind_n << ": Base=$"
-                      << std::fixed << std::setprecision(2) << unwind.base_im
-                      << " Scenario=$" << unwind.scenario_im
-                      << " (" << std::setprecision(1) << unwind.im_change_pct << "%)\n";
+            // 1. Aggregate all trades once: agg_total[k] = sum_t S[t,k]
+            std::vector<double> agg_total(K, 0.0);
+            for (int t = 0; t < S.T; ++t)
+                for (int k = 0; k < K; ++k)
+                    agg_total[k] += S(t, k);
 
-            auto stress = whatIfStressScenario(kernel, S, stress_factor, num_threads,
-                                               metadata, RiskClass::Rates);
-            std::cout << "  Stress IR " << stress_factor << "x: Scenario=$"
-                      << std::fixed << std::setprecision(2) << stress.scenario_im
-                      << " (" << std::setprecision(1) << stress.im_change_pct << "%)\n";
+            // 2. One forward+reverse → base_im + gradient[K]
+            std::vector<double> grad(K);
+            double base_im = evaluateIMAndGradFromAggS(kernel, agg_total.data(), grad.data(), K);
 
-            auto stress_eq = whatIfStressScenario(kernel, S, stress_factor, num_threads,
-                                                  metadata, RiskClass::Equity);
-            std::cout << "  Stress Equity " << stress_factor << "x: Scenario=$"
-                      << std::fixed << std::setprecision(2) << stress_eq.scenario_im
-                      << " (" << std::setprecision(1) << stress_eq.im_change_pct << "%)\n";
+            // 3. Unwind top N: attribution via dot product, then subtract from agg_S
+            {
+                // Euler attribution: contribution[t] = dot(S[t,:], grad[:])
+                std::vector<std::pair<double, int>> contribs(S.T);
+                for (int t = 0; t < S.T; ++t) {
+                    double c = 0.0;
+                    for (int k = 0; k < K; ++k)
+                        c += S(t, k) * grad[k];
+                    contribs[t] = {std::abs(c), t};
+                }
+                std::partial_sort(contribs.begin(),
+                                  contribs.begin() + std::min(unwind_n, S.T),
+                                  contribs.end(),
+                                  [](auto& a, auto& b) { return a.first > b.first; });
 
-            double grad_im = 0.0;
-            auto grad_k = computePortfolioGradientK(kernel, S, grad_im);
-            std::vector<double> new_sens(S.K, 0.0);
-            for (int k = 0; k < std::min(S.K, NUM_IR_TENORS); ++k)
-                new_sens[k] = 1000.0;
-            double marginal = computeMarginalIM(grad_k, new_sens, S.K);
-            std::cout << "  Marginal IM: $" << std::fixed << std::setprecision(2) << marginal << "\n";
+                std::vector<double> agg_unwind = agg_total;
+                int actual_n = std::min(unwind_n, S.T);
+                for (int i = 0; i < actual_n; ++i) {
+                    int tidx = contribs[i].second;
+                    for (int k = 0; k < K; ++k)
+                        agg_unwind[k] -= S(tidx, k);
+                }
+                double unwind_im = evaluateIMFromAggSSingle(kernel, agg_unwind.data());
+                double change_pct = (base_im > 1e-15) ? 100.0 * (unwind_im - base_im) / base_im : 0.0;
+                std::cout << "  Unwind top " << actual_n << ": Base=$"
+                          << std::fixed << std::setprecision(2) << base_im
+                          << " Scenario=$" << unwind_im
+                          << " (" << std::setprecision(1) << change_pct << "%)\n";
+            }
+
+            // 4. Stress IR: multiply IR factors in copy, forward-only eval
+            {
+                std::vector<double> agg_stress = agg_total;
+                for (int k = 0; k < K; ++k) {
+                    if (metadata[k].risk_class == RiskClass::Rates)
+                        agg_stress[k] *= stress_factor;
+                }
+                double stress_im = evaluateIMFromAggSSingle(kernel, agg_stress.data());
+                double change_pct = (base_im > 1e-15) ? 100.0 * (stress_im - base_im) / base_im : 0.0;
+                std::cout << "  Stress IR " << stress_factor << "x: Scenario=$"
+                          << std::fixed << std::setprecision(2) << stress_im
+                          << " (" << std::setprecision(1) << change_pct << "%)\n";
+            }
+
+            // 5. Stress Equity: same pattern
+            {
+                std::vector<double> agg_stress = agg_total;
+                for (int k = 0; k < K; ++k) {
+                    if (metadata[k].risk_class == RiskClass::Equity)
+                        agg_stress[k] *= stress_factor;
+                }
+                double stress_im = evaluateIMFromAggSSingle(kernel, agg_stress.data());
+                double change_pct = (base_im > 1e-15) ? 100.0 * (stress_im - base_im) / base_im : 0.0;
+                std::cout << "  Stress Equity " << stress_factor << "x: Scenario=$"
+                          << std::fixed << std::setprecision(2) << stress_im
+                          << " (" << std::setprecision(1) << change_pct << "%)\n";
+            }
+
+            // 6. Marginal IM: dot(grad, new_sens) — no AADC eval needed
+            {
+                std::vector<double> new_sens(K, 0.0);
+                for (int k = 0; k < std::min(K, NUM_IR_TENORS); ++k)
+                    new_sens[k] = 1000.0;
+                double marginal = computeMarginalIM(grad, new_sens, K);
+                std::cout << "  Marginal IM: $" << std::fixed << std::setprecision(2) << marginal << "\n";
+            }
 
             auto wi_end = std::chrono::high_resolution_clock::now();
             double wi_time = std::chrono::duration<double>(wi_end - wi_start).count();
