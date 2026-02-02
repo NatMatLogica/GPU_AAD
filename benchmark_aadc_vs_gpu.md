@@ -430,3 +430,109 @@ python benchmark_trading_workflow.py --trades 1000 --portfolios 5 --exclude adam
 # Quick test with minimal output
 python benchmark_trading_workflow.py --trades 100 --portfolios 3 --output none
 ```
+
+---
+
+## Execution Log Schema: `data/execution_log_portfolio.csv`
+
+Every benchmark run appends rows to this CSV. One row per backend per step (or per optimization method). Archived logs are suffixed by date (e.g., `execution_log_portfolio_Feb2.csv`).
+
+### Identity & Configuration
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `timestamp` | ISO 8601 | When this row was logged (e.g., `2026-02-02T17:49:52.716102`) |
+| `model_name` | string | Backend + workflow step identifier. Examples: `workflow_portfolio_setup_aadc_full`, `workflow_eod_optimize_gpu_full`, `typical_day_cpp_aadc`. The naming convention is `{script}_{step}_{backend}_{simm_formula}`. |
+| `model_version` | string | Semantic version of the benchmark script (e.g., `2.8.0`) |
+| `trade_types` | string | Comma-separated trade types in the portfolio (e.g., `ir_swap`, `ir_swap,equity_option,fx_option`) |
+| `num_trades` | int | Total number of trades in the portfolio |
+| `num_simm_buckets` | int | Number of SIMM buckets across all risk classes (determines GPU kernel dimensions) |
+| `num_portfolios` | int | Number of counterparty portfolios (P) |
+| `num_threads` | int | AADC/OpenMP thread count used for this run |
+
+### CRIF Timing
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `crif_time_sec` | float | Time to compute CRIF sensitivities from trade objects (bump-and-revalue or AADC adjoint). Empty for steps that reuse pre-computed CRIF. |
+| `crif_kernel_recording_sec` | float | AADC kernel recording time for CRIF computation. Empty for GPU or when CRIF is reused. |
+
+### SIMM Evaluation Timing
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `simm_time_sec` | float | Wall time for the SIMM margin evaluation(s) in this step. For single-eval steps (attribution, what-if), this is the per-eval time. For multi-eval steps (optimization), this is total eval time across all iterations. |
+| `im_sens_time_sec` | float | Time to compute IM + sensitivities (gradients). Same as `simm_time_sec` for steps that compute both IM and dIM/dTrade simultaneously. |
+| `im_kernel_recording_sec` | float | One-time AADC kernel recording time for the SIMM formula. The kernel is recorded once per session and reused for all subsequent evaluations. Empty for GPU backend. |
+
+### Portfolio Group
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `group_id` | string | Portfolio group identifier. `ALL` for aggregate results, or a group index (`0`, `1`, ...) for per-counterparty results. |
+| `num_group_trades` | int | Number of trades in this group. Equals `num_trades` when `group_id = ALL`. |
+| `im_result` | float | SIMM Initial Margin in USD for this group/step. This is the total IM across all counterparties for `ALL` rows, or per-counterparty IM for indexed groups. |
+| `num_im_sensitivities` | int | Number of IM sensitivities computed: `K (risk factors) x P (portfolios)`. Represents the gradient dimensions. |
+
+### Single-Step Reallocation (legacy)
+
+These fields are from the older single-step reallocation benchmark. Empty in workflow and typical-day benchmarks.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `reallocate_n` | int | Number of trades considered for reallocation |
+| `reallocate_time_sec` | float | Time for the reallocation step |
+| `im_before_realloc` | float | Total IM before reallocation ($) |
+| `im_after_realloc` | float | Total IM after reallocation ($) |
+| `realloc_trades_moved` | int | Number of trades moved to different counterparties |
+| `realloc_im_reduction` | float | Absolute IM reduction ($) |
+| `realloc_im_reduction_pct` | float | IM reduction as percentage of initial IM |
+| `im_realloc_estimate` | float | Gradient-estimated IM after reallocation (for validation) |
+| `realloc_estimate_matches` | bool | Whether the gradient estimate matched the actual post-realloc IM |
+
+### Optimization
+
+These fields are populated for EOD optimization steps (gradient descent, Adam, greedy, brute-force).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `optimize_method` | string | Optimization algorithm: `gradient_descent`, `adam`, `greedy`, `gpu_brute_force` |
+| `optimize_time_sec` | float | Total wall time for the optimization run (all iterations) |
+| `optimize_initial_im` | float | Total IM before optimization ($) |
+| `optimize_final_im` | float | Total IM after optimization ($) |
+| `optimize_trades_moved` | int | Number of trades reassigned to different counterparties |
+| `optimize_iterations` | int | Number of optimizer iterations completed |
+| `optimize_im_reduction_pct` | float | IM reduction as percentage: `(initial - final) / initial * 100` |
+| `optimize_converged` | bool | `True` if optimizer stopped before `max_iters` (early convergence) |
+| `optimize_max_iters` | int | Maximum iterations allowed for this run |
+
+### Throughput
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `num_simm_evals` | int | Number of SIMM kernel evaluations performed in this step. For optimization, this is `iterations + 1` (initial + per-iteration). For attribution, this is `1`. |
+| `simm_evals_per_sec` | float | Throughput: `num_simm_evals / simm_time_sec`. Key metric for comparing backend raw speed. |
+
+### Status
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `status` | string | `success` or `error`. All rows in normal operation are `success`. |
+
+### Example `model_name` Values
+
+| model_name | Source Script | Description |
+|------------|--------------|-------------|
+| `workflow_portfolio_setup_aadc_full` | `benchmark_trading_workflow.py` | Start-of-day portfolio IM via AADC |
+| `workflow_portfolio_setup_gpu_full` | `benchmark_trading_workflow.py` | Start-of-day portfolio IM via GPU |
+| `workflow_margin_attribution_aadc_full` | `benchmark_trading_workflow.py` | Euler margin decomposition via AADC |
+| `workflow_pretrade_aadc_full` | `benchmark_trading_workflow.py` | Intraday pre-trade routing via AADC |
+| `workflow_whatif_aadc_full` | `benchmark_trading_workflow.py` | What-if stress scenarios via AADC |
+| `workflow_eod_optimize_aadc_full` | `benchmark_trading_workflow.py` | EOD gradient descent optimization via AADC |
+| `workflow_eod_optimize_gpu_full` | `benchmark_trading_workflow.py` | EOD gradient descent optimization via GPU |
+| `workflow_eod_bf_gpu_full` | `benchmark_trading_workflow.py` | EOD brute-force optimization via GPU |
+| `workflow_eod_optimize_cpp_full` | `benchmark_trading_workflow.py` | EOD optimization via C++ AADC |
+| `typical_day_aadc_py` | `benchmark_typical_day.py` | AADC Python throughput measurement |
+| `typical_day_gpu` | `benchmark_typical_day.py` | GPU throughput measurement |
+| `typical_day_bf_gpu` | `benchmark_typical_day.py` | BF GPU throughput measurement |
+| `typical_day_cpp_aadc` | `benchmark_typical_day.py` | C++ AADC throughput measurement |

@@ -1,6 +1,6 @@
 // Allocation Optimizer with Batched AADC Evaluation
 // Ported from model/simm_portfolio_aadc_v2.py + simm_allocation_optimizer_v2.py
-// Version: 2.0.0
+// Version: 2.1.0
 #pragma once
 
 #include <vector>
@@ -70,39 +70,55 @@ struct OptimizationResult {
     int trades_moved;
     double total_eval_time_sec;
     double kernel_recording_time_sec;
+    int total_evals = 0;           // Total SIMM evaluation count (Phase 1 + greedy)
+    int greedy_rounds = 0;         // Number of greedy refinement rounds
 };
 
 // ============================================================================
 // Matrix Multiply Helpers (OpenMP-parallel)
 // ============================================================================
 
-// C = A^T @ B where A is (M,K), B is (M,N) -> C is (K,N)
+// C = A^T @ B where A is (M,K) row-major, B is (M,N) row-major -> C is (K,N)
+// Accumulation-based: iterate rows of A and B together for cache-friendly access.
 inline void matmulATB(const double* A, const double* B,
                       double* C, int M, int K, int N) {
     std::fill(C, C + K * N, 0.0);
-    #pragma omp parallel for collapse(2)
-    for (int k = 0; k < K; ++k) {
-        for (int n = 0; n < N; ++n) {
-            double sum = 0.0;
-            for (int m = 0; m < M; ++m) {
-                sum += A[m * K + k] * B[m * N + n];
+    // For small N (portfolios), parallelize over K and accumulate across M rows.
+    // Each thread accumulates partial sums to avoid false sharing.
+    #pragma omp parallel
+    {
+        std::vector<double> local(K * N, 0.0);
+        #pragma omp for schedule(static)
+        for (int m = 0; m < M; ++m) {
+            const double* a_row = A + m * K;
+            const double* b_row = B + m * N;
+            for (int k = 0; k < K; ++k) {
+                double a_val = a_row[k];
+                for (int n = 0; n < N; ++n) {
+                    local[k * N + n] += a_val * b_row[n];
+                }
             }
-            C[k * N + n] = sum;
         }
+        #pragma omp critical
+        for (int i = 0; i < K * N; ++i) C[i] += local[i];
     }
 }
 
-// C = A @ B where A is (M,K), B is (K,N) -> C is (M,N)
+// C = A @ B where A is (M,K) row-major, B is (K,N) row-major -> C is (M,N)
+// Row-of-A dot columns-of-B with accumulation for better cache reuse on B.
 inline void matmulAB(const double* A, const double* B,
                      double* C, int M, int K, int N) {
-    #pragma omp parallel for
+    std::fill(C, C + M * N, 0.0);
+    #pragma omp parallel for schedule(static)
     for (int m = 0; m < M; ++m) {
-        for (int n = 0; n < N; ++n) {
-            double sum = 0.0;
-            for (int k = 0; k < K; ++k) {
-                sum += A[m * K + k] * B[k * N + n];
+        const double* a_row = A + m * K;
+        double* c_row = C + m * N;
+        for (int k = 0; k < K; ++k) {
+            double a_val = a_row[k];
+            const double* b_row = B + k * N;
+            for (int n = 0; n < N; ++n) {
+                c_row[n] += a_val * b_row[n];
             }
-            C[m * N + n] = sum;
         }
     }
 }
@@ -405,6 +421,57 @@ inline EvalResult evaluateAllPortfoliosPreWeightedMT(
 }
 
 // ============================================================================
+// Forward-only evaluation from pre-computed agg_S (no chain-rule matmuls).
+// Returns IM values only. Used by incremental greedy search.
+// ============================================================================
+inline std::vector<double> evaluateIMFromAggS(
+    SIMMKernel& kernel,
+    const double* agg_S,   // K x P, column-major (K rows, P cols)
+    int P,
+    int num_threads)
+{
+    int K = kernel.K;
+    int num_batches = (P + AVX_WIDTH - 1) / AVX_WIDTH;
+    std::vector<double> ims(P, 0.0);
+
+    int actual_threads = std::min(num_threads, num_batches);
+    std::vector<std::shared_ptr<AADCWorkSpace<mmType>>> workspaces(actual_threads);
+    for (int i = 0; i < actual_threads; ++i)
+        workspaces[i] = kernel.funcs.createWorkSpace();
+
+    #pragma omp parallel for num_threads(actual_threads) schedule(dynamic)
+    for (int batch = 0; batch < num_batches; ++batch) {
+        #ifdef _OPENMP
+        int tid = omp_get_thread_num();
+        #else
+        int tid = 0;
+        #endif
+        auto& ws = *workspaces[tid];
+        int p_start = batch * AVX_WIDTH;
+
+        for (int k = 0; k < K; ++k) {
+            mmType mm_val;
+            double* ptr = reinterpret_cast<double*>(&mm_val);
+            for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                int p = p_start + lane;
+                ptr[lane] = (p < P) ? agg_S[k * P + p] : 0.0;
+            }
+            ws.setVal(kernel.sens_handles[k], mm_val);
+        }
+
+        kernel.funcs.forward(ws);
+
+        mmType mm_im = ws.val(kernel.im_output);
+        double* im_ptr = reinterpret_cast<double*>(&mm_im);
+        for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+            int p = p_start + lane;
+            if (p < P) ims[p] = im_ptr[lane];
+        }
+    }
+    return ims;
+}
+
+// ============================================================================
 // Simplex Projection (Duchi et al.)
 // Projects each row to probability simplex: sum=1, all>=0
 // ============================================================================
@@ -593,9 +660,11 @@ inline OptimizationResult optimizeGradientDescent(
                   << total_eval_time * 1000 << " ms\n";
     }
 
+    int phase1_evals = static_cast<int>(im_history.size());  // 1 per iter + initial
     return {std::move(best_x), initial_im, best_im, std::move(im_history),
             static_cast<int>(im_history.size()), trades_moved,
-            total_eval_time, kernel.recording_time_sec};
+            total_eval_time, kernel.recording_time_sec,
+            phase1_evals, 0};
 }
 
 // ============================================================================
@@ -727,21 +796,19 @@ inline OptimizationResult optimizeAdam(
         std::cout << "    [C++ Adam] Trades moved: " << trades_moved << "\n";
     }
 
+    int phase1_evals = static_cast<int>(im_history.size());
     return {std::move(best_x), initial_im, best_im, std::move(im_history),
             static_cast<int>(im_history.size()), trades_moved,
-            total_eval_time, kernel.recording_time_sec};
+            total_eval_time, kernel.recording_time_sec,
+            phase1_evals, 0};
 }
 
 // ============================================================================
-// Greedy Local Search (gradient-guided, on integer allocation)
+// Greedy Local Search (gradient-guided, incremental agg_S)
 //
-// Instead of brute-forcing all T×P moves per round (O(T*P) evaluations),
-// use AADC gradients to rank candidate moves. For trade t currently in
-// portfolio curr_p, the predicted IM change from moving to new_p is:
-//   delta ≈ gradient[t, new_p] - gradient[t, curr_p]
-// We sort candidates by predicted delta and only validate the top ones,
-// reducing per-round cost from O(T*P) evaluations to O(1) gradient eval
-// + O(top_k) validation evals.
+// Uses AADC gradients to rank candidate moves. For validation, maintains
+// agg_S incrementally (O(K) per move) and runs forward-only AADC (no chain
+// rule matmul). Full gradient evaluation only once per round for ranking.
 // ============================================================================
 inline OptimizationResult greedyLocalSearch(
     SIMMKernel& kernel,
@@ -755,18 +822,26 @@ inline OptimizationResult greedyLocalSearch(
     AllocationMatrix best_x = x.copy();
     std::vector<double> im_history;
     double total_eval_time = 0.0;
-    int T = x.T, P = x.P;
+    int total_evals = 0;
+    int T = x.T, P = x.P, K = kernel.K;
 
     // How many candidates to validate per round
     int top_k = std::min(T, std::max(20, T / 10));
 
-    // Initial evaluation (gives us both IM values and gradients)
+    // Initial evaluation with full gradient (for ranking)
     auto result = evaluateAllPortfoliosMT(kernel, S, x, num_threads);
     double total_im = std::accumulate(result.ims.begin(), result.ims.end(), 0.0);
     im_history.push_back(total_im);
     total_eval_time += result.eval_time_sec;
+    ++total_evals;
     double best_im = total_im;
     double initial_im = total_im;
+
+    // Maintain running agg_S = S^T @ x -> (K, P)
+    std::vector<double> agg_S(K * P);
+    matmulATB(S.data.data(), x.data.data(), agg_S.data(), T, K, P);
+    // Keep a copy of current IM per portfolio
+    std::vector<double> port_ims = result.ims;
 
     if (verbose) {
         std::cout << "    [C++ Greedy] Initial IM: $" << std::fixed << std::setprecision(2)
@@ -782,7 +857,6 @@ inline OptimizationResult greedyLocalSearch(
 
     for (int round = 0; round < max_rounds; ++round) {
         // Rank all possible moves using gradients
-        // gradient layout: T x P row-major, result.gradient[t * P + p]
         std::vector<Candidate> candidates;
         candidates.reserve(T * (P - 1));
 
@@ -795,7 +869,7 @@ inline OptimizationResult greedyLocalSearch(
             for (int new_p = 0; new_p < P; ++new_p) {
                 if (new_p == curr_p) continue;
                 double delta = result.gradient[t * P + new_p] - g_curr;
-                if (delta < 0.0) {  // Only consider predicted improvements
+                if (delta < 0.0) {
                     candidates.push_back({t, curr_p, new_p, delta});
                 }
             }
@@ -807,7 +881,6 @@ inline OptimizationResult greedyLocalSearch(
             break;
         }
 
-        // Partial sort to get top_k most negative deltas
         int n_try = std::min(top_k, static_cast<int>(candidates.size()));
         std::partial_sort(candidates.begin(), candidates.begin() + n_try, candidates.end(),
                           [](const Candidate& a, const Candidate& b) {
@@ -820,24 +893,34 @@ inline OptimizationResult greedyLocalSearch(
         for (int i = 0; i < n_try; ++i) {
             auto& c = candidates[i];
 
-            // Check trade hasn't already been moved this round
             int actual_p = 0;
             for (int p = 1; p < P; ++p) {
                 if (x(c.trade, p) > x(c.trade, actual_p)) actual_p = p;
             }
-            if (actual_p != c.curr_p) continue;  // Already moved
+            if (actual_p != c.curr_p) continue;
 
-            // Apply move
-            x(c.trade, c.curr_p) = 0.0;
-            x(c.trade, c.new_p) = 1.0;
+            // Incremental agg_S update: O(K) instead of O(T*K*P) matmul
+            for (int k = 0; k < K; ++k) {
+                double s_tk = S.data[c.trade * K + k];
+                agg_S[k * P + c.curr_p] -= s_tk;
+                agg_S[k * P + c.new_p]  += s_tk;
+            }
 
-            // Validate with actual evaluation
-            auto trial = evaluateAllPortfoliosMT(kernel, S, x, num_threads);
-            double trial_im = std::accumulate(trial.ims.begin(), trial.ims.end(), 0.0);
-            total_eval_time += trial.eval_time_sec;
+            // Forward-only evaluation from agg_S (no chain rule, no reverse)
+            auto t_start = std::chrono::high_resolution_clock::now();
+            auto trial_ims = evaluateIMFromAggS(kernel, agg_S.data(), P, num_threads);
+            auto t_end = std::chrono::high_resolution_clock::now();
+            total_eval_time += std::chrono::duration<double>(t_end - t_start).count();
+            ++total_evals;
+
+            double trial_im = std::accumulate(trial_ims.begin(), trial_ims.end(), 0.0);
 
             if (trial_im < total_im) {
+                // Accept: update allocation and IM tracking
+                x(c.trade, c.curr_p) = 0.0;
+                x(c.trade, c.new_p) = 1.0;
                 total_im = trial_im;
+                port_ims = trial_ims;
                 improved = true;
                 ++accepted;
                 if (total_im < best_im) {
@@ -845,9 +928,12 @@ inline OptimizationResult greedyLocalSearch(
                     best_x = x.copy();
                 }
             } else {
-                // Revert
-                x(c.trade, c.new_p) = 0.0;
-                x(c.trade, c.curr_p) = 1.0;
+                // Revert agg_S
+                for (int k = 0; k < K; ++k) {
+                    double s_tk = S.data[c.trade * K + k];
+                    agg_S[k * P + c.curr_p] += s_tk;
+                    agg_S[k * P + c.new_p]  -= s_tk;
+                }
             }
         }
 
@@ -865,23 +951,30 @@ inline OptimizationResult greedyLocalSearch(
             break;
         }
 
-        // Refresh gradients for next round
+        // Refresh gradients for next round (full eval with chain rule)
         result = evaluateAllPortfoliosMT(kernel, S, x, num_threads);
         total_im = std::accumulate(result.ims.begin(), result.ims.end(), 0.0);
         total_eval_time += result.eval_time_sec;
+        ++total_evals;
+        port_ims = result.ims;
+        // Recompute agg_S to stay in sync (avoids floating-point drift)
+        matmulATB(S.data.data(), x.data.data(), agg_S.data(), T, K, P);
     }
 
     int trades_moved = countTradesMoved(integer_allocation, best_x);
+    int greedy_rounds = static_cast<int>(im_history.size()) - 1;  // Exclude initial
 
     if (verbose) {
         std::cout << "    [C++ Greedy] Final IM: $" << std::fixed << std::setprecision(2) << best_im
                   << " (reduction: " << std::setprecision(1)
-                  << 100.0 * (1.0 - best_im / initial_im) << "%)\n";
+                  << 100.0 * (1.0 - best_im / initial_im) << "%, "
+                  << total_evals << " evals, " << greedy_rounds << " rounds)\n";
     }
 
     return {std::move(best_x), initial_im, best_im, std::move(im_history),
             static_cast<int>(im_history.size()), trades_moved,
-            total_eval_time, kernel.recording_time_sec};
+            total_eval_time, kernel.recording_time_sec,
+            total_evals, greedy_rounds};
 }
 
 } // namespace simm

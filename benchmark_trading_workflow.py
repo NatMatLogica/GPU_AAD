@@ -369,6 +369,10 @@ def _parse_cpp_optimize_section(stdout, recording_ms):
     if moved_all: parsed["trades_moved"] = int(moved_all[-1])
     m = re.search(r"Iterations:\s+(\d+)", s)
     if m: parsed["iterations"] = int(m.group(1))
+    m = re.search(r"Greedy rounds:\s+(\d+)", s)
+    if m: parsed["greedy_rounds"] = int(m.group(1))
+    m = re.search(r"Total evals:\s+(\d+)", s)
+    if m: parsed["total_evals"] = int(m.group(1))
     m = re.search(r"Optimization eval:\s+([\d.]+)\s*ms", s)
     if m: parsed["optimization_eval_ms"] = float(m.group(1))
     m = re.search(r"Optimization wall:\s+([\d.]+)\s*ms", s)
@@ -561,7 +565,8 @@ def _apply_cpp_results(steps, economics, cpp_results):
         opt_by_method = cpp_results["optimize"]  # dict: method_name -> parsed
         for method_name, r in opt_by_method.items():
             opt_ms = r.get("optimization_wall_ms", r.get("optimization_eval_ms", 0))
-            iters = r.get("iterations", 0)
+            # Use parsed total_evals if available, otherwise estimate
+            total_evals = r.get("total_evals", r.get("iterations", 0) + 2)
             target = None
             for es in eod_steps:
                 if es.details.get("method") == method_name:
@@ -571,7 +576,7 @@ def _apply_cpp_results(steps, economics, cpp_results):
                 target = eod_steps[0]  # single-method fallback
             if target is not None:
                 target.cpp_time_sec = opt_ms / 1000.0
-                target.cpp_evals = iters + 2  # init eval + iterations + final eval
+                target.cpp_evals = total_evals
                 target.details["cpp"] = r
 
     # Store raw C++ parsed results in step details for comparison output

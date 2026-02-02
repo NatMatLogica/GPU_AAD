@@ -1011,6 +1011,9 @@ int main(int argc, char* argv[]) {
                                            max_iters, 0.0, 1e-6, verbose);
             }
 
+            int total_evals = opt_result.total_evals + 1;  // +1 for init_eval above
+            int greedy_rounds = 0;
+
             if (greedy_refinement) {
                 AllocationMatrix int_alloc = roundToInteger(opt_result.final_allocation);
                 auto greedy_result = greedyLocalSearch(kernel, S, int_alloc, num_threads, 50, verbose);
@@ -1020,6 +1023,8 @@ int main(int argc, char* argv[]) {
                     opt_result.trades_moved = countTradesMoved(alloc, opt_result.final_allocation);
                     opt_result.total_eval_time_sec += greedy_result.total_eval_time_sec;
                 }
+                total_evals += greedy_result.total_evals;
+                greedy_rounds = greedy_result.greedy_rounds;
             }
 
             auto opt_wall_end = std::chrono::high_resolution_clock::now();
@@ -1028,6 +1033,8 @@ int main(int argc, char* argv[]) {
             std::cout << "  Final IM: $" << std::setprecision(2) << opt_result.final_im << "\n";
             std::cout << "  Trades moved: " << opt_result.trades_moved << "\n";
             std::cout << "  Iterations: " << opt_result.num_iterations << "\n";
+            std::cout << "  Greedy rounds: " << greedy_rounds << "\n";
+            std::cout << "  Total evals: " << total_evals << "\n";
             std::cout << "  Optimization eval: " << std::setprecision(2)
                       << opt_result.total_eval_time_sec * 1000 << " ms\n";
             std::cout << "  Optimization wall: " << std::setprecision(2)
