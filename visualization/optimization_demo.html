@@ -1391,7 +1391,7 @@
                     <p>Interest rate swaps, equity options, FX options, inflation swaps, and cross-currency swaps priced analytically with full CRIF (Common Risk Interchange Format) sensitivity generation.</p>
                 </div>
                 <div class="intro-card">
-                    <h4>AADC Acceleration</h4>
+                    <h4>AADC Adjoint Gradients</h4>
                     <p>AADC computes exact sensitivities and IM gradients via Adjoint Algorithmic Differentiation in a single backward pass &mdash; orders of magnitude faster than bump-and-revalue. The gradient of total IM with respect to every trade allocation is computed in one call.</p>
                 </div>
                 <div class="intro-card">
@@ -1757,7 +1757,7 @@ python scripts/export_animation_data.py --trades 15 --portfolios 3 --trade-types
                     </ul>
                 </div>
                 <div class="methodology-card">
-                    <h4>How AADC Accelerates Each Step</h4>
+                    <h4>What AADC Does at Each Step</h4>
                     <p><strong>Step 1 &mdash; CRIF Generation:</strong> Each trade's price function is recorded as an AADC kernel. A single adjoint backward pass extracts all Delta, Vega, and Inflation sensitivities simultaneously (20&ndash;50x vs bump-and-revalue).</p>
                     <p style="margin-top: 8px;"><strong>Step 2 &mdash; SIMM Kernel:</strong> The SIMM aggregation formula (risk weights, intra-bucket correlations, inter-bucket and cross-risk-class aggregation) is recorded as a compact kernel with K aggregated sensitivity inputs (~100 regardless of trade count).</p>
                     <p style="margin-top: 8px;"><strong>Step 3 &mdash; Optimization Loop:</strong> The pre-recorded SIMM kernel is evaluated repeatedly to compute ∂IM/∂Sensitivity gradients. Each evaluation costs ~1 ms. With v2 batched evaluation, all P portfolios' gradients are computed in a single <code>aadc.evaluate()</code> call, avoiding Python→C++ dispatch overhead.</p>
@@ -3869,7 +3869,7 @@ python scripts/export_animation_data.py --trades 15 --portfolios 3 --trade-types
             }
             tableHtml += `<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-top:12px;border-left:3px solid #4fc3f7;">
                 <p style="color:#aaa;font-size:0.82em;line-height:1.5;margin:0;">
-                    <strong style="color:#4fc3f7;">AADC-powered.</strong> Each counterparty&rsquo;s marginal IM is computed via AADC: a separate kernel is recorded per counterparty portfolio,
+                    <strong style="color:#4fc3f7;">How it works.</strong> Each counterparty&rsquo;s marginal IM is computed via AADC: a separate kernel is recorded per counterparty portfolio,
                     the adjoint gradient is evaluated, then marginal IM is obtained as a dot product of the gradient with the new trade&rsquo;s sensitivities.
                     Per-counterparty timing shows kernel recording + gradient eval + dot product.
                 </p>

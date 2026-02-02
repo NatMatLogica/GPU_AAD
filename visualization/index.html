@@ -3,1932 +3,1358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISDA SIMM - AADC Portfolio Optimizer</title>
+    <title>ISDA SIMM with AADC</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --secondary: #64748b;
+            --primary-glow: rgba(37, 99, 235, 0.35);
+            --accent: #8b5cf6;
             --success: #22c55e;
             --warning: #f59e0b;
             --danger: #ef4444;
-            --bg-dark: #0f172a;
-            --bg-card: #1e293b;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --border: #334155;
-            --accent: #8b5cf6;
+            --cyan: #06b6d4;
+            --bg-dark: #0a0e1a;
+            --bg-card: #131a2e;
+            --bg-surface: #1a2340;
+            --text-primary: #e8ecf4;
+            --text-secondary: #7a8baa;
+            --border: #243050;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background: var(--bg-dark);
             color: var(--text-primary);
             line-height: 1.6;
+            overflow-x: hidden;
         }
 
-        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        /* ---- Particle canvas ---- */
+        #particles {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; opacity: 0.4;
+        }
 
-        header {
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; position: relative; z-index: 1; }
+
+        /* ---- Hero Header ---- */
+        .hero {
             text-align: center;
-            margin-bottom: 1.5rem;
-            padding: 2rem;
-            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-dark) 100%);
-            border-radius: 16px;
-            border: 1px solid var(--border);
+            padding: 3rem 2rem 2rem;
+            position: relative;
+            margin-bottom: 2rem;
         }
-
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -100px; left: 50%; transform: translateX(-50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            pointer-events: none; z-index: -1;
+        }
+        .hero-badge {
+            display: inline-block;
+            padding: 0.35rem 1.2rem;
+            background: rgba(37, 99, 235, 0.15);
+            border: 1px solid rgba(37, 99, 235, 0.4);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--primary);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
         h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #fff 0%, var(--primary) 50%, var(--accent) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-
-        .subtitle { color: var(--text-secondary); font-size: 1.1rem; }
-
-        /* Main Tab Navigation */
-        .main-tabs {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 2rem;
-            border-bottom: 2px solid var(--border);
-        }
-
-        .main-tab {
-            padding: 0.75rem 1.5rem;
-            background: transparent;
-            border: 1px solid var(--border);
-            border-bottom: none;
-            border-radius: 8px 8px 0 0;
+        .hero-sub {
             color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            position: relative;
-            bottom: -2px;
+            font-size: 1.15rem;
+            max-width: 700px;
+            margin: 0 auto 2rem;
         }
+        .hero-sub strong { color: var(--text-primary); }
 
-        .main-tab:hover { background: var(--bg-card); color: var(--text-primary); }
-        .main-tab.active { background: var(--primary); border-color: var(--primary); color: white; }
-        .main-tab-content { display: none; }
-        .main-tab-content.active { display: block; }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .card {
-            background: var(--bg-card);
-            border-radius: 12px;
-            padding: 1.5rem;
-            border: 1px solid var(--border);
-        }
-
-        .card h2 {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .card h2::before {
-            content: '';
-            width: 4px;
-            height: 20px;
-            background: var(--primary);
-            border-radius: 2px;
-        }
-
-        /* Performance Banner */
-        .perf-banner {
+        /* ---- Animated Speedup Counters ---- */
+        .speed-strip {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 1rem;
-            margin-bottom: 2rem;
-            padding: 1.5rem;
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(139, 92, 246, 0.08) 100%);
-            border: 1px solid rgba(37, 99, 235, 0.3);
-            border-radius: 12px;
+            margin-bottom: 2.5rem;
         }
-
-        .perf-card {
+        .speed-card {
             text-align: center;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
+            padding: 1.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s, border-color 0.3s;
         }
-
-        .perf-card .perf-value {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 0.25rem;
+        .speed-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
         }
-
-        .perf-card .perf-value.fast { color: var(--success); }
-        .perf-card .perf-value.accent { color: var(--accent); }
-
-        .perf-card .perf-label {
-            font-size: 0.8rem;
+        .speed-card::after {
+            content: '';
+            position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .speed-card:hover::after { opacity: 1; }
+        .speed-number {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: var(--success);
+            font-variant-numeric: tabular-nums;
+        }
+        .speed-number.cyan { color: var(--cyan); }
+        .speed-number.accent { color: var(--accent); }
+        .speed-label {
+            font-size: 0.78rem;
             color: var(--text-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .perf-card .perf-detail {
-            font-size: 0.75rem;
-            color: var(--secondary);
+            letter-spacing: 0.08em;
             margin-top: 0.25rem;
         }
-
-        /* Speedup callout */
-        .speedup-callout {
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(37, 99, 235, 0.08) 100%);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            border-radius: 8px;
-            padding: 1rem 1.5rem;
-            margin-bottom: 2rem;
-            text-align: center;
-            font-size: 0.95rem;
-            color: var(--text-secondary);
+        .speed-detail {
+            font-size: 0.72rem;
+            color: #4a5a78;
+            margin-top: 0.35rem;
         }
 
-        .speedup-callout strong { color: var(--success); }
-
-        /* Summary Cards */
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .summary-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.25rem;
-            text-align: center;
-        }
-
-        .summary-card .label {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
-        }
-
-        .summary-card .value {
-            font-size: 1.75rem;
-            font-weight: bold;
-            color: var(--primary);
-        }
-
-        .summary-card .value.success { color: var(--success); }
-        .summary-card .value.danger { color: var(--danger); }
-        .summary-card .value.warning { color: var(--warning); }
-
-        /* Before/After Comparison */
-        .comparison-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        @media (max-width: 768px) {
-            .comparison-container { grid-template-columns: 1fr; }
-        }
-
-        .comparison-section {
-            background: var(--bg-card);
-            border-radius: 12px;
-            padding: 1.5rem;
-            border: 1px solid var(--border);
-        }
-
-        .comparison-section h3 {
-            text-align: center;
-            margin-bottom: 1rem;
-            padding-bottom: 0.75rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .comparison-section.before h3 { color: var(--warning); }
-        .comparison-section.after h3 { color: var(--success); }
-
-        .portfolio-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 1rem;
-        }
-
-        .portfolio-card {
-            background: var(--bg-dark);
-            border-radius: 8px;
-            padding: 1rem;
-            border-left: 4px solid var(--primary);
-        }
-
-        .portfolio-card h4 { margin-bottom: 0.5rem; font-size: 0.95rem; }
-
-        .portfolio-card .stat-row {
+        /* ---- Tab Navigation ---- */
+        .main-tabs {
             display: flex;
-            justify-content: space-between;
-            margin: 0.25rem 0;
-            font-size: 0.85rem;
-        }
-
-        .portfolio-card .stat-row .label { color: var(--text-secondary); }
-        .portfolio-card .stat-row .value { font-weight: 600; }
-
-        .portfolio-card .change {
-            margin-top: 0.5rem;
-            padding-top: 0.5rem;
-            border-top: 1px solid var(--border);
-            text-align: center;
-            font-size: 0.85rem;
-        }
-
-        .portfolio-card .change.positive { color: var(--success); }
-        .portfolio-card .change.negative { color: var(--danger); }
-
-        /* Chart containers */
-        .chart-container { position: relative; height: 300px; }
-
-        /* SVG IM Chart */
-        .im-chart-container {
+            gap: 0;
+            margin-bottom: 2.5rem;
             background: var(--bg-card);
             border-radius: 12px;
-            padding: 1.5rem;
+            padding: 4px;
             border: 1px solid var(--border);
-            margin-bottom: 2rem;
         }
-
-        .im-chart-container h3 {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 1rem;
-        }
-
-        .im-chart {
-            width: 100%;
-            height: 180px;
-        }
-
-        .chart-path { fill: none; stroke: var(--primary); stroke-width: 2; }
-        .chart-area { fill: rgba(37, 99, 235, 0.1); }
-
-        /* Movement Log */
-        .movement-log {
-            background: var(--bg-card);
-            border-radius: 12px;
-            padding: 1.5rem;
-            border: 1px solid var(--border);
-            max-height: 300px;
-            overflow-y: auto;
-            margin-bottom: 2rem;
-        }
-
-        .movement-log h3 {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 1rem;
-        }
-
-        .movement-entry {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem 0.75rem;
-            background: var(--bg-dark);
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
-        }
-
-        .movement-entry .trade-name { color: var(--text-primary); font-weight: 600; }
-        .movement-entry .arrow { color: var(--primary); font-weight: bold; }
-
-        .portfolio-badge {
-            padding: 0.15rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-        }
-
-        .portfolio-badge.from { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-        .portfolio-badge.to { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-
-        /* Animation button */
-        .play-btn {
-            padding: 0.75rem 2rem;
-            background: linear-gradient(135deg, var(--primary), var(--accent));
+        .main-tab {
+            flex: 1;
+            padding: 0.85rem 1rem;
+            background: transparent;
             border: none;
-            border-radius: 8px;
-            color: white;
-            font-size: 1rem;
-            font-weight: 600;
+            border-radius: 10px;
+            color: var(--text-secondary);
             cursor: pointer;
-            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.25s;
+            position: relative;
+        }
+        .main-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.03); }
+        .main-tab.active {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35);
+        }
+        .main-tab-content { display: none; }
+        .main-tab-content.active { display: block; animation: fadeUp 0.4s ease-out; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ---- Cards ---- */
+        .card {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 1.75rem;
+            border: 1px solid var(--border);
             margin-bottom: 1.5rem;
         }
-
-        .play-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
-        .play-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-        /* Collapsible sections */
-        .collapsible {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            overflow: hidden;
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1.25rem;
+            color: var(--text-primary);
+            display: flex; align-items: center; gap: 0.6rem;
         }
-
-        .collapsible-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 1.5rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .collapsible-header:hover { background: rgba(255, 255, 255, 0.03); }
-
-        .collapsible-header h3 {
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .toggle-icon { color: var(--primary); font-size: 1.2rem; font-weight: bold; }
-
-        .collapsible-content { padding: 0 1.5rem 1.5rem; }
-
-        /* SIMM Reference */
-        .hierarchy { padding: 0.5rem; }
-
-        .tree-node { position: relative; padding-left: 1.5rem; margin: 0.5rem 0; }
-
-        .tree-node::before {
-            content: '';
-            position: absolute;
-            left: 0; top: 0;
-            height: 100%;
-            width: 1px;
-            background: var(--border);
-        }
-
-        .tree-node::after {
-            content: '';
-            position: absolute;
-            left: 0; top: 12px;
-            width: 1rem;
-            height: 1px;
-            background: var(--border);
-        }
-
-        .node-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.4rem 0.75rem;
-            background: var(--bg-dark);
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .node-label:hover { border-color: var(--primary); transform: translateX(4px); }
-        .node-label.level-0 { background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); }
-        .node-label.level-1 { background: linear-gradient(135deg, #059669 0%, #10b981 100%); }
-        .node-label.level-2 { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); }
-        .node-label.level-3 { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); }
-
-        .formula-box {
-            background: var(--bg-dark);
-            border: 1px solid var(--border);
+        .card h2 .icon {
+            width: 28px; height: 28px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; flex-shrink: 0;
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+
+        /* ---- Pipeline Animation ---- */
+        .pipeline {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            margin: 2rem 0;
+            position: relative;
+        }
+        .pipe-stage {
+            flex: 1;
+            padding: 1.5rem 1.25rem;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            position: relative;
+            text-align: center;
+            transition: all 0.4s;
+            opacity: 0.5;
+        }
+        .pipe-stage.active {
+            opacity: 1;
+            border-color: var(--primary);
+            background: linear-gradient(180deg, rgba(37,99,235,0.08), var(--bg-surface));
+        }
+        .pipe-stage:first-child { border-radius: 14px 0 0 14px; }
+        .pipe-stage:last-child { border-radius: 0 14px 14px 0; }
+        .pipe-stage .stage-num {
+            width: 32px; height: 32px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+        }
+        .pipe-stage.active .stage-num {
+            box-shadow: 0 0 20px var(--primary-glow);
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px var(--primary-glow); }
+            50% { box-shadow: 0 0 25px var(--primary-glow), 0 0 50px rgba(37,99,235,0.15); }
+        }
+        .pipe-stage h3 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+        .pipe-stage p { font-size: 0.8rem; color: var(--text-secondary); }
+        .pipe-stage .pipe-time {
+            margin-top: 0.75rem;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+        .pipe-arrow {
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary); font-size: 1.4rem; font-weight: 700;
+            width: 40px; flex-shrink: 0; z-index: 2;
+            background: var(--bg-dark);
+        }
+
+        /* ---- Data flow animation ---- */
+        .flow-line {
+            position: absolute;
+            top: 50%; left: 0; right: 0;
+            height: 2px;
+            background: var(--border);
+            z-index: 0;
+        }
+        .flow-dot {
+            position: absolute;
+            top: 50%; transform: translateY(-50%);
+            width: 8px; height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--primary);
+            animation: flow-move 3s linear infinite;
+        }
+        @keyframes flow-move { from { left: -8px; } to { left: 100%; } }
+
+        /* ---- Chart ---- */
+        .chart-container { position: relative; height: 350px; }
+        .chart-container.tall { height: 420px; }
+
+        /* ---- Tables ---- */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .data-table th, .data-table td {
+            padding: 0.7rem 0.9rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table th {
+            background: var(--bg-surface);
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            position: sticky; top: 0; z-index: 2;
+        }
+        .data-table tr { transition: background 0.15s; }
+        .data-table tr:hover td { background: rgba(37, 99, 235, 0.04); }
+        .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .data-table .fast { color: var(--success); font-weight: 600; }
+        .data-table .slow { color: var(--danger); font-weight: 600; }
+
+        /* ---- Badges ---- */
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+        .badge-gd { background: rgba(37,99,235,0.15); color: var(--primary); }
+        .badge-adam { background: rgba(139,92,246,0.15); color: var(--accent); }
+        .badge-bfgs { background: rgba(6,182,212,0.15); color: var(--cyan); }
+        .badge-greedy { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .badge-success { background: rgba(34,197,94,0.15); color: var(--success); }
+        .badge-error { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+        /* ---- Comparison bar ---- */
+        .cmp-bar-wrap { margin: 0.5rem 0; }
+        .cmp-bar-label {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.2rem;
+            display: flex; justify-content: space-between;
+        }
+        .cmp-bar-track {
+            height: 24px;
+            background: var(--bg-surface);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        .cmp-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: flex-end;
+            padding: 0 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: white;
+            transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .cmp-bar-fill.aadc { background: linear-gradient(90deg, var(--primary), var(--success)); }
+        .cmp-bar-fill.baseline { background: linear-gradient(90deg, var(--danger), #b91c1c); }
+
+        /* ---- Speedup pill ---- */
+        .speedup-pill {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.5rem 1.2rem;
+            background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(37,99,235,0.08));
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+        .speedup-pill .x { font-size: 1.5rem; }
+
+        /* ---- Formula box ---- */
+        .formula-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
             padding: 1.25rem;
             margin: 0.75rem 0;
             font-family: 'Courier New', monospace;
             overflow-x: auto;
         }
+        .formula-box .main { font-size: 1rem; color: var(--primary); margin-bottom: 0.5rem; }
+        .formula-box .note { color: var(--text-secondary); font-size: 0.82rem; line-height: 1.7; }
+        .formula-box .note em { color: var(--success); font-style: normal; }
 
-        .formula-box .main { font-size: 1.1rem; color: var(--primary); margin-bottom: 0.75rem; }
-        .formula-box .where { color: var(--text-secondary); font-size: 0.85rem; }
-        .formula-box .where span { color: var(--success); }
-
-        .matrix-container { overflow-x: auto; }
-
-        .correlation-matrix { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-
-        .correlation-matrix th,
-        .correlation-matrix td {
-            padding: 0.5rem;
-            text-align: center;
-            border: 1px solid var(--border);
+        /* ---- Filters ---- */
+        .filters {
+            display: flex; gap: 0.75rem; flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+            align-items: center;
         }
-
-        .correlation-matrix th { background: var(--bg-dark); font-weight: 600; }
-
-        /* Inner tabs */
-        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-
-        .tab {
-            padding: 0.5rem 1rem;
-            background: transparent;
+        .filter-btn {
+            padding: 0.4rem 1rem;
+            background: var(--bg-surface);
             border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--text-secondary);
             cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 500;
             transition: all 0.2s;
         }
+        .filter-btn:hover { border-color: var(--primary); color: var(--text-primary); }
+        .filter-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
 
-        .tab:hover, .tab.active { background: var(--primary); border-color: var(--primary); color: white; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-
-        /* Risk class cards */
-        .risk-classes {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 0.75rem;
-        }
-
-        .risk-class-card {
-            background: var(--bg-dark);
+        /* ---- Log scroll ---- */
+        .log-scroll {
+            max-height: 520px;
+            overflow-y: auto;
+            border-radius: 10px;
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0.75rem;
-            text-align: center;
         }
+        .log-scroll::-webkit-scrollbar { width: 6px; }
+        .log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-        .risk-class-card h3 { font-size: 0.85rem; margin-bottom: 0.25rem; }
-        .risk-class-card .value { font-size: 1.3rem; font-weight: bold; color: var(--primary); }
-        .risk-class-card .desc { font-size: 0.7rem; color: var(--text-secondary); }
-
-        /* Data Table */
-        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-
-        .data-table th, .data-table td {
-            padding: 0.6rem 0.8rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .data-table th {
-            background: var(--bg-dark);
-            font-weight: 600;
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .data-table tr:hover td { background: rgba(37, 99, 235, 0.05); }
-        .data-table .positive { color: var(--danger); }
-        .data-table .negative { color: var(--success); }
-        .data-table .highlight-row { background: rgba(37, 99, 235, 0.1); }
-
-        /* Badge */
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        .badge-success { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-        .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-        .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-        .badge-primary { background: rgba(37, 99, 235, 0.2); color: var(--primary); }
-
-        /* Comparison panels (bilateral vs cleared) */
-        .comparison-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-        @media (max-width: 768px) { .comparison-panels { grid-template-columns: 1fr; } }
-
-        .comparison-panel {
-            background: var(--bg-dark);
-            border: 2px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            text-align: center;
-        }
-
-        .comparison-panel.recommended { border-color: var(--success); }
-        .comparison-panel h3 { font-size: 1.1rem; margin-bottom: 1rem; }
-        .comparison-panel .im-value { font-size: 2rem; font-weight: bold; margin: 0.5rem 0; }
-
-        .rationale-box {
-            background: var(--bg-dark);
-            border-left: 4px solid var(--primary);
-            padding: 1rem 1.25rem;
-            border-radius: 0 8px 8px 0;
-            margin-top: 1rem;
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-        }
-
-        /* Loading / Error states */
-        .loading { text-align: center; padding: 3rem; color: var(--text-secondary); }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--border);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 1rem;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-in { animation: fadeIn 0.5s ease-out forwards; }
-
-        /* Generate command box */
-        .cmd-box {
-            background: var(--bg-dark);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            font-family: 'Courier New', monospace;
-            font-size: 0.85rem;
-            color: var(--success);
-            margin-top: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .cmd-box .prompt { color: var(--text-secondary); }
-
+        /* ---- Footer ---- */
         footer {
             text-align: center;
-            padding: 2rem;
+            padding: 2.5rem 2rem;
             color: var(--text-secondary);
             border-top: 1px solid var(--border);
             margin-top: 3rem;
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--primary); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* ---- Loading ---- */
+        .loading { text-align: center; padding: 3rem; color: var(--text-secondary); }
+        .spinner {
+            display: inline-block; width: 36px; height: 36px;
+            border: 3px solid var(--border); border-top-color: var(--primary);
+            border-radius: 50%; animation: spin 0.7s linear infinite;
+            margin-bottom: 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 900px) {
+            h1 { font-size: 2rem; }
+            .pipeline { flex-direction: column; }
+            .pipe-arrow { width: auto; height: 30px; transform: rotate(90deg); }
+            .grid, .grid-3 { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+    <canvas id="particles"></canvas>
     <div class="container">
-        <header>
-            <h1>ISDA SIMM Portfolio Optimizer</h1>
-            <p class="subtitle">Standard Initial Margin Model v2.6 with AADC-powered gradient optimization</p>
-        </header>
 
-        <!-- Main Tab Navigation -->
+        <!-- ==================== HERO ==================== -->
+        <div class="hero">
+            <div class="hero-badge">MatLogica AADC Technology</div>
+            <h1>ISDA SIMM with AADC</h1>
+            <p class="hero-sub">
+                <strong>Automatic Adjoint Differentiation</strong> computes exact gradients through
+                the full SIMM aggregation in a <strong>single adjoint pass</strong> &mdash;
+                replacing bump-and-revalue with performance that scales to 100K+ trade portfolios.
+            </p>
+        </div>
+
+        <!-- ---- Headline Metrics from Benchmarks ---- -->
+        <div class="speed-strip" id="heroMetrics">
+            <div class="speed-card">
+                <div class="speed-number" data-target="81511" data-suffix="x">0x</div>
+                <div class="speed-label">Gradient Speedup</div>
+                <div class="speed-detail">100K trades vs bump-and-revalue</div>
+            </div>
+            <div class="speed-card">
+                <div class="speed-number cyan" data-target="164000" data-suffix=" q/s" data-format="comma">0</div>
+                <div class="speed-label">Pre-Trade Queries</div>
+                <div class="speed-detail">Marginal IM per second (AADC)</div>
+            </div>
+            <div class="speed-card">
+                <div class="speed-number accent" data-target="15619" data-suffix="x">0x</div>
+                <div class="speed-label">Attribution Speedup</div>
+                <div class="speed-detail">100K-trade what-if analysis</div>
+            </div>
+            <div class="speed-card">
+                <div class="speed-number" data-target="33" data-suffix="ms">0ms</div>
+                <div class="speed-label">Per Iteration</div>
+                <div class="speed-detail">Full gradient, 100K trades, 20 portfolios</div>
+            </div>
+        </div>
+
+        <!-- ==================== TABS ==================== -->
         <div class="main-tabs">
-            <button class="main-tab active" onclick="showMainTab('optimization')">Portfolio Optimization</button>
-            <button class="main-tab" onclick="showMainTab('whatif')">What-If Analytics</button>
-            <button class="main-tab" onclick="showMainTab('pretrade')">Pre-Trade Analytics</button>
-            <button class="main-tab" onclick="showMainTab('scaling')">Scaling Benchmarks</button>
+            <button class="main-tab active" onclick="switchTab('methodology', this)">How AADC Works</button>
+            <button class="main-tab" onclick="switchTab('scaling', this)">Scaling Benchmarks</button>
+            <button class="main-tab" onclick="switchTab('optimizer', this)">Optimizer Comparison</button>
+            <button class="main-tab" onclick="switchTab('execlog', this)">Execution Log</button>
         </div>
 
         <!-- ================================================================ -->
-        <!-- TAB 1: Portfolio Optimization -->
+        <!-- TAB 1: How AADC Works                                            -->
         <!-- ================================================================ -->
-        <div id="tab-optimization" class="main-tab-content active">
-            <!-- Performance Banner (populated from real data) -->
-            <div class="perf-banner" id="perfBanner" style="display: none;"></div>
+        <div id="tab-methodology" class="main-tab-content active">
 
-            <!-- AADC speedup callout -->
-            <div class="speedup-callout" id="speedupCallout" style="display: none;"></div>
+            <div class="card">
+                <h2><span class="icon">1</span> The AADC Pipeline for SIMM</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    AADC records the SIMM aggregation as a computational graph once, then
+                    evaluates it with different inputs in a single vectorized call &mdash;
+                    producing both the result <em>and</em> exact gradients for all risk factors simultaneously.
+                </p>
 
-            <!-- Config summary -->
-            <div class="summary-cards" id="optConfigSummary"></div>
-
-            <!-- Play animation button -->
-            <div style="text-align: center;">
-                <button class="play-btn" id="playBtn" onclick="playOptimizationAnimation()" disabled>
-                    Play Optimization
-                </button>
-            </div>
-
-            <!-- Before/After Comparison -->
-            <div id="optComparison"></div>
-
-            <!-- IM Convergence Chart -->
-            <div class="im-chart-container">
-                <h3>IM Convergence Over Iterations</h3>
-                <div class="chart-container" style="height: 250px;">
-                    <canvas id="imConvergenceChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Movement Log -->
-            <div class="movement-log" id="movementLogContainer" style="display: none;">
-                <h3>Trade Movements</h3>
-                <div id="movementLog">
-                    <p style="color: var(--text-secondary);">No movements yet</p>
-                </div>
-            </div>
-
-            <!-- SIMM Reference (collapsed) -->
-            <div class="collapsible">
-                <div class="collapsible-header" onclick="toggleCollapsible('simmRef')">
-                    <h3>SIMM Reference: Hierarchy, Formulas & Correlations</h3>
-                    <span class="toggle-icon" id="simmRefIcon">+</span>
-                </div>
-                <div class="collapsible-content" id="simmRef" style="display: none;">
-                    <div class="grid">
-                        <!-- Hierarchy Tree -->
-                        <div>
-                            <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">SIMM Hierarchy</h2>
-                            <div class="hierarchy">
-                                <div class="tree-node">
-                                    <span class="node-label level-0">SIMM Total</span>
-                                    <div class="tree-node">
-                                        <span class="node-label level-1">RatesFX (Product Class)</span>
-                                        <div class="tree-node">
-                                            <span class="node-label level-2">Rates (Risk Class)</span>
-                                            <div class="tree-node"><span class="node-label level-3">Delta</span></div>
-                                            <div class="tree-node"><span class="node-label level-3">Vega</span></div>
-                                            <div class="tree-node"><span class="node-label level-3">Curvature</span></div>
-                                        </div>
-                                        <div class="tree-node"><span class="node-label level-2">FX (Risk Class)</span></div>
-                                    </div>
-                                    <div class="tree-node">
-                                        <span class="node-label level-1">Credit (Product Class)</span>
-                                        <div class="tree-node"><span class="node-label level-2">CreditQ</span></div>
-                                        <div class="tree-node"><span class="node-label level-2">CreditNonQ</span></div>
-                                    </div>
-                                    <div class="tree-node"><span class="node-label level-1">Equity (Product Class)</span></div>
-                                    <div class="tree-node"><span class="node-label level-1">Commodity (Product Class)</span></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Formulas -->
-                        <div>
-                            <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">Key Formulas</h2>
-                            <div class="tabs">
-                                <button class="tab active" onclick="showFormulaTab('f-product')">Product Level</button>
-                                <button class="tab" onclick="showFormulaTab('f-bucket')">Bucket Level</button>
-                                <button class="tab" onclick="showFormulaTab('f-gradient')">Gradient</button>
-                            </div>
-                            <div id="f-product" class="tab-content active">
-                                <div class="formula-box">
-                                    <div class="main">SIMM_pc = &radic;(&Sigma;_r &Sigma;_s &psi;_rs &times; K_r &times; K_s)</div>
-                                    <div class="where">Where:<br>
-                                        <span>r, s</span> = risk classes within product class<br>
-                                        <span>&psi;_rs</span> = cross-risk-class correlation<br>
-                                        <span>K_r</span> = margin for risk class r
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="f-bucket" class="tab-content">
-                                <div class="formula-box">
-                                    <div class="main">K_b = &radic;(&Sigma;_k WS_k&sup2; + &Sigma;_k&ne;l &rho;_kl &times; WS_k &times; WS_l)</div>
-                                    <div class="where">Where:<br>
-                                        <span>WS_k</span> = RW_k &times; s_k (weighted sensitivity)<br>
-                                        <span>&rho;_kl</span> = intra-bucket correlation<br>
-                                        <span>RW_k</span> = risk weight
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="f-gradient" class="tab-content">
-                                <div class="formula-box">
-                                    <div class="main">&part;total_IM/&part;x[t,p] = &Sigma;_k (&part;IM_p/&part;S_p[k]) &times; S[t,k]</div>
-                                    <div class="where">Where:<br>
-                                        <span>S_p[k]</span> = &Sigma;_t x[t,p] &times; S[t,k] (aggregated sens, numpy)<br>
-                                        <span>&part;IM_p/&part;S_p[k]</span> = from AADC kernel evaluation<br>
-                                        <span>S[t,k]</span> = raw trade sensitivity (precomputed)
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                <div class="pipeline" id="pipeline">
+                    <div class="pipe-stage active" id="ps-1">
+                        <div class="stage-num">1</div>
+                        <h3>Record Kernel</h3>
+                        <p>Trace the SIMM formula as idouble operations. K risk-factor inputs, one IM output.</p>
+                        <div class="pipe-time" id="pt-1">~410ms</div>
+                        <div style="font-size:0.7rem; color:var(--text-secondary); margin-top:0.25rem;">One-time cost</div>
                     </div>
-
-                    <!-- Correlation Matrix -->
-                    <div style="margin-top: 1.5rem;">
-                        <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">Cross-Risk-Class Correlation Matrix (&psi;)</h2>
-                        <div class="matrix-container">
-                            <table class="correlation-matrix">
-                                <tr><th></th><th>Rates</th><th>FX</th><th>CreditQ</th><th>CreditNonQ</th><th>Equity</th><th>Commodity</th></tr>
-                                <tr><th>Rates</th><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.27)">0.27</td><td style="background: rgba(37, 99, 235, 0.30)">0.30</td><td style="background: rgba(37, 99, 235, 0.17)">0.17</td><td style="background: rgba(37, 99, 235, 0.31)">0.31</td><td style="background: rgba(37, 99, 235, 0.37)">0.37</td></tr>
-                                <tr><th>FX</th><td style="background: rgba(37, 99, 235, 0.27)">0.27</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td><td style="background: rgba(37, 99, 235, 0.14)">0.14</td><td style="background: rgba(37, 99, 235, 0.29)">0.29</td><td style="background: rgba(37, 99, 235, 0.38)">0.38</td></tr>
-                                <tr><th>CreditQ</th><td style="background: rgba(37, 99, 235, 0.30)">0.30</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.47)">0.47</td><td style="background: rgba(37, 99, 235, 0.50)">0.50</td><td style="background: rgba(37, 99, 235, 0.39)">0.39</td></tr>
-                                <tr><th>CreditNonQ</th><td style="background: rgba(37, 99, 235, 0.17)">0.17</td><td style="background: rgba(37, 99, 235, 0.14)">0.14</td><td style="background: rgba(37, 99, 235, 0.47)">0.47</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.42)">0.42</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td></tr>
-                                <tr><th>Equity</th><td style="background: rgba(37, 99, 235, 0.31)">0.31</td><td style="background: rgba(37, 99, 235, 0.29)">0.29</td><td style="background: rgba(37, 99, 235, 0.50)">0.50</td><td style="background: rgba(37, 99, 235, 0.42)">0.42</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td><td style="background: rgba(37, 99, 235, 0.43)">0.43</td></tr>
-                                <tr><th>Commodity</th><td style="background: rgba(37, 99, 235, 0.37)">0.37</td><td style="background: rgba(37, 99, 235, 0.38)">0.38</td><td style="background: rgba(37, 99, 235, 0.39)">0.39</td><td style="background: rgba(37, 99, 235, 0.35)">0.35</td><td style="background: rgba(37, 99, 235, 0.43)">0.43</td><td style="background: rgba(37, 99, 235, 1.0)">1.00</td></tr>
-                            </table>
-                        </div>
+                    <div class="pipe-arrow">&rarr;</div>
+                    <div class="pipe-stage" id="ps-2">
+                        <div class="stage-num">2</div>
+                        <h3>Batch Evaluate</h3>
+                        <p>Single aadc.evaluate() call computes IM + gradients for <strong>all P portfolios</strong> at once.</p>
+                        <div class="pipe-time" id="pt-2">~6ms</div>
+                        <div style="font-size:0.7rem; color:var(--text-secondary); margin-top:0.25rem;">Per iteration</div>
                     </div>
-
-                    <!-- Risk Classes -->
-                    <div style="margin-top: 1.5rem;">
-                        <h2 style="font-size: 1.1rem; margin-bottom: 0.75rem;">Risk Classes</h2>
-                        <div class="risk-classes">
-                            <div class="risk-class-card"><h3>Rates (IR)</h3><div class="value">12</div><div class="desc">Tenor Buckets</div></div>
-                            <div class="risk-class-card"><h3>CreditQ</h3><div class="value">13</div><div class="desc">Sector Buckets</div></div>
-                            <div class="risk-class-card"><h3>CreditNonQ</h3><div class="value">3</div><div class="desc">HY/EM Buckets</div></div>
-                            <div class="risk-class-card"><h3>Equity</h3><div class="value">13</div><div class="desc">Sector Buckets</div></div>
-                            <div class="risk-class-card"><h3>Commodity</h3><div class="value">17</div><div class="desc">Type Buckets</div></div>
-                            <div class="risk-class-card"><h3>FX</h3><div class="value">1</div><div class="desc">Single Bucket</div></div>
-                        </div>
+                    <div class="pipe-arrow">&rarr;</div>
+                    <div class="pipe-stage" id="ps-3">
+                        <div class="stage-num">3</div>
+                        <h3>Chain Rule</h3>
+                        <p>Gradient w.r.t. allocation: &part;IM/&part;x[t,p] = &Sigma;<sub>k</sub> (&part;IM<sub>p</sub>/&part;S<sub>k</sub>) &times; S[t,k]</p>
+                        <div class="pipe-time" id="pt-3">~1ms</div>
+                        <div style="font-size:0.7rem; color:var(--text-secondary); margin-top:0.25rem;">NumPy matmul</div>
+                    </div>
+                    <div class="pipe-arrow">&rarr;</div>
+                    <div class="pipe-stage" id="ps-4">
+                        <div class="stage-num">4</div>
+                        <h3>Optimize</h3>
+                        <p>Gradient descent, Adam, or BFGS with simplex projection + greedy local search.</p>
+                        <div class="pipe-time" id="pt-4">N iters</div>
+                        <div style="font-size:0.7rem; color:var(--text-secondary); margin-top:0.25rem;">Choice of method</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Generate new data command -->
-            <div class="cmd-box">
-                <span class="prompt">$</span>
-                <span>python scripts/export_animation_data.py --trades 15 --portfolios 3</span>
-                <span style="color: var(--text-secondary); margin-left: auto; font-size: 0.8rem;">then reload page</span>
-            </div>
-        </div>
-
-        <!-- ================================================================ -->
-        <!-- TAB 2: What-If Analytics -->
-        <!-- ================================================================ -->
-        <div id="tab-whatif" class="main-tab-content">
-            <div id="whatif-loading" class="loading">
-                <div class="loading-spinner"></div>
-                <p>Loading What-If analytics data...</p>
-            </div>
-            <div id="whatif-content" style="display: none;">
-                <div id="whatif-summary" class="summary-cards"></div>
-
-                <div class="grid" style="margin-bottom: 2rem;">
-                    <div class="card">
-                        <h2>Top Margin Consumers</h2>
-                        <div id="whatif-consumers-table" style="overflow-x: auto;"></div>
-                    </div>
-                    <div class="card">
-                        <h2>Top Margin Reducers</h2>
-                        <div id="whatif-reducers-table" style="overflow-x: auto;"></div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-bottom: 2rem;">
-                    <h2>AADC Performance Advantage</h2>
-                    <div class="formula-box">
-                        <div class="main">Margin Attribution: O(N&times;K) via AADC gradient vs O(N&sup2;) naive leave-one-out</div>
-                        <div class="where" style="margin-top: 0.75rem;">
-                            <span>AADC method</span>: Compute gradient &part;IM/&part;S once, then contribution[trade] = &Sigma; gradient[k] &times; sensitivity[trade,k]<br>
-                            <span>Naive method</span>: For each of N trades, remove trade and recalculate full SIMM<br>
-                            <span>Result</span>: <strong id="whatif-speedup-text"></strong>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid">
-                    <div class="card">
-                        <h2>Unwind &amp; Hedge Scenarios</h2>
-                        <div class="chart-container" style="height: 350px;">
-                            <canvas id="scenarioChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <h2>Stress Scenarios</h2>
-                        <div class="chart-container" style="height: 350px;">
-                            <canvas id="stressChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="whatif-error" style="display: none;" class="loading">
-                <p style="color: var(--danger);">Failed to load What-If data. Run <code>python scripts/export_animation_data.py</code> to generate.</p>
-            </div>
-        </div>
-
-        <!-- ================================================================ -->
-        <!-- TAB 3: Pre-Trade Analytics -->
-        <!-- ================================================================ -->
-        <div id="tab-pretrade" class="main-tab-content">
-            <div id="pretrade-loading" class="loading">
-                <div class="loading-spinner"></div>
-                <p>Loading Pre-Trade analytics data...</p>
-            </div>
-            <div id="pretrade-content" style="display: none;">
-                <!-- Portfolio & New Trade Summary -->
-                <div id="pretrade-portfolio-banner" class="perf-banner" style="margin-bottom: 2rem;"></div>
-
-                <!-- Section 1: Marginal IM with AADC Timing -->
-                <div class="card" style="margin-bottom: 2rem;">
-                    <h2>Marginal IM &mdash; AADC vs Baseline</h2>
-                    <div id="pretrade-marginal-im"></div>
-                </div>
-
-                <!-- Section 2: Counterparty Routing -->
-                <div class="grid" style="margin-bottom: 2rem;">
-                    <div class="card">
-                        <h2>Counterparty Routing Analysis</h2>
-                        <div id="pretrade-routing-table" style="overflow-x: auto;"></div>
-                    </div>
-                    <div class="card">
-                        <h2>Marginal IM by Counterparty</h2>
-                        <div class="chart-container" style="height: 350px;">
-                            <canvas id="routingChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section 3: Bilateral vs Cleared -->
+            <!-- Key insight cards -->
+            <div class="grid">
                 <div class="card">
-                    <h2>Bilateral vs Cleared Comparison</h2>
-                    <div id="pretrade-comparison"></div>
+                    <h2><span class="icon">K</span> Why K Inputs, Not T&times;P</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        The kernel takes <strong>K aggregated risk-factor sensitivities</strong> as inputs
+                        (K&asymp;50), not T&times;P individual trade allocations (which could be 100K&times;20 = 2M).
+                        Aggregation <code>S<sub>p</sub>[k] = &Sigma;<sub>t</sub> x[t,p] &times; S[t,k]</code>
+                        happens in fast NumPy outside the kernel.
+                    </p>
+                    <div class="formula-box">
+                        <div class="main">Kernel: K inputs &rarr; IM + dIM/dS<sub>k</sub></div>
+                        <div class="note">
+                            <em>K &asymp; 50</em> risk factors (constant, independent of portfolio size)<br>
+                            <em>Tape size</em> stays small &rarr; fast replay + adjoint<br>
+                            <em>Trade count T</em> only affects the numpy matmul, not the AADC kernel
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2><span class="icon">P</span> Single Evaluate for All Portfolios</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Instead of calling <code>evaluate()</code> P times (once per portfolio),
+                        AADC accepts <strong>arrays of length P</strong> for each input.
+                        One dispatch computes all P portfolio IMs and gradients &mdash;
+                        eliminating P-1 Python&harr;C++ round-trips.
+                    </p>
+                    <div class="formula-box">
+                        <div class="main">1 call &times; P values = P&times; fewer dispatches</div>
+                        <div class="note">
+                            <em>P=1</em>: 1 dispatch &rarr; 1 IM, K gradients<br>
+                            <em>P=20</em>: still 1 dispatch &rarr; 20 IMs, 20&times;K gradients<br>
+                            <em>Speedup</em>: 10&ndash;200&times; vs calling evaluate() in a loop
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="pretrade-error" style="display: none;" class="loading">
-                <p style="color: var(--danger);">Failed to load Pre-Trade data. Run <code>python scripts/export_animation_data.py</code> to generate.</p>
+
+            <!-- AADC vs Bump visual comparison -->
+            <div class="card">
+                <h2><span class="icon">vs</span> AADC Adjoint vs Bump-and-Revalue</h2>
+                <div id="methodComparison"></div>
             </div>
         </div>
 
         <!-- ================================================================ -->
-        <!-- TAB 4: Scaling Benchmarks -->
+        <!-- TAB 2: Scaling Benchmarks                                        -->
         <!-- ================================================================ -->
         <div id="tab-scaling" class="main-tab-content">
             <div id="scaling-loading" class="loading">
-                <div class="loading-spinner"></div>
-                <p>Loading scaling benchmark data...</p>
+                <div class="spinner"></div>
+                <p>Loading benchmark data...</p>
             </div>
             <div id="scaling-content" style="display:none;">
-                <div id="scaling-hero" class="perf-banner" style="margin-bottom:2rem;"></div>
-                <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
-                    <button class="scaling-sub active" onclick="switchScalingSub('gradient',this)" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--primary);color:white;cursor:pointer;">Portfolio Optimization</button>
-                    <button class="scaling-sub" onclick="switchScalingSub('pretrade',this)" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;">Pre-Trade</button>
-                    <button class="scaling-sub" onclick="switchScalingSub('whatif',this)" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;">Attribution</button>
+                <!-- Sub-tabs -->
+                <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+                    <button class="filter-btn active" onclick="switchScalingSub('gradient', this)">Portfolio Optimization</button>
+                    <button class="filter-btn" onclick="switchScalingSub('pretrade', this)">Pre-Trade Queries</button>
+                    <button class="filter-btn" onclick="switchScalingSub('whatif', this)">Margin Attribution</button>
                 </div>
-                <div id="sp-gradient" class="sp-panel"><div class="card"><h2>Gradient Scaling</h2><div id="sp-gradient-body"></div></div></div>
-                <div id="sp-pretrade" class="sp-panel" style="display:none;"><div class="card"><h2>Pre-Trade Query Scaling</h2><div id="sp-pretrade-body"></div></div></div>
-                <div id="sp-whatif" class="sp-panel" style="display:none;"><div class="card"><h2>Margin Attribution Scaling</h2><div id="sp-whatif-body"></div></div></div>
+                <div id="sp-gradient" class="sp-panel"></div>
+                <div id="sp-pretrade" class="sp-panel" style="display:none;"></div>
+                <div id="sp-whatif" class="sp-panel" style="display:none;"></div>
             </div>
             <div id="scaling-error" style="display:none;" class="loading">
-                <p style="color:var(--danger);">No scaling data. Run <code>python scripts/benchmark_1m_gradient_scaling.py</code></p>
+                <p style="color: var(--danger);">No scaling data found. Run benchmark scripts to generate.</p>
             </div>
         </div>
 
+        <!-- ================================================================ -->
+        <!-- TAB 3: Optimizer Comparison                                      -->
+        <!-- ================================================================ -->
+        <div id="tab-optimizer" class="main-tab-content">
+            <div id="opt-loading" class="loading">
+                <div class="spinner"></div>
+                <p>Loading execution log...</p>
+            </div>
+            <div id="opt-content" style="display:none;"></div>
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- TAB 4: Execution Log                                             -->
+        <!-- ================================================================ -->
+        <div id="tab-execlog" class="main-tab-content">
+            <div id="log-loading" class="loading">
+                <div class="spinner"></div>
+                <p>Loading execution log...</p>
+            </div>
+            <div id="log-content" style="display:none;"></div>
+        </div>
+
         <footer>
-            <p>ISDA SIMM v2.6 Implementation with AADC Integration</p>
-            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
-                Powered by Automatic Adjoint Differentiation for efficient sensitivity computation
-            </p>
+            ISDA SIMM v2.6 Implementation &mdash; Gradients by
+            <a href="https://matlogica.com" target="_blank" rel="noopener">MatLogica AADC</a>
         </footer>
     </div>
 
-    <script>
-    // ====================================================================
-    // Data loading layer
-    // ====================================================================
-    const dataCache = {};
-    const tabLoaded = { optimization: false, whatif: false, pretrade: false, scaling: false };
+<script>
+// ====================================================================
+// Particles background
+// ====================================================================
+(function initParticles() {
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [];
 
-    async function loadJSON(filename) {
-        if (dataCache[filename]) return dataCache[filename];
-        const paths = [
-            'data/animation/' + filename,
-            '../data/animation/' + filename,
-        ];
-        for (const p of paths) {
-            try {
-                const resp = await fetch(p);
-                if (!resp.ok) continue;
-                const data = await resp.json();
-                dataCache[filename] = data;
-                return data;
-            } catch (e) { /* try next */ }
-        }
-        console.warn('Could not load', filename);
-        return null;
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
     }
+    window.addEventListener('resize', resize);
+    resize();
 
-    async function loadCSV(filename) {
-        const paths = [
-            'data/' + filename,
-            '../data/' + filename,
-        ];
-        for (const p of paths) {
-            try {
-                const resp = await fetch(p);
-                if (!resp.ok) continue;
-                return await resp.text();
-            } catch (e) { /* try next */ }
-        }
-        return null;
-    }
-
-    function parseCSV(text) {
-        if (!text) return [];
-        const lines = text.trim().split('\n');
-        if (lines.length < 2) return [];
-        const headers = lines[0].split(',').map(h => h.trim());
-        return lines.slice(1).map(line => {
-            const vals = line.split(',');
-            const obj = {};
-            headers.forEach((h, i) => obj[h] = vals[i] ? vals[i].trim() : '');
-            return obj;
+    for (let i = 0; i < 60; i++) {
+        particles.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            r: Math.random() * 1.5 + 0.5,
+            dx: (Math.random() - 0.5) * 0.3,
+            dy: (Math.random() - 0.5) * 0.3,
+            alpha: Math.random() * 0.4 + 0.1,
         });
     }
 
-    // ====================================================================
-    // Format helpers
-    // ====================================================================
-    function fmt(n) {
-        if (n == null) return 'N/A';
-        if (Math.abs(n) >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
-        if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
-        if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
-        return '$' + n.toFixed(0);
-    }
-
-    function pct(n) { return (n != null ? n.toFixed(1) : '0') + '%'; }
-
-    function fmtTime(sec) {
-        if (sec == null) return 'N/A';
-        if (sec < 0.001) return (sec * 1e6).toFixed(0) + 'us';
-        if (sec < 1) return (sec * 1000).toFixed(0) + 'ms';
-        return sec.toFixed(2) + 's';
-    }
-
-    // ====================================================================
-    // Tab switching
-    // ====================================================================
-    function showMainTab(tabId) {
-        document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.main-tab-content').forEach(c => c.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        document.getElementById('tab-' + tabId).classList.add('active');
-
-        if (!tabLoaded[tabId]) {
-            tabLoaded[tabId] = true;
-            if (tabId === 'optimization') loadOptimizationTab();
-            else if (tabId === 'whatif') loadWhatIfTab();
-            else if (tabId === 'pretrade') loadPreTradeTab();
-            else if (tabId === 'scaling') loadScalingTab();
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+        for (const p of particles) {
+            p.x += p.dx; p.y += p.dy;
+            if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+            if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(37, 99, 235, ${p.alpha})`;
+            ctx.fill();
         }
-    }
-
-    function showFormulaTab(tabId) {
-        const card = event.currentTarget.closest('.collapsible-content') || event.currentTarget.closest('.card');
-        card.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        card.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        card.querySelector('#' + tabId).classList.add('active');
-    }
-
-    function toggleCollapsible(id) {
-        const el = document.getElementById(id);
-        const icon = document.getElementById(id + 'Icon');
-        if (el.style.display === 'none') {
-            el.style.display = 'block';
-            icon.textContent = '\u2212';
-        } else {
-            el.style.display = 'none';
-            icon.textContent = '+';
-        }
-    }
-
-    // ====================================================================
-    // Optimization tab
-    // ====================================================================
-    let optData = null;
-    let imChartInstance = null;
-    let animationTimer = null;
-
-    async function loadOptimizationTab() {
-        const data = await loadJSON('optimization.json');
-        if (data && data.optimization) {
-            optData = data;
-            renderOptimizationFromJSON(data);
-        } else {
-            renderOptimizationFallback();
-        }
-    }
-
-    function renderOptimizationFromJSON(data) {
-        // Performance banner
-        renderPerformanceBanner(data.performance);
-
-        // Config summary
-        renderConfigSummary(data);
-
-        // Enable play button
-        document.getElementById('playBtn').disabled = false;
-
-        // Before/After comparison
-        renderBeforeAfter(data);
-
-        // IM convergence chart
-        renderIMChart(data.optimization.steps);
-
-        // Movement log
-        renderMovementLog(data.optimization.movements);
-    }
-
-    function renderPerformanceBanner(perf) {
-        const banner = document.getElementById('perfBanner');
-        const callout = document.getElementById('speedupCallout');
-
-        if (!perf) {
-            banner.style.display = 'none';
-            callout.style.display = 'none';
-            return;
-        }
-
-        banner.style.display = 'grid';
-        let html = '';
-
-        const cards = [
-            { label: 'CRIF (AADC)', value: fmtTime(perf.crif_time_sec), detail: perf.num_trades + ' trades', cls: 'fast' },
-            { label: 'SIMM Aggregation', value: fmtTime(perf.simm_time_sec), detail: perf.num_risk_factors + ' risk factors', cls: '' },
-            { label: 'Kernel Recording', value: fmtTime(perf.kernel_record_time_sec), detail: 'AADC tape', cls: 'fast' },
-            { label: 'Optimization', value: fmtTime(perf.optimize_time_sec), detail: perf.num_iterations + ' iterations', cls: 'accent' },
-            { label: 'Total Wall Time', value: fmtTime(perf.total_time_sec), detail: 'end-to-end', cls: '' },
-        ];
-
-        for (const c of cards) {
-            html += `<div class="perf-card">
-                <div class="perf-value ${c.cls}">${c.value}</div>
-                <div class="perf-label">${c.label}</div>
-                <div class="perf-detail">${c.detail}</div>
-            </div>`;
-        }
-
-        // Per-iteration timing
-        if (perf.per_iteration_time_sec) {
-            html += `<div class="perf-card">
-                <div class="perf-value fast">${fmtTime(perf.per_iteration_time_sec)}</div>
-                <div class="perf-label">Per Iteration</div>
-                <div class="perf-detail">gradient + step</div>
-            </div>`;
-        }
-
-        banner.innerHTML = html;
-
-        // Speedup callout
-        if (perf.num_risk_factors && perf.optimize_time_sec) {
-            const fdEstimate = perf.num_risk_factors * (perf.per_iteration_time_sec || 0.1);
-            callout.style.display = 'block';
-            callout.innerHTML = `<strong>${perf.num_trades} trades</strong> &times;
-                <strong>${perf.num_risk_factors} risk factors</strong> optimized in
-                <strong>${fmtTime(perf.optimize_time_sec)}</strong> using AADC single adjoint pass
-                &mdash; AADC is fast`;
-        }
-
-        // Execution log enrichment
-        if (perf.execution_log) {
-            const el = perf.execution_log;
-            const extraHtml = document.createElement('div');
-            extraHtml.className = 'perf-card';
-            extraHtml.innerHTML = `
-                <div class="perf-value fast">${fmtTime(el.im_sens_time)}</div>
-                <div class="perf-label">IM Gradient</div>
-                <div class="perf-detail">dIM/dS (AAD)</div>
-            `;
-            banner.appendChild(extraHtml);
-        }
-    }
-
-    function renderConfigSummary(data) {
-        const container = document.getElementById('optConfigSummary');
-        const cfg = data.config;
-        const opt = data.optimization;
-
-        container.innerHTML = `
-            <div class="summary-card">
-                <div class="label">Trades</div>
-                <div class="value">${cfg.num_trades}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Portfolios</div>
-                <div class="value">${cfg.num_portfolios}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Risk Factors</div>
-                <div class="value">${cfg.num_risk_factors}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Initial IM</div>
-                <div class="value warning">${fmt(data.initial_state.total_im)}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Final IM</div>
-                <div class="value success">${fmt(data.final_state.total_im)}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">IM Reduction</div>
-                <div class="value success">${pct(opt.im_reduction_pct)}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Trades Moved</div>
-                <div class="value">${opt.movements.length}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Iterations</div>
-                <div class="value">${opt.num_iterations}</div>
-            </div>
-        `;
-    }
-
-    function renderBeforeAfter(data) {
-        const container = document.getElementById('optComparison');
-        const colors = ['#2563eb', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#06b6d4', '#ec4899'];
-        const P = data.config.num_portfolios;
-
-        let html = '<div class="comparison-container">';
-
-        // Before
-        html += '<div class="comparison-section before"><h3>BEFORE Optimization &mdash; ' + fmt(data.initial_state.total_im) + '</h3><div class="portfolio-grid">';
-        for (let p = 0; p < P; p++) {
-            const pd = data.initial_state.portfolio_ims.find(x => x.portfolio === p) || { im: 0, trades: 0 };
-            html += `<div class="portfolio-card" style="border-left-color: ${colors[p % colors.length]}">
-                <h4 style="color: ${colors[p % colors.length]}">Portfolio ${p + 1}</h4>
-                <div class="stat-row"><span class="label">Trades</span><span class="value">${pd.trades}</span></div>
-                <div class="stat-row"><span class="label">IM</span><span class="value">${fmt(pd.im)}</span></div>
-            </div>`;
-        }
-        html += '</div></div>';
-
-        // After
-        html += '<div class="comparison-section after"><h3>AFTER Optimization &mdash; ' + fmt(data.final_state.total_im) + '</h3><div class="portfolio-grid">';
-        for (let p = 0; p < P; p++) {
-            const before = data.initial_state.portfolio_ims.find(x => x.portfolio === p) || { im: 0, trades: 0 };
-            const after = data.final_state.portfolio_ims.find(x => x.portfolio === p) || { im: 0, trades: 0 };
-            const change = after.im - before.im;
-            const changeClass = change <= 0 ? 'positive' : 'negative';
-            const tradeChange = after.trades - before.trades;
-            const tStr = tradeChange > 0 ? '+' + tradeChange : '' + tradeChange;
-
-            html += `<div class="portfolio-card" style="border-left-color: ${colors[p % colors.length]}">
-                <h4 style="color: ${colors[p % colors.length]}">Portfolio ${p + 1}</h4>
-                <div class="stat-row"><span class="label">Trades</span><span class="value">${after.trades} <span style="color:var(--text-secondary);font-size:0.8rem;">(${tStr})</span></span></div>
-                <div class="stat-row"><span class="label">IM</span><span class="value">${fmt(after.im)}</span></div>
-                <div class="change ${changeClass}">${change <= 0 ? '\u25BC' : '\u25B2'} ${fmt(Math.abs(change))}</div>
-            </div>`;
-        }
-        html += '</div></div></div>';
-
-        container.innerHTML = html;
-    }
-
-    function renderIMChart(steps) {
-        if (!steps || !steps.length) return;
-
-        const labels = steps.map(s => s.iteration);
-        const values = steps.map(s => s.total_im / 1e6);
-
-        if (imChartInstance) imChartInstance.destroy();
-
-        const ctx = document.getElementById('imConvergenceChart').getContext('2d');
-        imChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Total IM ($M)',
-                    data: values,
-                    borderColor: 'rgba(37, 99, 235, 1)',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: steps.length > 30 ? 0 : 3,
-                    pointHoverRadius: 5,
-                }]
-            },
-            options: chartOptions('Total IM ($M)')
-        });
-    }
-
-    function renderMovementLog(movements) {
-        const container = document.getElementById('movementLogContainer');
-        const log = document.getElementById('movementLog');
-
-        if (!movements || movements.length === 0) {
-            container.style.display = 'none';
-            return;
-        }
-
-        container.style.display = 'block';
-        const maxShow = 50;
-        const display = movements.slice(0, maxShow);
-
-        let html = '';
-        for (const m of display) {
-            html += `<div class="movement-entry">
-                <span class="trade-name">${m.trade_id}</span>
-                <span class="portfolio-badge from">P${m.from_portfolio + 1}</span>
-                <span class="arrow">&rarr;</span>
-                <span class="portfolio-badge to">P${m.to_portfolio + 1}</span>
-                <span style="color: var(--text-secondary); margin-left: auto;">${fmt(m.standalone_im)}</span>
-            </div>`;
-        }
-
-        if (movements.length > maxShow) {
-            html += `<div class="movement-entry" style="justify-content: center; color: var(--primary);">
-                ... and ${movements.length - maxShow} more movements
-            </div>`;
-        }
-
-        log.innerHTML = html;
-    }
-
-    // Animation: step through optimization iterations
-    function playOptimizationAnimation() {
-        if (!optData) return;
-
-        const btn = document.getElementById('playBtn');
-        btn.disabled = true;
-        btn.textContent = 'Playing...';
-
-        const steps = optData.optimization.steps;
-        let currentStep = 0;
-
-        if (animationTimer) clearInterval(animationTimer);
-
-        animationTimer = setInterval(() => {
-            if (currentStep >= steps.length) {
-                clearInterval(animationTimer);
-                btn.disabled = false;
-                btn.textContent = 'Play Optimization';
-                return;
+        // Draw lines between nearby particles
+        for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+                const dx = particles[i].x - particles[j].x;
+                const dy = particles[i].y - particles[j].y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 150) {
+                    ctx.beginPath();
+                    ctx.moveTo(particles[i].x, particles[i].y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.strokeStyle = `rgba(37, 99, 235, ${0.06 * (1 - dist/150)})`;
+                    ctx.stroke();
+                }
             }
+        }
+        requestAnimationFrame(draw);
+    }
+    draw();
+})();
 
-            const step = steps[currentStep];
+// ====================================================================
+// Animated counter
+// ====================================================================
+function animateCounters() {
+    document.querySelectorAll('.speed-number[data-target]').forEach(el => {
+        const target = parseFloat(el.dataset.target);
+        const suffix = el.dataset.suffix || '';
+        const useComma = el.dataset.format === 'comma';
+        const duration = 2000;
+        const start = performance.now();
 
-            // Update chart highlight
-            if (imChartInstance) {
-                const dataset = imChartInstance.data.datasets[0];
-                const colors = new Array(steps.length).fill('rgba(37, 99, 235, 0.1)');
-                colors[currentStep] = 'rgba(245, 158, 11, 0.8)';
-                // Use pointBackgroundColor for highlighting
-                dataset.pointBackgroundColor = steps.map((_, i) =>
-                    i <= currentStep ? 'rgba(37, 99, 235, 1)' : 'rgba(37, 99, 235, 0.3)'
-                );
-                dataset.pointRadius = steps.map((_, i) =>
-                    i === currentStep ? 6 : (steps.length > 30 ? 0 : 2)
-                );
-                imChartInstance.update('none');
+        function tick(now) {
+            const elapsed = now - start;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+            const current = Math.round(target * eased);
+            el.textContent = (useComma ? current.toLocaleString() : current.toLocaleString()) + suffix;
+            if (progress < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    });
+}
+
+// ====================================================================
+// Pipeline animation
+// ====================================================================
+function animatePipeline() {
+    const stages = document.querySelectorAll('.pipe-stage');
+    let idx = 0;
+    function step() {
+        stages.forEach((s, i) => s.classList.toggle('active', i <= idx));
+        idx = (idx + 1) % stages.length;
+    }
+    setInterval(step, 2000);
+}
+
+// ====================================================================
+// Data loading
+// ====================================================================
+const dataCache = {};
+
+async function loadJSON(filename, subdir) {
+    const key = (subdir || '') + filename;
+    if (dataCache[key]) return dataCache[key];
+    const dirs = subdir ? [subdir + '/'] : ['data/animation/', '../data/animation/'];
+    for (const d of dirs) {
+        try {
+            const r = await fetch(d + filename);
+            if (!r.ok) continue;
+            const data = await r.json();
+            dataCache[key] = data;
+            return data;
+        } catch(e) {}
+    }
+    return null;
+}
+
+async function loadBenchmark(filename) {
+    const dirs = ['data/benchmark_results/', '../data/benchmark_results/'];
+    for (const d of dirs) {
+        try {
+            const r = await fetch(d + filename);
+            if (!r.ok) continue;
+            return await r.json();
+        } catch(e) {}
+    }
+    return null;
+}
+
+async function loadCSV(filename) {
+    const dirs = ['data/', '../data/'];
+    for (const d of dirs) {
+        try {
+            const r = await fetch(d + filename);
+            if (!r.ok) continue;
+            return await r.text();
+        } catch(e) {}
+    }
+    return null;
+}
+
+function parseCSV(text) {
+    if (!text) return [];
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim());
+    return lines.slice(1).map(line => {
+        const vals = line.split(',');
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = vals[i] ? vals[i].trim() : '');
+        return obj;
+    });
+}
+
+// ====================================================================
+// Formatters
+// ====================================================================
+function fmtTime(ms) {
+    if (ms == null || isNaN(ms)) return 'N/A';
+    if (ms < 0.01) return (ms * 1000).toFixed(1) + 'us';
+    if (ms < 1) return ms.toFixed(3) + 'ms';
+    if (ms < 1000) return ms.toFixed(1) + 'ms';
+    if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+    return (ms / 60000).toFixed(1) + 'min';
+}
+function fmtSec(s) {
+    if (s == null || isNaN(s)) return 'N/A';
+    if (s < 0.001) return (s * 1e6).toFixed(0) + 'us';
+    if (s < 1) return (s * 1000).toFixed(1) + 'ms';
+    return s.toFixed(2) + 's';
+}
+function fmtNum(n) {
+    if (n == null) return 'N/A';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+    return n.toFixed(0);
+}
+function fmtDollar(n) {
+    if (n == null) return 'N/A';
+    if (Math.abs(n) >= 1e12) return '$' + (n / 1e12).toFixed(1) + 'T';
+    if (Math.abs(n) >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+    if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+    return '$' + n.toFixed(0);
+}
+
+// ====================================================================
+// Tab switching
+// ====================================================================
+const tabLoaded = {};
+function switchTab(id, btn) {
+    document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.main-tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + id).classList.add('active');
+
+    if (!tabLoaded[id]) {
+        tabLoaded[id] = true;
+        if (id === 'scaling') loadScalingTab();
+        else if (id === 'optimizer') loadOptimizerTab();
+        else if (id === 'execlog') loadExecLogTab();
+    }
+}
+
+// ====================================================================
+// Methodology tab - comparison bars
+// ====================================================================
+function renderMethodComparison() {
+    const container = document.getElementById('methodComparison');
+    const scenarios = [
+        { label: '1K trades, 20 portfolios', aadc: 2.69, bump: 1961, unit: 'ms/iter' },
+        { label: '10K trades, 20 portfolios', aadc: 6.64, bump: 38466, unit: 'ms/iter' },
+        { label: '100K trades, 20 portfolios', aadc: 33.2, bump: 2705752, unit: 'ms/iter' },
+    ];
+
+    let html = '';
+    for (const s of scenarios) {
+        const speedup = Math.round(s.bump / s.aadc);
+        const bumpPct = 100;
+        const aadcPct = Math.max(1, (s.aadc / s.bump) * 100);
+
+        html += `<div style="margin-bottom:1.5rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <span style="font-weight:600;">${s.label}</span>
+                <span class="speedup-pill"><span class="x">${speedup.toLocaleString()}</span>x faster</span>
+            </div>
+            <div class="cmp-bar-wrap">
+                <div class="cmp-bar-label"><span>AADC (adjoint)</span><span style="color:var(--success)">${fmtTime(s.aadc)}</span></div>
+                <div class="cmp-bar-track"><div class="cmp-bar-fill aadc" style="width:0%" data-w="${aadcPct}%">${fmtTime(s.aadc)}</div></div>
+            </div>
+            <div class="cmp-bar-wrap">
+                <div class="cmp-bar-label"><span>Bump-and-revalue</span><span style="color:var(--danger)">${fmtTime(s.bump)}</span></div>
+                <div class="cmp-bar-track"><div class="cmp-bar-fill baseline" style="width:0%" data-w="${bumpPct}%">${fmtTime(s.bump)}</div></div>
+            </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+
+    // Animate bars after a short delay
+    setTimeout(() => {
+        container.querySelectorAll('.cmp-bar-fill').forEach(el => {
+            el.style.width = el.dataset.w;
+        });
+    }, 300);
+}
+
+// ====================================================================
+// Scaling Tab
+// ====================================================================
+function switchScalingSub(panel, btn) {
+    document.querySelectorAll('.sp-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('sp-' + panel).style.display = 'block';
+    btn.classList.add('active');
+}
+
+function chartOpts(yLabel, logScale) {
+    return {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+            legend: { labels: { color: '#7a8baa', font: { size: 12 } } },
+            tooltip: {
+                backgroundColor: '#1a2340',
+                borderColor: '#243050',
+                borderWidth: 1,
+                titleColor: '#e8ecf4',
+                bodyColor: '#7a8baa',
             }
-
-            currentStep++;
-        }, Math.max(50, 2000 / steps.length));
-    }
-
-    // ====================================================================
-    // Fallback sample data (when JSON not available)
-    // ====================================================================
-    function renderOptimizationFallback() {
-        // Minimal fallback rendering
-        document.getElementById('perfBanner').style.display = 'none';
-        document.getElementById('speedupCallout').style.display = 'none';
-
-        document.getElementById('optConfigSummary').innerHTML = `
-            <div class="summary-card" style="grid-column: 1 / -1;">
-                <div class="label">No pre-computed data found</div>
-                <div class="value" style="font-size: 1rem;">Run the export script to generate real optimization data</div>
-            </div>
-        `;
-
-        // Show fallback chart with sample data
-        const fallbackSteps = [
-            { iteration: 0, total_im: 732e6 },
-            { iteration: 10, total_im: 580e6 },
-            { iteration: 20, total_im: 520e6 },
-            { iteration: 30, total_im: 498e6 },
-            { iteration: 40, total_im: 495e6 },
-            { iteration: 50, total_im: 494e6 },
-        ];
-        renderIMChart(fallbackSteps);
-
-        document.getElementById('optComparison').innerHTML = `
-            <div class="loading">
-                <p>Generate data with: <code>python scripts/export_animation_data.py --trades 15 --portfolios 3</code></p>
-                <p style="margin-top: 0.5rem; color: var(--text-secondary);">Then reload this page to see real optimization results.</p>
-            </div>
-        `;
-    }
-
-    // ====================================================================
-    // What-If tab
-    // ====================================================================
-    async function loadWhatIfTab() {
-        const data = await loadJSON('whatif.json');
-        const loadingEl = document.getElementById('whatif-loading');
-        const contentEl = document.getElementById('whatif-content');
-        const errorEl = document.getElementById('whatif-error');
-
-        if (!data) {
-            loadingEl.style.display = 'none';
-            errorEl.style.display = 'block';
-            return;
+        },
+        scales: {
+            x: { ticks: { color: '#7a8baa' }, grid: { color: 'rgba(36,48,80,0.5)' } },
+            y: {
+                type: logScale ? 'logarithmic' : 'linear',
+                ticks: { color: '#7a8baa' },
+                grid: { color: 'rgba(36,48,80,0.5)' },
+                title: yLabel ? { display: true, text: yLabel, color: '#7a8baa' } : undefined
+            }
         }
+    };
+}
 
-        loadingEl.style.display = 'none';
-        contentEl.style.display = 'block';
-        renderWhatIf(data);
+function renderGradientScaling(data, container) {
+    const results = (data.results || []).filter(r => !r.error);
+    if (!results.length) { container.innerHTML = '<p style="color:var(--danger);">No data</p>'; return; }
+
+    const cid = 'grad-chart-' + Date.now();
+    const cid2 = 'grad-speedup-chart-' + Date.now();
+
+    let html = `<div class="card">
+        <h2><span class="icon">G</span> AADC Gradient vs Bump-and-Revalue per Iteration</h2>
+        <p style="color:var(--text-secondary); margin-bottom:1.5rem;">
+            Each optimization iteration needs the gradient of total IM w.r.t. the allocation matrix.
+            AADC computes this via a single adjoint pass; bump-and-revalue requires T&times;P separate evaluations.
+        </p>
+        <div class="grid">
+            <div>
+                <div class="chart-container tall"><canvas id="${cid}"></canvas></div>
+            </div>
+            <div>
+                <div class="chart-container tall"><canvas id="${cid2}"></canvas></div>
+            </div>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead><tr>
+                    <th>Trades</th><th>Portfolios</th><th>K (factors)</th>
+                    <th class="num">AADC/iter</th><th class="num">Bump/iter</th><th class="num">Speedup</th>
+                </tr></thead><tbody>`;
+    for (const r of results) {
+        html += `<tr>
+            <td>${fmtNum(r.num_trades)}</td><td>${r.num_portfolios}</td><td>${r.num_risk_factors}</td>
+            <td class="num fast">${fmtTime(r.aadc_total_iter_ms)}</td>
+            <td class="num slow">${fmtTime(r.bump_revalue_estimate_ms)}</td>
+            <td class="num" style="color:var(--accent); font-weight:700;">${Math.round(r.speedup).toLocaleString()}x</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+    container.innerHTML = html;
+
+    const labels = results.map(r => fmtNum(r.num_trades));
+    new Chart(document.getElementById(cid), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'AADC (ms)', data: results.map(r => r.aadc_total_iter_ms), backgroundColor: '#22c55e', borderRadius: 4 },
+                { label: 'Bump-and-revalue (ms)', data: results.map(r => r.bump_revalue_estimate_ms), backgroundColor: '#ef4444', borderRadius: 4 },
+            ]
+        },
+        options: chartOpts('Time per iteration (ms)', true)
+    });
+    new Chart(document.getElementById(cid2), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Speedup (x)',
+                data: results.map(r => r.speedup),
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139,92,246,0.1)',
+                fill: true, tension: 0.3,
+                pointRadius: 5, pointHoverRadius: 8,
+                pointBackgroundColor: '#8b5cf6',
+            }]
+        },
+        options: chartOpts('Speedup factor (x)', true)
+    });
+}
+
+function renderPretradeScaling(data, container) {
+    const results = (data.results || []).filter(r => !r.error);
+    if (!results.length) { container.innerHTML = '<p style="color:var(--danger);">No data</p>'; return; }
+    const cid = 'pt-chart-' + Date.now();
+
+    let html = `<div class="card">
+        <h2><span class="icon">Q</span> Pre-Trade Marginal IM Query Latency</h2>
+        <p style="color:var(--text-secondary); margin-bottom:1.5rem;">
+            AADC computes the gradient once, then answers any marginal-IM query with a single dot product.
+            Each query costs ~6 microseconds regardless of portfolio size.
+        </p>
+        <div class="chart-container tall"><canvas id="${cid}"></canvas></div>
+        <div style="overflow-x:auto; margin-top:1.5rem;">
+            <table class="data-table">
+                <thead><tr>
+                    <th>Trades</th><th>Portfolios</th>
+                    <th class="num">AADC/query</th><th class="num">Naive/query</th>
+                    <th class="num">Speedup</th><th class="num">AADC queries/s</th>
+                </tr></thead><tbody>`;
+    for (const r of results) {
+        html += `<tr>
+            <td>${fmtNum(r.num_trades)}</td><td>${r.num_counterparties}</td>
+            <td class="num fast">${fmtTime(r.aadc_query_avg_ms)}</td>
+            <td class="num slow">${fmtTime(r.naive_query_avg_ms)}</td>
+            <td class="num" style="color:var(--accent); font-weight:700;">${Math.round(r.speedup_per_query).toLocaleString()}x</td>
+            <td class="num">${Math.round(r.queries_per_second_aadc).toLocaleString()}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+    container.innerHTML = html;
+
+    new Chart(document.getElementById(cid), {
+        type: 'bar',
+        data: {
+            labels: results.map(r => fmtNum(r.num_trades)),
+            datasets: [
+                { label: 'AADC (ms/query)', data: results.map(r => r.aadc_query_avg_ms), backgroundColor: '#22c55e', borderRadius: 4 },
+                { label: 'Naive (ms/query)', data: results.map(r => r.naive_query_avg_ms), backgroundColor: '#ef4444', borderRadius: 4 },
+            ]
+        },
+        options: chartOpts('Time per query (ms)', true)
+    });
+}
+
+function renderWhatifScaling(data, container) {
+    const results = (data.results || []).filter(r => !r.error);
+    if (!results.length) { container.innerHTML = '<p style="color:var(--danger);">No data</p>'; return; }
+    const cid = 'wi-chart-' + Date.now();
+
+    let html = `<div class="card">
+        <h2><span class="icon">A</span> Margin Attribution: AADC vs Leave-One-Out</h2>
+        <p style="color:var(--text-secondary); margin-bottom:1.5rem;">
+            AADC gradient gives exact per-trade Euler decomposition in one pass.
+            Leave-one-out must remove each trade and re-evaluate SIMM, scaling O(N<sup>2</sup>).
+            Numerical accuracy: Euler error &lt; 10<sup>-11</sup>.
+        </p>
+        <div class="chart-container tall"><canvas id="${cid}"></canvas></div>
+        <div style="overflow-x:auto; margin-top:1.5rem;">
+            <table class="data-table">
+                <thead><tr>
+                    <th>Trades</th>
+                    <th class="num">AADC</th><th class="num">Leave-one-out</th>
+                    <th class="num">Speedup</th><th class="num">Euler error</th>
+                </tr></thead><tbody>`;
+    for (const r of results) {
+        html += `<tr>
+            <td>${fmtNum(r.num_trades)}</td>
+            <td class="num fast">${fmtTime(r.aadc_total_ms || r.aadc_attribution_ms)}</td>
+            <td class="num slow">${fmtTime(r.naive_total_ms || r.naive_attribution_ms)}</td>
+            <td class="num" style="color:var(--accent); font-weight:700;">${Math.round(r.speedup).toLocaleString()}x</td>
+            <td class="num" style="color:var(--text-secondary);">${r.euler_error_pct ? r.euler_error_pct.toExponential(1) : 'N/A'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+    container.innerHTML = html;
+
+    new Chart(document.getElementById(cid), {
+        type: 'bar',
+        data: {
+            labels: results.map(r => fmtNum(r.num_trades)),
+            datasets: [
+                { label: 'AADC (ms)', data: results.map(r => r.aadc_total_ms || r.aadc_attribution_ms), backgroundColor: '#22c55e', borderRadius: 4 },
+                { label: 'Leave-one-out (ms)', data: results.map(r => r.naive_total_ms || r.naive_attribution_ms), backgroundColor: '#ef4444', borderRadius: 4 },
+            ]
+        },
+        options: chartOpts('Attribution time (ms)', true)
+    });
+}
+
+async function loadScalingTab() {
+    const [gradData, pretradeData, whatifData] = await Promise.all([
+        loadBenchmark('gradient_scaling_benchmark.json'),
+        loadBenchmark('pretrade_scaling_benchmark.json'),
+        loadBenchmark('whatif_scaling_benchmark.json'),
+    ]);
+    const any = gradData || pretradeData || whatifData;
+    document.getElementById('scaling-loading').style.display = 'none';
+    if (!any) { document.getElementById('scaling-error').style.display = 'block'; return; }
+    document.getElementById('scaling-content').style.display = 'block';
+
+    if (gradData) renderGradientScaling(gradData, document.getElementById('sp-gradient'));
+    if (pretradeData) renderPretradeScaling(pretradeData, document.getElementById('sp-pretrade'));
+    if (whatifData) renderWhatifScaling(whatifData, document.getElementById('sp-whatif'));
+}
+
+// ====================================================================
+// Optimizer Comparison Tab
+// ====================================================================
+async function loadOptimizerTab() {
+    const csvText = await loadCSV('execution_log_portfolio.csv');
+    const loading = document.getElementById('opt-loading');
+    const content = document.getElementById('opt-content');
+    loading.style.display = 'none';
+
+    if (!csvText) {
+        content.innerHTML = '<p style="color:var(--danger); text-align:center; padding:3rem;">No execution log found.</p>';
+        content.style.display = 'block';
+        return;
     }
 
-    function renderWhatIf(data) {
-        const ps = data.portfolio_summary;
-        const attr = data.attribution;
-        const speedup = attr.speedup || (attr.naive_time_estimate_ms > 0
-            ? Math.round(attr.naive_time_estimate_ms / Math.max(attr.computation_time_ms, 1))
-            : '?');
-        const aadcTime = attr.computation_time_ms < 1000
-            ? attr.computation_time_ms.toFixed(0) + ' ms'
-            : (attr.computation_time_ms / 1000).toFixed(1) + ' s';
-        const naiveTime = attr.naive_time_estimate_ms < 1000
-            ? attr.naive_time_estimate_ms.toFixed(0) + ' ms'
-            : (attr.naive_time_estimate_ms / 1000).toFixed(1) + ' s';
+    const rows = parseCSV(csvText).filter(r => r.group_id === 'ALL' && r.optimize_method);
+    content.style.display = 'block';
 
-        document.getElementById('whatif-summary').innerHTML = `
-            <div class="summary-card">
-                <div class="label">Total IM</div>
-                <div class="value">${fmt(ps.total_im)}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Trades / Risk Factors</div>
-                <div class="value">${ps.num_trades} / ${ps.num_risk_factors}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">AADC Attribution Time</div>
-                <div class="value success">${aadcTime}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">Naive Estimate</div>
-                <div class="value danger">${naiveTime}</div>
-            </div>
-            <div class="summary-card">
-                <div class="label">AADC Speedup</div>
-                <div class="value success">${speedup}x</div>
-            </div>
-        `;
-
-        const contributions = attr.trade_contributions || [];
-        const consumers = contributions.filter(c => c.is_margin_additive === true || c.is_margin_additive === 'True').slice(0, 10);
-        const reducers = contributions.filter(c => c.is_margin_additive === false || c.is_margin_additive === 'False').slice(0, 10);
-
-        document.getElementById('whatif-consumers-table').innerHTML = buildAttributionTable(consumers, 'positive');
-        document.getElementById('whatif-reducers-table').innerHTML = buildAttributionTable(reducers, 'negative');
-
-        const speedupEl = document.getElementById('whatif-speedup-text');
-        if (speedupEl) {
-            speedupEl.textContent = `${ps.num_trades} trades attributed in ${aadcTime} (AADC) vs estimated ${naiveTime} (naive) = ${speedup}x speedup`;
+    // Group by (num_trades, num_portfolios, trade_types) for comparison
+    const groups = {};
+    for (const r of rows) {
+        const key = `${r.num_trades}_${r.num_portfolios}_${r.trade_types}`;
+        if (!groups[key]) groups[key] = { trades: +r.num_trades, portfolios: +r.num_portfolios, types: r.trade_types, runs: {} };
+        const method = r.optimize_method;
+        // Keep best run per method (lowest final IM)
+        if (!groups[key].runs[method] || +r.optimize_final_im < +groups[key].runs[method].optimize_final_im) {
+            groups[key].runs[method] = r;
         }
-
-        renderScenarioChart(data.scenarios);
-        renderStressChart(data.scenarios.stress);
     }
 
-    function buildAttributionTable(items, colorClass) {
-        if (!items.length) return '<p style="color: var(--text-secondary); padding: 1rem;">No data</p>';
-        let html = `<table class="data-table">
-            <thead><tr><th>Trade ID</th><th>Contribution</th><th>% of Total</th><th>Net Sensitivity</th></tr></thead><tbody>`;
-        for (const c of items) {
-            html += `<tr>
-                <td>${c.trade_id}</td>
-                <td class="${colorClass}">${fmt(c.marginal_contribution)}</td>
-                <td>${pct(c.contribution_pct)}</td>
-                <td>${fmt(c.net_sensitivity)}</td>
-            </tr>`;
-        }
-        html += '</tbody></table>';
-        return html;
-    }
+    // Sort groups by trade count
+    const sorted = Object.values(groups).sort((a, b) => a.trades - b.trades);
 
-    let scenarioChartInstance = null;
-    function renderScenarioChart(scenarios) {
-        const labels = [];
-        const currentValues = [];
-        const scenarioValues = [];
+    // Find groups that have multiple methods
+    const multiMethod = sorted.filter(g => Object.keys(g.runs).length > 1);
+    const singleMethod = sorted.filter(g => Object.keys(g.runs).length === 1);
 
-        if (scenarios.unwind && scenarios.unwind.current_im) {
-            labels.push('Unwind Top 5');
-            currentValues.push(scenarios.unwind.current_im / 1e6);
-            scenarioValues.push(scenarios.unwind.scenario_im / 1e6);
-        }
-        if (scenarios.hedge && scenarios.hedge.current_im) {
-            labels.push('Add Hedge');
-            currentValues.push(scenarios.hedge.current_im / 1e6);
-            scenarioValues.push(scenarios.hedge.scenario_im / 1e6);
-        }
+    let html = '';
 
-        if (!labels.length) return;
-        if (scenarioChartInstance) scenarioChartInstance.destroy();
+    if (multiMethod.length > 0) {
+        html += `<div class="card">
+            <h2><span class="icon">M</span> Method Comparison (same configuration)</h2>
+            <p style="color:var(--text-secondary); margin-bottom:1.5rem;">
+                Side-by-side comparison of gradient descent, Adam, and BFGS on identical portfolios.
+                All methods use the same AADC kernel &mdash; only the step direction differs.
+            </p>`;
 
-        scenarioChartInstance = new Chart(document.getElementById('scenarioChart').getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'Current IM ($M)', data: currentValues, backgroundColor: 'rgba(37, 99, 235, 0.7)' },
-                    { label: 'Scenario IM ($M)', data: scenarioValues, backgroundColor: 'rgba(34, 197, 94, 0.7)' }
-                ]
-            },
-            options: chartOptions()
-        });
-    }
-
-    let stressChartInstance = null;
-    function renderStressChart(stressData) {
-        if (!stressData || !stressData.length) return;
-        if (stressChartInstance) stressChartInstance.destroy();
-
-        stressChartInstance = new Chart(document.getElementById('stressChart').getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: stressData.map(s => s.scenario_name),
-                datasets: [
-                    { label: 'Base IM ($M)', data: stressData.map(s => s.current_im / 1e6), backgroundColor: 'rgba(37, 99, 235, 0.7)' },
-                    { label: 'Stressed IM ($M)', data: stressData.map(s => s.scenario_im / 1e6), backgroundColor: 'rgba(239, 68, 68, 0.7)' }
-                ]
-            },
-            options: chartOptions()
-        });
-    }
-
-    // ====================================================================
-    // Pre-Trade tab
-    // ====================================================================
-    async function loadPreTradeTab() {
-        const data = await loadJSON('pretrade.json');
-        const loadingEl = document.getElementById('pretrade-loading');
-        const contentEl = document.getElementById('pretrade-content');
-        const errorEl = document.getElementById('pretrade-error');
-
-        if (!data) {
-            loadingEl.style.display = 'none';
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        loadingEl.style.display = 'none';
-        contentEl.style.display = 'block';
-        renderPreTrade(data);
-    }
-
-    function renderPreTrade(data) {
-        const trade = data.new_trade;
-        const portfolio = data.portfolio || {};
-        const marginal = data.marginal_im || {};
-        const timing = marginal.timing || {};
-        const aadcTiming = timing.aadc || {};
-
-        // ---- Portfolio & New Trade Banner ----
-        document.getElementById('pretrade-portfolio-banner').innerHTML = `
-            <div class="perf-card">
-                <div class="perf-value">${(portfolio.num_trades || 0).toLocaleString()}</div>
-                <div class="perf-label">Portfolio Trades</div>
-            </div>
-            <div class="perf-card">
-                <div class="perf-value">${portfolio.num_risk_factors || 0}</div>
-                <div class="perf-label">Risk Factors</div>
-            </div>
-            <div class="perf-card">
-                <div class="perf-value">${fmt(portfolio.current_im)}</div>
-                <div class="perf-label">Current IM</div>
-            </div>
-            <div class="perf-card">
-                <div class="perf-value accent">${trade.type}</div>
-                <div class="perf-label">New Trade</div>
-                <div class="perf-detail">${fmt(trade.notional)} ${trade.currency} ${trade.maturity}Y</div>
-            </div>
-            <div class="perf-card">
-                <div class="perf-value warning">${fmt(trade.standalone_im)}</div>
-                <div class="perf-label">Standalone IM</div>
-            </div>
-        `;
-
-        // ---- Marginal IM with AADC Timing ----
-        const speedup = timing.speedup || 'N/A';
-        const baselineMs = timing.baseline_full_recalc_ms || 0;
-
-        document.getElementById('pretrade-marginal-im').innerHTML = `
-            <div class="comparison-panels" style="margin-bottom: 1.5rem;">
-                <div class="comparison-panel">
-                    <h3 style="color: var(--warning);">Before</h3>
-                    <div class="im-value">${fmt(marginal.im_before)}</div>
-                    <div style="color: var(--text-secondary);">Portfolio IM</div>
+        for (const g of multiMethod) {
+            const methods = Object.keys(g.runs).sort();
+            html += `<div style="margin-bottom:2rem; padding:1.25rem; background:var(--bg-surface); border-radius:10px; border:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+                    <span style="font-weight:700; font-size:1.05rem;">${g.trades} trades, ${g.portfolios} portfolios</span>
+                    <span style="color:var(--text-secondary); font-size:0.85rem;">${g.types}</span>
                 </div>
-                <div class="comparison-panel">
-                    <h3 style="color: var(--success);">After Adding Trade</h3>
-                    <div class="im-value" style="color: var(--success);">${fmt(marginal.im_after)}</div>
-                    <div style="color: var(--text-secondary);">Marginal IM: ${fmt(marginal.marginal_im)}</div>
-                </div>
-            </div>
+                <div style="overflow-x:auto;">
+                <table class="data-table">
+                    <thead><tr>
+                        <th>Method</th><th class="num">Initial IM</th><th class="num">Final IM</th>
+                        <th class="num">Reduction</th><th class="num">Trades Moved</th>
+                        <th class="num">Iterations</th><th class="num">Opt Time</th><th>Converged</th>
+                    </tr></thead><tbody>`;
 
-            <div class="speedup-callout">
-                AADC computes marginal IM in <strong>${(aadcTiming.total_ms || 0).toFixed(1)} ms</strong>
-                vs baseline full recalculation in <strong>${baselineMs.toFixed(1)} ms</strong>
-                &mdash; <strong>${speedup}</strong> speedup
-            </div>
+            // Find best final IM across methods for highlighting
+            let bestIm = Infinity;
+            for (const m of methods) bestIm = Math.min(bestIm, +g.runs[m].optimize_final_im);
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                <div>
-                    <h3 style="font-size: 1rem; margin-bottom: 0.75rem; color: var(--success);">AADC Timing Breakdown</h3>
-                    <table class="data-table">
-                        <tbody>
-                            <tr><td>Kernel Recording</td><td style="text-align: right; font-weight: 600; color: var(--primary);">${(aadcTiming.kernel_recording_ms || 0).toFixed(1)} ms</td></tr>
-                            <tr><td>Gradient Evaluation</td><td style="text-align: right; font-weight: 600; color: var(--primary);">${(aadcTiming.gradient_eval_ms || 0).toFixed(1)} ms</td></tr>
-                            <tr><td>Marginal IM (dot product)</td><td style="text-align: right; font-weight: 600; color: var(--primary);">${(aadcTiming.marginal_im_ms || 0).toFixed(2)} ms</td></tr>
-                            <tr class="highlight-row"><td><strong>AADC Total</strong></td><td style="text-align: right; font-weight: 700; color: var(--success);"><strong>${(aadcTiming.total_ms || 0).toFixed(1)} ms</strong></td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div>
-                    <h3 style="font-size: 1rem; margin-bottom: 0.75rem; color: var(--warning);">Baseline (Full Recalculation)</h3>
-                    <table class="data-table">
-                        <tbody>
-                            <tr><td>Full SIMM Recalculation</td><td style="text-align: right; font-weight: 600; color: var(--warning);">${baselineMs.toFixed(1)} ms</td></tr>
-                            <tr><td colspan="2" style="color: var(--text-secondary); font-size: 0.85rem; padding-top: 0.75rem;">
-                                Recomputes entire SIMM aggregation with ${portfolio.num_risk_factors || 0} risk factors after adding the new trade.
-                                AADC avoids this by reusing the pre-computed gradient.
-                            </td></tr>
-                        </tbody>
-                    </table>
-                    <div style="margin-top: 1rem; text-align: center; padding: 0.75rem; background: rgba(34,197,94,0.08); border-radius: 8px; border: 1px solid rgba(34,197,94,0.2);">
-                        <span style="font-size: 1.4rem; font-weight: 700; color: var(--success);">${speedup}</span>
-                        <span style="color: var(--text-secondary); margin-left: 0.5rem;">faster</span>
-                    </div>
-                </div>
-            </div>
-        `;
+            for (const m of methods) {
+                const r = g.runs[m];
+                const isBest = Math.abs(+r.optimize_final_im - bestIm) < 1;
+                const badgeCls = m === 'adam' ? 'badge-adam' : m === 'bfgs' ? 'badge-bfgs' : m === 'gradient_descent' ? 'badge-gd' : 'badge-greedy';
+                html += `<tr${isBest ? ' style="background:rgba(34,197,94,0.05)"' : ''}>
+                    <td><span class="badge ${badgeCls}">${m}</span></td>
+                    <td class="num">${fmtDollar(+r.optimize_initial_im)}</td>
+                    <td class="num" style="font-weight:600; ${isBest ? 'color:var(--success)' : ''}">${fmtDollar(+r.optimize_final_im)}</td>
+                    <td class="num">${(+r.optimize_im_reduction_pct).toFixed(1)}%</td>
+                    <td class="num">${Math.round(+r.optimize_trades_moved)}</td>
+                    <td class="num">${Math.round(+r.optimize_iterations)}</td>
+                    <td class="num">${fmtSec(+r.optimize_time_sec)}</td>
+                    <td>${r.optimize_converged === 'True' ? '<span class="badge badge-success">Yes</span>' : '<span style="color:var(--text-secondary)">No</span>'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div></div>';
+        }
+        html += '</div>';
+    }
 
-        // ---- Counterparty Routing ----
-        const routing = data.routing;
-        const cpResults = routing.counterparty_results || [];
+    // Chart: optimization time by method across scales
+    const cid = 'opt-time-chart-' + Date.now();
+    if (sorted.length > 1) {
+        html += `<div class="card">
+            <h2><span class="icon">T</span> Optimization Time vs Portfolio Size</h2>
+            <div class="chart-container tall"><canvas id="${cid}"></canvas></div>
+        </div>`;
+    }
 
-        let tableHtml = `<table class="data-table">
+    // All runs table
+    html += `<div class="card">
+        <h2><span class="icon">L</span> All Optimization Runs</h2>
+        <div style="overflow-x:auto;">
+        <table class="data-table">
             <thead><tr>
-                <th>Counterparty</th><th>Trades</th><th>Current IM</th><th>Marginal IM</th><th>New IM</th><th>Netting %</th><th>AADC Time</th>
+                <th>Trades</th><th>P</th><th>Method</th>
+                <th class="num">IM Reduction</th><th class="num">Moved</th>
+                <th class="num">Iters</th><th class="num">Opt Time</th>
+                <th class="num">CRIF Time</th><th class="num">Grad Time</th>
+            </tr></thead><tbody>`;
+    for (const r of rows) {
+        const badgeCls = r.optimize_method === 'adam' ? 'badge-adam' : r.optimize_method === 'bfgs' ? 'badge-bfgs' : r.optimize_method === 'gradient_descent' ? 'badge-gd' : 'badge-greedy';
+        html += `<tr>
+            <td>${(+r.num_trades).toLocaleString()}</td><td>${r.num_portfolios}</td>
+            <td><span class="badge ${badgeCls}">${r.optimize_method}</span></td>
+            <td class="num" style="color:var(--success)">${(+r.optimize_im_reduction_pct).toFixed(1)}%</td>
+            <td class="num">${Math.round(+r.optimize_trades_moved)}</td>
+            <td class="num">${Math.round(+r.optimize_iterations)}</td>
+            <td class="num">${fmtSec(+r.optimize_time_sec)}</td>
+            <td class="num">${fmtSec(+r.crif_time_sec)}</td>
+            <td class="num">${fmtSec(+r.im_sens_time_sec)}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+    content.innerHTML = html;
+
+    // Render chart
+    if (sorted.length > 1 && document.getElementById(cid)) {
+        const allMethods = [...new Set(rows.map(r => r.optimize_method))].sort();
+        const methodColors = { gradient_descent: '#2563eb', adam: '#8b5cf6', bfgs: '#06b6d4', greedy: '#f59e0b' };
+        const datasets = allMethods.map(m => ({
+            label: m,
+            data: rows.filter(r => r.optimize_method === m).map(r => ({ x: +r.num_trades, y: +r.optimize_time_sec })),
+            backgroundColor: methodColors[m] || '#94a3b8',
+            borderColor: methodColors[m] || '#94a3b8',
+            pointRadius: 6,
+            pointHoverRadius: 9,
+            showLine: false,
+        }));
+        new Chart(document.getElementById(cid), {
+            type: 'scatter',
+            data: { datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#7a8baa' } } },
+                scales: {
+                    x: { type: 'logarithmic', ticks: { color: '#7a8baa' }, grid: { color: 'rgba(36,48,80,0.5)' }, title: { display: true, text: 'Number of trades', color: '#7a8baa' } },
+                    y: { type: 'logarithmic', ticks: { color: '#7a8baa' }, grid: { color: 'rgba(36,48,80,0.5)' }, title: { display: true, text: 'Optimization time (s)', color: '#7a8baa' } },
+                }
+            }
+        });
+    }
+}
+
+// ====================================================================
+// Execution Log Tab
+// ====================================================================
+async function loadExecLogTab() {
+    const csvText = await loadCSV('execution_log_portfolio.csv');
+    const loading = document.getElementById('log-loading');
+    const content = document.getElementById('log-content');
+    loading.style.display = 'none';
+
+    if (!csvText) {
+        content.innerHTML = '<p style="color:var(--danger); text-align:center; padding:3rem;">No execution log found.</p>';
+        content.style.display = 'block';
+        return;
+    }
+
+    const allRows = parseCSV(csvText);
+    const aggRows = allRows.filter(r => r.group_id === 'ALL');
+    const groupRows = allRows.filter(r => r.group_id !== 'ALL');
+
+    content.style.display = 'block';
+
+    // Summary stats
+    const totalRuns = aggRows.length;
+    const methods = [...new Set(aggRows.map(r => r.optimize_method).filter(Boolean))];
+    const maxTrades = Math.max(...aggRows.map(r => +r.num_trades));
+    const totalOptTime = aggRows.reduce((s, r) => s + (+r.optimize_time_sec || 0), 0);
+
+    let html = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+        <div class="speed-card" style="padding:1rem;">
+            <div class="speed-number" style="font-size:1.8rem;">${totalRuns}</div>
+            <div class="speed-label">Total Runs</div>
+        </div>
+        <div class="speed-card" style="padding:1rem;">
+            <div class="speed-number cyan" style="font-size:1.8rem;">${fmtNum(maxTrades)}</div>
+            <div class="speed-label">Max Trades</div>
+        </div>
+        <div class="speed-card" style="padding:1rem;">
+            <div class="speed-number accent" style="font-size:1.8rem;">${methods.length}</div>
+            <div class="speed-label">Methods Tested</div>
+        </div>
+        <div class="speed-card" style="padding:1rem;">
+            <div class="speed-number" style="font-size:1.8rem;">${fmtSec(totalOptTime)}</div>
+            <div class="speed-label">Total Opt Time</div>
+        </div>
+    </div>`;
+
+    // Timing breakdown chart
+    const cid = 'timing-breakdown-' + Date.now();
+    html += `<div class="card">
+        <h2><span class="icon">B</span> Timing Breakdown by Portfolio Size</h2>
+        <p style="color:var(--text-secondary); margin-bottom:1rem;">
+            How time is spent across the pipeline: CRIF precomputation (AADC adjoint pricing),
+            SIMM aggregation, gradient computation (single adjoint pass), and optimizer iterations.
+        </p>
+        <div class="chart-container tall"><canvas id="${cid}"></canvas></div>
+    </div>`;
+
+    // Full log table
+    html += `<div class="card">
+        <h2><span class="icon">R</span> Run History</h2>
+        <div class="log-scroll">
+        <table class="data-table">
+            <thead><tr>
+                <th>Timestamp</th><th>Trades</th><th>P</th><th>Types</th>
+                <th>Method</th>
+                <th class="num">CRIF</th><th class="num">SIMM</th><th class="num">Gradient</th><th class="num">Optimize</th>
+                <th class="num">IM Reduction</th><th>Status</th>
             </tr></thead><tbody>`;
 
-        for (const r of cpResults) {
-            const isRec = r.counterparty === routing.recommended_counterparty;
-            const cpTiming = r.timing || {};
-            const cpTotal = (cpTiming.kernel_recording_ms || 0) + (cpTiming.gradient_eval_ms || 0) + (cpTiming.marginal_im_ms || 0);
-            tableHtml += `<tr class="${isRec ? 'highlight-row' : ''}">
-                <td>${r.counterparty} ${isRec ? '<span class="badge badge-success">Best</span>' : ''}</td>
-                <td>${(r.num_trades || 0).toLocaleString()}</td>
-                <td>${fmt(r.current_im)}</td>
-                <td style="color: ${r.marginal_im < 0 ? 'var(--success)' : 'var(--danger)'}; font-weight: 600;">${fmt(r.marginal_im)}</td>
-                <td>${fmt(r.new_im)}</td>
-                <td>${pct(r.netting_benefit_pct)}</td>
-                <td style="color: var(--text-secondary);">${cpTotal.toFixed(0)} ms</td>
-            </tr>`;
-        }
-        tableHtml += '</tbody></table>';
+    for (const r of aggRows) {
+        const ts = r.timestamp ? r.timestamp.substring(5, 16).replace('T', ' ') : '';
+        const method = r.optimize_method || '-';
+        const badgeCls = method === 'adam' ? 'badge-adam' : method === 'bfgs' ? 'badge-bfgs' : method === 'gradient_descent' ? 'badge-gd' : method === 'greedy' ? 'badge-greedy' : '';
+        const reduction = r.optimize_im_reduction_pct ? (+r.optimize_im_reduction_pct).toFixed(1) + '%' : '-';
 
-        if (routing.margin_savings) {
-            tableHtml += `<p style="margin-top: 1rem; color: var(--success); font-weight: 600;">
-                Margin savings vs worst option: ${fmt(routing.margin_savings)}</p>`;
-        }
-        if (routing.computation_time_ms) {
-            tableHtml += `<p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.85rem;">
-                Total routing computation: ${routing.computation_time_ms.toFixed(0)} ms for ${cpResults.length} counterparties</p>`;
-        }
-
-        document.getElementById('pretrade-routing-table').innerHTML = tableHtml;
-        renderRoutingChart(cpResults, routing.recommended_counterparty);
-
-        const bvc = data.bilateral_vs_cleared;
-        if (bvc) renderBilateralVsCleared(bvc);
+        html += `<tr>
+            <td style="font-size:0.8rem; color:var(--text-secondary); white-space:nowrap;">${ts}</td>
+            <td>${(+r.num_trades).toLocaleString()}</td>
+            <td>${r.num_portfolios}</td>
+            <td style="font-size:0.78rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.trade_types}</td>
+            <td>${badgeCls ? '<span class="badge ' + badgeCls + '">' + method + '</span>' : method}</td>
+            <td class="num">${fmtSec(+r.crif_time_sec)}</td>
+            <td class="num">${fmtSec(+r.simm_time_sec)}</td>
+            <td class="num">${fmtSec(+r.im_sens_time_sec)}</td>
+            <td class="num">${r.optimize_time_sec ? fmtSec(+r.optimize_time_sec) : '-'}</td>
+            <td class="num" style="${reduction !== '-' ? 'color:var(--success)' : ''}">${reduction}</td>
+            <td><span class="badge badge-success">${r.status}</span></td>
+        </tr>`;
     }
+    html += '</tbody></table></div></div>';
+    content.innerHTML = html;
 
-    let routingChartInstance = null;
-    function renderRoutingChart(results, recommended) {
-        if (!results.length) return;
-        if (routingChartInstance) routingChartInstance.destroy();
-
-        routingChartInstance = new Chart(document.getElementById('routingChart').getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: results.map(r => r.counterparty),
-                datasets: [{
-                    label: 'Marginal IM ($B)',
-                    data: results.map(r => r.marginal_im / 1e9),
-                    backgroundColor: results.map(r =>
-                        r.counterparty === recommended ? 'rgba(34, 197, 94, 0.8)' : 'rgba(37, 99, 235, 0.6)'
-                    ),
-                    borderWidth: 0
-                }]
-            },
-            options: chartOptions('Marginal IM ($B)')
-        });
-    }
-
-    function renderBilateralVsCleared(bvc) {
-        const isClearBetter = bvc.recommendation === 'CLEAR';
-        const isBilateralBetter = bvc.recommendation === 'BILATERAL';
-
-        let badgeClass, badgeText;
-        if (bvc.recommendation === 'CLEAR') { badgeClass = 'badge-success'; badgeText = 'CLEAR'; }
-        else if (bvc.recommendation === 'BILATERAL') { badgeClass = 'badge-primary'; badgeText = 'BILATERAL'; }
-        else { badgeClass = 'badge-warning'; badgeText = 'INDIFFERENT'; }
-
-        document.getElementById('pretrade-comparison').innerHTML = `
-            <div style="text-align: center; margin-bottom: 1.5rem;">
-                <span class="badge ${badgeClass}" style="font-size: 1rem; padding: 0.4rem 1.5rem;">
-                    Recommendation: ${badgeText}
-                </span>
-            </div>
-            <div class="comparison-panels">
-                <div class="comparison-panel ${isBilateralBetter ? 'recommended' : ''}">
-                    <h3>Bilateral (${bvc.bilateral_counterparty})</h3>
-                    <div class="im-value" style="color: ${isBilateralBetter ? 'var(--success)' : 'var(--text-primary)'}">
-                        ${fmt(bvc.bilateral_marginal_im)}
-                    </div>
-                    <div style="color: var(--text-secondary);">ISDA SIMM Marginal IM</div>
-                </div>
-                <div class="comparison-panel ${isClearBetter ? 'recommended' : ''}">
-                    <h3>Cleared (${bvc.clearing_venue})</h3>
-                    <div class="im-value" style="color: ${isClearBetter ? 'var(--success)' : 'var(--text-primary)'}">
-                        ${fmt(bvc.cleared_marginal_im)}
-                    </div>
-                    <div style="color: var(--text-secondary);">CCP Marginal IM</div>
-                </div>
-            </div>
-            <div class="rationale-box">${bvc.rationale}</div>
-        `;
-    }
-
-    // ====================================================================
-    // Common chart options
-    // ====================================================================
-    function chartOptions(yLabel) {
-        return {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: '#f1f5f9' } }
-            },
-            scales: {
-                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-                y: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: '#334155' },
-                    title: yLabel ? { display: true, text: yLabel, color: '#94a3b8' } : undefined
-                }
+    // Timing breakdown stacked bar chart
+    if (document.getElementById(cid)) {
+        // Only use optimization runs, sorted by trades
+        const optRuns = aggRows.filter(r => r.optimize_method).sort((a, b) => +a.num_trades - +b.num_trades);
+        if (optRuns.length > 0) {
+            // Deduplicate: keep latest per (trades, portfolios, method)
+            const seen = {};
+            const deduped = [];
+            for (const r of optRuns) {
+                const key = `${r.num_trades}_${r.num_portfolios}_${r.optimize_method}`;
+                seen[key] = r;
             }
-        };
-    }
+            for (const r of Object.values(seen)) deduped.push(r);
+            deduped.sort((a, b) => +a.num_trades - +b.num_trades || a.optimize_method.localeCompare(b.optimize_method));
 
-    // ====================================================================
-    // Scaling Benchmarks Tab
-    // ====================================================================
-    async function loadBenchmarkJSON(filename) {
-        const paths = [
-            'data/benchmark_results/' + filename,
-            '../data/benchmark_results/' + filename,
-        ];
-        for (const p of paths) {
-            try {
-                const resp = await fetch(p);
-                if (!resp.ok) continue;
-                const data = await resp.json();
-                return data;
-            } catch (e) { /* try next */ }
-        }
-        return null;
-    }
+            const labels = deduped.map(r => `${fmtNum(+r.num_trades)} (${r.optimize_method.replace('gradient_descent','GD')})`);
 
-    function fmtTime(ms) {
-        if (ms == null) return 'N/A';
-        if (ms < 1) return ms.toFixed(3) + 'ms';
-        if (ms < 1000) return ms.toFixed(1) + 'ms';
-        if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
-        if (ms < 3600000) return (ms / 60000).toFixed(1) + 'min';
-        return (ms / 3600000).toFixed(1) + 'h';
-    }
-
-    function fmtNum(n) {
-        if (n == null) return 'N/A';
-        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-        if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
-        return n.toFixed(0);
-    }
-
-    function switchScalingSub(panel, btn) {
-        document.querySelectorAll('.sp-panel').forEach(p => p.style.display = 'none');
-        document.querySelectorAll('.scaling-sub').forEach(b => {
-            b.style.background = 'transparent';
-            b.style.color = 'var(--text-secondary)';
-        });
-        document.getElementById('sp-' + panel).style.display = 'block';
-        btn.style.background = 'var(--primary)';
-        btn.style.color = 'white';
-    }
-
-    function makeScalingTable(rows, columns) {
-        let html = '<div style="overflow-x:auto;margin:1rem 0;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
-        html += '<thead><tr>';
-        columns.forEach(c => { html += '<th style="padding:8px 12px;text-align:right;border-bottom:2px solid var(--border);color:var(--text-secondary);">' + c.label + '</th>'; });
-        html += '</tr></thead><tbody>';
-        rows.forEach(r => {
-            html += '<tr>';
-            columns.forEach(c => {
-                const v = c.format ? c.format(r[c.key], r) : r[c.key];
-                html += '<td style="padding:6px 12px;text-align:right;border-bottom:1px solid var(--border);">' + v + '</td>';
-            });
-            html += '</tr>';
-        });
-        html += '</tbody></table></div>';
-        return html;
-    }
-
-    function makeBarChart(canvasId, labels, datasets, yLabel) {
-        const canvas = document.getElementById(canvasId);
-        if (!canvas || typeof Chart === 'undefined') return;
-        new Chart(canvas, {
-            type: 'bar',
-            data: { labels, datasets },
-            options: {
-                responsive: true,
-                plugins: { legend: { labels: { color: '#94a3b8' } } },
-                scales: {
-                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-                    y: {
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: '#334155' },
-                        title: yLabel ? { display: true, text: yLabel, color: '#94a3b8' } : undefined
+            new Chart(document.getElementById(cid), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'CRIF (s)', data: deduped.map(r => +r.crif_time_sec), backgroundColor: '#2563eb', borderRadius: 2 },
+                        { label: 'SIMM (s)', data: deduped.map(r => +r.simm_time_sec), backgroundColor: '#8b5cf6', borderRadius: 2 },
+                        { label: 'Gradient (s)', data: deduped.map(r => +r.im_sens_time_sec), backgroundColor: '#06b6d4', borderRadius: 2 },
+                        { label: 'Optimizer (s)', data: deduped.map(r => +r.optimize_time_sec || 0), backgroundColor: '#22c55e', borderRadius: 2 },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#7a8baa' } } },
+                    scales: {
+                        x: { stacked: true, ticks: { color: '#7a8baa', maxRotation: 45 }, grid: { color: 'rgba(36,48,80,0.5)' } },
+                        y: { stacked: true, ticks: { color: '#7a8baa' }, grid: { color: 'rgba(36,48,80,0.5)' }, title: { display: true, text: 'Time (seconds)', color: '#7a8baa' } }
                     }
                 }
-            }
-        });
+            });
+        }
     }
+}
 
-    function renderGradientScaling(data, container) {
-        const results = (data.results || []).filter(r => !r.error);
-        if (!results.length) {
-            container.innerHTML = '<p style="color:var(--danger);">No valid gradient benchmark results. Re-run <code>python scripts/benchmark_1m_gradient_scaling.py</code></p>';
-            return;
-        }
-        let html = '<h3>AADC Gradient vs Bump-and-Revalue per Optimization Iteration</h3>';
-        html += makeScalingTable(results, [
-            { key: 'num_trades', label: 'Trades', format: v => fmtNum(v) },
-            { key: 'num_portfolios', label: 'Portfolios' },
-            { key: 'num_risk_factors', label: 'K (factors)' },
-            { key: 'aadc_total_iter_ms', label: 'AADC/iter', format: v => fmtTime(v) },
-            { key: 'bump_revalue_estimate_ms', label: 'Bump/iter', format: v => fmtTime(v) },
-            { key: 'speedup', label: 'Speedup', format: v => v ? v.toFixed(0) + '×' : 'N/A' },
-        ]);
-        const cid = 'gradient-chart-' + Date.now();
-        html += '<canvas id="' + cid + '" height="250"></canvas>';
-
-        // 1M extrapolation
-        const last = results[results.length - 1];
-        if (last) {
-            const aadcPerTrade = last.aadc_total_iter_ms / last.num_trades;
-            const bumpPerTrade = last.bump_revalue_estimate_ms / (last.num_trades * last.num_portfolios);
-            const aadc1M = aadcPerTrade * 1e6;
-            const bump1M = bumpPerTrade * 1e6 * 20;
-            html += '<div style="margin-top:1.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">';
-            html += '<div class="stat-card" style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border);text-align:center;">';
-            html += '<div style="font-size:0.8rem;color:var(--text-secondary);">1M Trades AADC/iter</div>';
-            html += '<div style="font-size:1.5rem;font-weight:700;color:var(--success);">' + fmtTime(aadc1M) + '</div></div>';
-            html += '<div class="stat-card" style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border);text-align:center;">';
-            html += '<div style="font-size:0.8rem;color:var(--text-secondary);">1M Trades Bump/iter</div>';
-            html += '<div style="font-size:1.5rem;font-weight:700;color:var(--danger);">' + fmtTime(bump1M) + '</div></div>';
-            html += '<div class="stat-card" style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border);text-align:center;">';
-            html += '<div style="font-size:0.8rem;color:var(--text-secondary);">Estimated Speedup</div>';
-            html += '<div style="font-size:1.5rem;font-weight:700;color:var(--primary);">' + (bump1M / aadc1M).toFixed(0) + '×</div></div>';
-            html += '</div>';
-        }
-        container.innerHTML = html;
-
-        // Render chart
-        const labels = results.map(r => fmtNum(r.num_trades));
-        makeBarChart(cid, labels, [
-            { label: 'AADC (ms)', data: results.map(r => r.aadc_total_iter_ms), backgroundColor: '#22c55e' },
-            { label: 'Bump (ms)', data: results.map(r => r.bump_revalue_estimate_ms), backgroundColor: '#ef4444' },
-        ], 'Time per iteration (ms)');
-    }
-
-    function renderPretradeScaling(data, container) {
-        const results = (data.results || []).filter(r => !r.error);
-        if (!results.length) {
-            container.innerHTML = '<p style="color:var(--danger);">No valid pre-trade benchmark results. Re-run <code>python scripts/benchmark_1m_pretrade.py</code></p>';
-            return;
-        }
-        let html = '<h3>Pre-Trade Marginal IM Query Latency</h3>';
-        html += makeScalingTable(results, [
-            { key: 'num_trades', label: 'Trades', format: v => fmtNum(v) },
-            { key: 'num_counterparties', label: 'Portfolios' },
-            { key: 'aadc_query_avg_ms', label: 'AADC/query', format: v => fmtTime(v) },
-            { key: 'naive_query_avg_ms', label: 'Naive/query', format: v => fmtTime(v) },
-            { key: 'speedup_per_query', label: 'Speedup', format: v => v ? v.toFixed(1) + '×' : 'N/A' },
-            { key: 'queries_per_second_aadc', label: 'AADC q/s', format: v => v ? v.toFixed(1) : 'N/A' },
-        ]);
-        const cid = 'pretrade-chart-' + Date.now();
-        html += '<canvas id="' + cid + '" height="250"></canvas>';
-        container.innerHTML = html;
-
-        const labels = results.map(r => fmtNum(r.num_trades));
-        makeBarChart(cid, labels, [
-            { label: 'AADC (ms)', data: results.map(r => r.aadc_query_avg_ms), backgroundColor: '#22c55e' },
-            { label: 'Naive (ms)', data: results.map(r => r.naive_query_avg_ms), backgroundColor: '#ef4444' },
-        ], 'Time per query (ms)');
-    }
-
-    function renderWhatifScaling(data, container) {
-        const results = (data.results || []).filter(r => !r.error);
-        if (!results.length) {
-            container.innerHTML = '<p style="color:var(--danger);">No valid what-if benchmark results. Re-run <code>python scripts/benchmark_1m_whatif.py</code></p>';
-            return;
-        }
-        let html = '<h3>Margin Attribution: AADC Gradient vs Leave-One-Out</h3>';
-        html += makeScalingTable(results, [
-            { key: 'num_trades', label: 'Trades', format: v => fmtNum(v) },
-            { key: 'aadc_attribution_ms', label: 'AADC', format: v => fmtTime(v) },
-            { key: 'naive_attribution_ms', label: 'Leave-1-out', format: v => fmtTime(v) },
-            { key: 'speedup', label: 'Speedup', format: v => v ? v.toFixed(0) + '×' : 'N/A' },
-        ]);
-        const cid = 'whatif-chart-' + Date.now();
-        html += '<canvas id="' + cid + '" height="250"></canvas>';
-        container.innerHTML = html;
-
-        const labels = results.map(r => fmtNum(r.num_trades));
-        makeBarChart(cid, labels, [
-            { label: 'AADC (ms)', data: results.map(r => r.aadc_attribution_ms), backgroundColor: '#22c55e' },
-            { label: 'Leave-1-out (ms)', data: results.map(r => r.naive_attribution_ms), backgroundColor: '#ef4444' },
-        ], 'Attribution time (ms)');
-    }
-
-    async function loadScalingTab() {
-        const loading = document.getElementById('scaling-loading');
-        const content = document.getElementById('scaling-content');
-        const errDiv = document.getElementById('scaling-error');
-
-        const [gradData, pretradeData, whatifData] = await Promise.all([
-            loadBenchmarkJSON('gradient_scaling_benchmark.json'),
-            loadBenchmarkJSON('pretrade_scaling_benchmark.json'),
-            loadBenchmarkJSON('whatif_scaling_benchmark.json'),
-        ]);
-
-        const anyData = gradData || pretradeData || whatifData;
-        if (!anyData) {
-            loading.style.display = 'none';
-            errDiv.style.display = 'flex';
-            return;
-        }
-
-        // Hero stats
-        const hero = document.getElementById('scaling-hero');
-        let heroHtml = '<h2 style="margin:0 0 0.5rem 0;">AADC Scaling Benchmarks</h2>';
-        heroHtml += '<p style="color:var(--text-secondary);margin:0;">Demonstrating AADC feasibility for 1M-trade portfolios</p>';
-        heroHtml += '<div style="display:flex;gap:2rem;margin-top:1rem;flex-wrap:wrap;">';
-        if (gradData) {
-            const validGrad = (gradData.results || []).filter(r => !r.error);
-            if (validGrad.length) {
-                const last = validGrad[validGrad.length - 1];
-                heroHtml += '<div><div style="font-size:0.8rem;color:var(--text-secondary);">Max tested</div><div style="font-size:1.3rem;font-weight:700;">' + fmtNum(last.num_trades) + ' trades</div></div>';
-                heroHtml += '<div><div style="font-size:0.8rem;color:var(--text-secondary);">Gradient speedup</div><div style="font-size:1.3rem;font-weight:700;color:var(--success);">' + last.speedup.toFixed(0) + '×</div></div>';
-            }
-        }
-        if (pretradeData) {
-            const validPre = (pretradeData.results || []).filter(r => !r.error);
-            if (validPre.length) {
-                const last = validPre[validPre.length - 1];
-                heroHtml += '<div><div style="font-size:0.8rem;color:var(--text-secondary);">Pre-trade queries/s</div><div style="font-size:1.3rem;font-weight:700;color:var(--success);">' + last.queries_per_second_aadc.toFixed(0) + '</div></div>';
-            }
-        }
-        heroHtml += '</div>';
-        hero.innerHTML = heroHtml;
-
-        // Render sub-panels
-        if (gradData) renderGradientScaling(gradData, document.getElementById('sp-gradient-body'));
-        else document.getElementById('sp-gradient-body').innerHTML = '<p>No gradient data available.</p>';
-
-        if (pretradeData) renderPretradeScaling(pretradeData, document.getElementById('sp-pretrade-body'));
-        else document.getElementById('sp-pretrade-body').innerHTML = '<p>No pre-trade data available.</p>';
-
-        if (whatifData) renderWhatifScaling(whatifData, document.getElementById('sp-whatif-body'));
-        else document.getElementById('sp-whatif-body').innerHTML = '<p>No what-if data available.</p>';
-
-        loading.style.display = 'none';
-        content.style.display = 'block';
-    }
-
-    // ====================================================================
-    // Boot
-    // ====================================================================
-    tabLoaded.optimization = true;
-    loadOptimizationTab();
-    </script>
+// ====================================================================
+// Boot
+// ====================================================================
+animateCounters();
+animatePipeline();
+renderMethodComparison();
+tabLoaded.methodology = true;
+</script>
 </body>
 </html>

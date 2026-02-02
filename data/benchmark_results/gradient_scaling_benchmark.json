@@ -1,38 +1,118 @@
 {
   "benchmark": "gradient_computation_scaling",
   "description": "AADC gradient vs bump-and-revalue for portfolio optimization",
-  "timestamp": "2026-01-29T22:08:11",
+  "timestamp": "2026-01-30T09:54:56",
   "num_threads": 8,
   "results": [
     {
-      "description": "1K trades, 20 portfolios",
       "num_trades": 1000,
       "num_portfolios": 20,
-      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+      "num_risk_factors": 50,
+      "num_threads": 8,
+      "total_im": 1856567806222.7656,
+      "crif_precompute_s": 33.65562334097922,
+      "smatrix_build_s": 2.9715302605181932,
+      "kernel_recording_ms": 408.8371302932501,
+      "aadc_gradient_eval_ms": 2.35537625849247,
+      "chain_rule_ms": 0.33139437437057495,
+      "aadc_total_iter_ms": 2.6867706328630447,
+      "bump_revalue_estimate_ms": 1961.48082613945,
+      "speedup": 730.0514610915186,
+      "aadc_100_iters_s": 0.2686770632863045,
+      "bump_100_iters_s": 196.148082613945,
+      "gradient_shape": [
+        1000,
+        20
+      ],
+      "description": "1K trades, 20 portfolios"
     },
     {
-      "description": "5K trades, 20 portfolios",
       "num_trades": 5000,
       "num_portfolios": 20,
-      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+      "num_risk_factors": 50,
+      "num_threads": 8,
+      "total_im": 4110769850030.633,
+      "crif_precompute_s": 41.48482446745038,
+      "smatrix_build_s": 15.08905285410583,
+      "kernel_recording_ms": 419.1774744540453,
+      "aadc_gradient_eval_ms": 4.158079624176025,
+      "chain_rule_ms": 0.2555418759584427,
+      "aadc_total_iter_ms": 4.413621500134468,
+      "bump_revalue_estimate_ms": 17577.93128490448,
+      "speedup": 3982.654897881239,
+      "aadc_100_iters_s": 0.4413621500134468,
+      "bump_100_iters_s": 1757.793128490448,
+      "gradient_shape": [
+        5000,
+        20
+      ],
+      "description": "5K trades, 20 portfolios"
     },
     {
-      "description": "10K trades, 20 portfolios",
       "num_trades": 10000,
       "num_portfolios": 20,
-      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+      "num_risk_factors": 50,
+      "num_threads": 8,
+      "total_im": 6728804722193.339,
+      "crif_precompute_s": 49.59057650528848,
+      "smatrix_build_s": 29.750608295202255,
+      "kernel_recording_ms": 417.95462369918823,
+      "aadc_gradient_eval_ms": 6.225299090147018,
+      "chain_rule_ms": 0.41730329394340515,
+      "aadc_total_iter_ms": 6.642602384090424,
+      "bump_revalue_estimate_ms": 38465.652614831924,
+      "speedup": 5790.750430427735,
+      "aadc_100_iters_s": 0.6642602384090424,
+      "bump_100_iters_s": 3846.5652614831924,
+      "gradient_shape": [
+        10000,
+        20
+      ],
+      "description": "10K trades, 20 portfolios"
     },
     {
-      "description": "50K trades, 20 portfolios",
       "num_trades": 50000,
       "num_portfolios": 20,
-      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+      "num_risk_factors": 50,
+      "num_threads": 8,
+      "total_im": 18877440220815.29,
+      "crif_precompute_s": 117.6673991214484,
+      "smatrix_build_s": 149.968674371019,
+      "kernel_recording_ms": 413.1387509405613,
+      "aadc_gradient_eval_ms": 18.056553478042286,
+      "chain_rule_ms": 4.471840336918831,
+      "aadc_total_iter_ms": 22.528393814961117,
+      "bump_revalue_estimate_ms": 794640.276581049,
+      "speedup": 35272.83316812972,
+      "aadc_100_iters_s": 2.252839381496112,
+      "bump_100_iters_s": 79464.0276581049,
+      "gradient_shape": [
+        50000,
+        20
+      ],
+      "description": "50K trades, 20 portfolios"
     },
     {
-      "description": "100K trades, 20 portfolios",
       "num_trades": 100000,
       "num_portfolios": 20,
-      "error": "compute_allocation_gradient_chainrule_v2() missing 4 required positional arguments: 'im_output', 'S', 'current_allocation', and 'num_threads'"
+      "num_risk_factors": 50,
+      "num_threads": 8,
+      "total_im": 35770339642680.82,
+      "crif_precompute_s": 206.98707843199372,
+      "smatrix_build_s": 304.7680779211223,
+      "kernel_recording_ms": 436.28742918372154,
+      "aadc_gradient_eval_ms": 31.648212422927223,
+      "chain_rule_ms": 1.5468839555978775,
+      "aadc_total_iter_ms": 33.1950963785251,
+      "bump_revalue_estimate_ms": 2705752.2907853127,
+      "speedup": 81510.60204590172,
+      "aadc_100_iters_s": 3.31950963785251,
+      "bump_100_iters_s": 270575.22907853127,
+      "gradient_shape": [
+        100000,
+        20
+      ],
+      "description": "100K trades, 20 portfolios"
     }
   ]
 }

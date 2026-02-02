@@ -95,7 +95,8 @@ inline idouble computeRiskClassMargin(
             ws_sum = ws_list[0];
         }
 
-        bucket_results[bkey] = {sqrt(k_sq), ws_sum, cr, bucket_num};
+        // Add tiny epsilon inside sqrt to avoid NaN derivative at zero
+        bucket_results[bkey] = {sqrt(k_sq + idouble(1e-30)), ws_sum, cr, bucket_num};
     }
 
     // Inter-bucket aggregation
@@ -142,7 +143,7 @@ inline idouble computeRiskClassMargin(
         }
     }
 
-    return sqrt(k_rc_sq);
+    return sqrt(k_rc_sq + idouble(1e-30));
 }
 
 // ============================================================================
@@ -204,7 +205,7 @@ inline void recordSIMMKernel(
         }
     }
 
-    idouble im = sqrt(simm_sq);
+    idouble im = sqrt(simm_sq + idouble(1e-30));
     kernel.im_output = im.markAsOutput();
 
     kernel.funcs.stopRecording();
