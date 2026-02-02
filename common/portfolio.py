@@ -68,6 +68,9 @@ LOG_COLUMNS = [
     "optimize_im_reduction_pct",
     "optimize_converged",
     "optimize_max_iters",
+    # Throughput
+    "num_simm_evals",
+    "simm_evals_per_sec",
     "status",
 ]
 

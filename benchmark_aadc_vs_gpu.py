@@ -78,6 +78,7 @@ def _build_benchmark_log_row(
     im_result, num_risk_factors, eval_time_sec,
     kernel_recording_sec=None, crif_time_sec=None,
     optimize_result=None,
+    num_simm_evals=None,
 ):
     """Build a single log row matching execution_log_portfolio.csv schema."""
     row = {
@@ -115,7 +116,7 @@ def _build_benchmark_log_row(
         final_im = optimize_result['final_im']
         reduction_pct = (initial_im - final_im) / initial_im * 100 if initial_im > 0 else 0
         row.update({
-            "optimize_method": "gradient_descent",
+            "optimize_method": optimize_result.get("method", "gradient_descent"),
             "optimize_time_sec": optimize_result['eval_time'],
             "optimize_initial_im": initial_im,
             "optimize_final_im": final_im,
@@ -137,6 +138,15 @@ def _build_benchmark_log_row(
             "optimize_converged": "",
             "optimize_max_iters": "",
         })
+
+    # Throughput: SIMM evaluations per second
+    n_evals = num_simm_evals if num_simm_evals is not None else ""
+    if num_simm_evals and eval_time_sec and eval_time_sec > 0:
+        evals_per_sec = num_simm_evals / eval_time_sec
+    else:
+        evals_per_sec = ""
+    row["num_simm_evals"] = n_evals
+    row["simm_evals_per_sec"] = evals_per_sec
 
     return row
 
@@ -346,27 +356,21 @@ def optimize_allocation(
 
 
 def _project_to_simplex(x):
+    """Project each row of x onto the probability simplex (vectorized)."""
     T, P = x.shape
-    result = np.zeros_like(x)
-    for t in range(T):
-        v = x[t]
-        u = np.sort(v)[::-1]
-        cssv = np.cumsum(u)
-        rho_candidates = np.nonzero(u * np.arange(1, P + 1) > (cssv - 1))[0]
-        if len(rho_candidates) == 0:
-            result[t] = np.ones(P) / P
-        else:
-            rho = rho_candidates[-1]
-            theta = (cssv[rho] - 1) / (rho + 1)
-            result[t] = np.maximum(v - theta, 0)
-    return result
+    u = np.sort(x, axis=1)[:, ::-1]
+    cssv = np.cumsum(u, axis=1)
+    arange = np.arange(1, P + 1)
+    mask = u * arange > (cssv - 1)
+    rho = P - 1 - np.argmax(mask[:, ::-1], axis=1)
+    theta = (cssv[np.arange(T), rho] - 1.0) / (rho + 1)
+    return np.maximum(x - theta[:, None], 0.0)
 
 
 def _round_to_integer(x):
     T, P = x.shape
     result = np.zeros_like(x)
-    for t in range(T):
-        result[t, np.argmax(x[t])] = 1.0
+    result[np.arange(T), np.argmax(x, axis=1)] = 1.0
     return result
 
 

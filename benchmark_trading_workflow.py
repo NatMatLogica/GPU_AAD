@@ -22,10 +22,10 @@ Usage:
     python benchmark_trading_workflow.py --trades 5000 --portfolios 10 \\
         --new-trades 50 --optimize-iters 100 --refresh-interval 10
 
-Version: 2.5.0
+Version: 2.7.0
 """
 
-MODEL_VERSION = "2.5.0"
+MODEL_VERSION = "2.7.0"
 
 import sys
 import os
@@ -113,6 +113,7 @@ from model.simm_portfolio_aadc_v2 import (
 )
 from model.simm_portfolio_cuda import (
     compute_simm_and_gradient_cuda,
+    compute_simm_im_only_cuda,
     preallocate_gpu_arrays,
 )
 from benchmark_aadc_vs_gpu import _build_benchmark_log_row
@@ -133,9 +134,11 @@ class StepResult:
     aadc_time_sec: Optional[float] = None
     gpu_time_sec: Optional[float] = None
     cpp_time_sec: Optional[float] = None
+    bf_time_sec: Optional[float] = None   # Brute-force (forward-only GPU, no gradients)
     aadc_evals: int = 0
     gpu_evals: int = 0
     cpp_evals: int = 0
+    bf_evals: int = 0
     aadc_kernel_recordings: int = 0   # Number of kernel recordings (AADC only)
     aadc_kernel_reuses: int = 0       # Evaluations that reused existing kernel
     details: dict = field(default_factory=dict)
@@ -147,9 +150,11 @@ class KernelEconomics:
     total_recordings: int = 0         # How many times kernel was recorded
     total_aadc_evals: int = 0         # Total aadc.evaluate() calls
     total_gpu_evals: int = 0          # Total GPU kernel launches
+    total_bf_evals: int = 0           # Total brute-force (forward-only) GPU evals
     total_aadc_kernel_reuses: int = 0 # Evals that reused a recorded kernel
     cumulative_aadc_time: float = 0.0
     cumulative_gpu_time: float = 0.0
+    cumulative_bf_time: float = 0.0
     cpp_recording_time_sec: float = 0.0
     total_cpp_evals: int = 0
     cumulative_cpp_time: float = 0.0
@@ -158,6 +163,7 @@ class KernelEconomics:
         self.total_aadc_evals += step.aadc_evals
         self.total_gpu_evals += step.gpu_evals
         self.total_cpp_evals += step.cpp_evals
+        self.total_bf_evals += step.bf_evals
         self.total_recordings += step.aadc_kernel_recordings
         self.total_aadc_kernel_reuses += step.aadc_kernel_reuses
         if step.aadc_time_sec is not None:
@@ -166,6 +172,8 @@ class KernelEconomics:
             self.cumulative_gpu_time += step.gpu_time_sec
         if step.cpp_time_sec is not None:
             self.cumulative_cpp_time += step.cpp_time_sec
+        if step.bf_time_sec is not None:
+            self.cumulative_bf_time += step.bf_time_sec
 
     @property
     def amortized_recording_ms(self) -> float:
@@ -337,7 +345,6 @@ def _run_all_cpp_modes(num_trades, num_portfolios, num_threads, optimize_iters,
         "--seed", str(seed),
         "--mode", "all",
         "--max-iters", str(optimize_iters),
-        "--no-greedy",
     ]
     if input_dir:
         cmd.extend(["--input-dir", input_dir])
@@ -427,10 +434,11 @@ def _run_all_cpp_modes(num_trades, num_portfolios, num_threads, optimize_iters,
             parsed = {"recording_time_ms": recording_ms}
             m = re.search(r"Initial IM:\s+\$([\d,.]+)", s)
             if m: parsed["initial_im"] = float(m.group(1).replace(",", ""))
-            m = re.search(r"Final IM:\s+\$([\d,.]+)", s)
-            if m: parsed["final_im"] = float(m.group(1).replace(",", ""))
-            m = re.search(r"Trades moved:\s+(\d+)", s)
-            if m: parsed["trades_moved"] = int(m.group(1))
+            # Use findall to get the LAST occurrence (summary line, not sub-optimizer)
+            finals = re.findall(r"Final IM:\s+\$([\d,.]+)", s)
+            if finals: parsed["final_im"] = float(finals[-1].replace(",", ""))
+            moved_all = re.findall(r"Trades moved:\s+(\d+)", s)
+            if moved_all: parsed["trades_moved"] = int(moved_all[-1])
             m = re.search(r"Iterations:\s+(\d+)", s)
             if m: parsed["iterations"] = int(m.group(1))
             m = re.search(r"Optimization eval:\s+([\d.]+)\s*ms", s)
@@ -460,7 +468,8 @@ def _apply_cpp_results(steps, economics, cpp_results):
     if not cpp_results:
         return
 
-    s1, s2, s3, s4, s5 = steps
+    s1, s2, s3, s4 = steps[:4]
+    eod_steps = steps[4:]
 
     # Step 1 (Portfolio Setup): C++ first eval time (recording stored separately)
     # Use attribution's eval_time as the first IM evaluation
@@ -502,15 +511,23 @@ def _apply_cpp_results(steps, economics, cpp_results):
         s4.cpp_time_sec = eval_ms / 1000.0
         s4.cpp_evals = 4  # unwind + stress_ir + stress_eq + marginal
 
-    # Step 5 (Optimization): C++ optimization wall time (apples-to-apples with Python)
+    # Step 5 (Optimization): C++ uses GD — apply to matching EOD step
     if "optimize" in cpp_results:
         r = cpp_results["optimize"]
-        # Use wall time (includes projection, matmuls, line search) for fair comparison
-        # Fall back to eval-only time if wall not available
         opt_ms = r.get("optimization_wall_ms", r.get("optimization_eval_ms", 0))
-        s5.cpp_time_sec = opt_ms / 1000.0
         iters = r.get("iterations", 0)
-        s5.cpp_evals = iters + 2  # init eval + iterations + final eval
+        # Find the GD EOD step (C++ uses gradient_descent)
+        target = None
+        for es in eod_steps:
+            if es.details.get("method") == "gradient_descent":
+                target = es
+                break
+        if target is None and eod_steps:
+            target = eod_steps[0]  # fallback to first EOD step
+        if target is not None:
+            target.cpp_time_sec = opt_ms / 1000.0
+            target.cpp_evals = iters + 2  # init eval + iterations + final eval
+            target.details["cpp"] = cpp_results["optimize"]
 
     # Store raw C++ parsed results in step details for comparison output
     if "attribution" in cpp_results:
@@ -520,8 +537,6 @@ def _apply_cpp_results(steps, economics, cpp_results):
         s3.details["cpp"] = cpp_results["pretrade"]
     if "whatif" in cpp_results:
         s4.details["cpp"] = cpp_results["whatif"]
-    if "optimize" in cpp_results:
-        s5.details["cpp"] = cpp_results["optimize"]
 
     # Update economics totals
     for s in steps:
@@ -782,11 +797,12 @@ def _export_shared_data(ctx, output_dir):
     allocation = ctx["initial_allocation"]
     P = allocation.shape[1]
 
-    # 1. sensitivity_matrix.csv
-    with open(os.path.join(output_dir, "sensitivity_matrix.csv"), "w") as f:
+    # 1. sensitivity_matrix.csv — write header then bulk numpy save
+    sm_path = os.path.join(output_dir, "sensitivity_matrix.csv")
+    with open(sm_path, "w") as f:
         f.write(f"{T},{K}\n")
-        for t in range(T):
-            f.write(",".join(f"{S[t,k]:.15g}" for k in range(K)) + "\n")
+    with open(sm_path, "ab") as f:
+        np.savetxt(f, S, delimiter=",", fmt="%.15g")
 
     # 2. risk_factors.csv
     with open(os.path.join(output_dir, "risk_factors.csv"), "w") as f:
@@ -810,16 +826,27 @@ def _export_shared_data(ctx, output_dir):
                     f"{bstr},{fm.label1},{tenor_idx},"
                     f"{fm.weight:.15g},{fm.cr:.15g},{fm.bucket_key}\n")
 
-    # 4. allocation.csv
-    with open(os.path.join(output_dir, "allocation.csv"), "w") as f:
+    # 4. allocation.csv — write header then bulk numpy save
+    alloc_path = os.path.join(output_dir, "allocation.csv")
+    with open(alloc_path, "w") as f:
         f.write(f"{T},{P}\n")
-        for t in range(T):
-            f.write(",".join(f"{allocation[t,p]:.15g}" for p in range(P)) + "\n")
+    with open(alloc_path, "ab") as f:
+        np.savetxt(f, allocation, delimiter=",", fmt="%.15g")
 
     # 5. trade_ids.csv
     with open(os.path.join(output_dir, "trade_ids.csv"), "w") as f:
         for tid in trade_ids:
             f.write(f"{tid}\n")
+
+    # Verify file integrity
+    with open(sm_path, "r") as f:
+        header_line = f.readline().strip()
+        row_count = sum(1 for _ in f)
+    if row_count != T:
+        raise RuntimeError(
+            f"sensitivity_matrix.csv integrity check failed: header says T={T} "
+            f"but file has {row_count} data rows"
+        )
 
     return output_dir
 
@@ -887,27 +914,21 @@ def _make_gpu_grad_fn(ctx):
 # =============================================================================
 
 def _project_to_simplex(x):
+    """Project each row of x onto the probability simplex (vectorized)."""
     T, P = x.shape
-    result = np.zeros_like(x)
-    for t in range(T):
-        v = x[t]
-        u = np.sort(v)[::-1]
-        cssv = np.cumsum(u)
-        rho_candidates = np.nonzero(u * np.arange(1, P + 1) > (cssv - 1))[0]
-        if len(rho_candidates) == 0:
-            result[t] = np.ones(P) / P
-        else:
-            rho = rho_candidates[-1]
-            theta = (cssv[rho] - 1) / (rho + 1)
-            result[t] = np.maximum(v - theta, 0)
-    return result
+    u = np.sort(x, axis=1)[:, ::-1]
+    cssv = np.cumsum(u, axis=1)
+    arange = np.arange(1, P + 1)
+    mask = u * arange > (cssv - 1)
+    rho = P - 1 - np.argmax(mask[:, ::-1], axis=1)
+    theta = (cssv[np.arange(T), rho] - 1.0) / (rho + 1)
+    return np.maximum(x - theta[:, None], 0.0)
 
 
 def _round_to_integer(x):
     T, P = x.shape
     result = np.zeros_like(x)
-    for t in range(T):
-        result[t, np.argmax(x[t])] = 1.0
+    result[np.arange(T), np.argmax(x, axis=1)] = 1.0
     return result
 
 
@@ -1036,6 +1057,297 @@ def optimize_allocation(
 
 
 # =============================================================================
+# Greedy Local Search (mirrors C++ greedyLocalSearch in allocation_optimizer.h)
+# =============================================================================
+
+def greedy_local_search(
+    S, integer_allocation, grad_fn,
+    max_rounds=50, verbose=False, label="",
+):
+    """
+    Gradient-guided greedy local search on integer (one-hot) allocations.
+    Mirrors C++ greedyLocalSearch() in allocation_optimizer.h:746.
+
+    Uses AADC/GPU gradients to predict promising discrete trade moves,
+    validates top-k candidates with actual evaluation, and iterates
+    with gradient refresh until no improvement is found.
+    """
+    T, P = integer_allocation.shape
+    K = S.shape[1]
+    x = integer_allocation.copy()
+    best_x = x.copy()
+    im_history = []
+    total_eval_time = 0.0
+    num_evals = 0
+
+    top_k = min(T, max(20, T // 10))
+
+    # Initial evaluation
+    agg_S_T = np.dot(S.T, x).T  # (P, K)
+    t0 = time.perf_counter()
+    im_values, grad_S = grad_fn(agg_S_T)
+    total_eval_time += time.perf_counter() - t0
+    num_evals += 1
+
+    total_im = float(np.sum(im_values))
+    best_im = total_im
+    initial_im = total_im
+    im_history.append(total_im)
+
+    # Trade-level gradient: (T, P)
+    gradient = np.dot(S, grad_S.T)
+    curr_assignments = np.argmax(x, axis=1)  # (T,)
+
+    if verbose:
+        print(f"     [{label} Greedy] Initial IM: ${total_im:,.0f} (top_k={top_k})")
+
+    for round_idx in range(max_rounds):
+        # Predicted deltas: delta[t,p] = gradient[t,p] - gradient[t, curr_p]
+        g_curr = gradient[np.arange(T), curr_assignments]  # (T,)
+        deltas = gradient - g_curr[:, None]  # (T, P)
+        deltas[np.arange(T), curr_assignments] = 0.0  # no self-move
+
+        # Candidates with negative predicted delta (improvements)
+        trade_indices, new_p_indices = np.where(deltas < 0.0)
+
+        if len(trade_indices) == 0:
+            if verbose:
+                print(f"     [{label} Greedy] No improving candidates, "
+                      f"stopping at round {round_idx}")
+            break
+
+        predicted_deltas = deltas[trade_indices, new_p_indices]
+
+        # Top-k most negative deltas
+        n_try = min(top_k, len(predicted_deltas))
+        top_indices = np.argpartition(predicted_deltas, n_try)[:n_try]
+        top_indices = top_indices[np.argsort(predicted_deltas[top_indices])]
+
+        improved = False
+        accepted = 0
+        moved_this_round = set()
+
+        for idx in top_indices:
+            t = int(trade_indices[idx])
+            new_p = int(new_p_indices[idx])
+            curr_p = int(curr_assignments[t])
+
+            if t in moved_this_round:
+                continue
+
+            # Apply move
+            x[t, curr_p] = 0.0
+            x[t, new_p] = 1.0
+
+            # Validate with actual evaluation
+            agg_S_T = np.dot(S.T, x).T
+            t0 = time.perf_counter()
+            im_trial, _ = grad_fn(agg_S_T)
+            total_eval_time += time.perf_counter() - t0
+            num_evals += 1
+            trial_im = float(np.sum(im_trial))
+
+            if trial_im < total_im:
+                # Accept
+                total_im = trial_im
+                curr_assignments[t] = new_p
+                improved = True
+                accepted += 1
+                moved_this_round.add(t)
+                if total_im < best_im:
+                    best_im = total_im
+                    best_x = x.copy()
+            else:
+                # Revert
+                x[t, new_p] = 0.0
+                x[t, curr_p] = 1.0
+
+        im_history.append(total_im)
+
+        if verbose:
+            print(f"     [{label} Greedy] Round {round_idx}: "
+                  f"IM = ${total_im:,.0f}, tried {n_try}, accepted {accepted}")
+
+        if not improved:
+            if verbose:
+                print(f"     [{label} Greedy] No improvement validated, "
+                      f"stopping at round {round_idx}")
+            break
+
+        # Refresh gradients for next round
+        agg_S_T = np.dot(S.T, x).T
+        t0 = time.perf_counter()
+        im_values, grad_S = grad_fn(agg_S_T)
+        total_eval_time += time.perf_counter() - t0
+        num_evals += 1
+        total_im = float(np.sum(im_values))
+        gradient = np.dot(S, grad_S.T)
+
+    trades_moved = int(np.sum(
+        np.argmax(best_x, axis=1) != np.argmax(integer_allocation, axis=1)
+    ))
+
+    if verbose:
+        reduction = 100.0 * (1.0 - best_im / initial_im) if initial_im > 0 else 0.0
+        print(f"     [{label} Greedy] Final IM: ${best_im:,.0f} "
+              f"(reduction: {reduction:.1f}%)")
+
+    return {
+        'final_allocation': best_x,
+        'final_im': best_im,
+        'initial_im': initial_im,
+        'im_history': im_history,
+        'num_evals': num_evals,
+        'eval_time': total_eval_time,
+        'trades_moved': trades_moved,
+    }
+
+
+# =============================================================================
+# GPU Brute-Force Search (forward-only kernel, no gradients)
+# =============================================================================
+
+def _make_gpu_im_only_fn(ctx):
+    """Closure for forward-only GPU IM evaluation (no gradients)."""
+    def fn(sensitivities):
+        return compute_simm_im_only_cuda(
+            sensitivities, ctx["risk_weights"], ctx["concentration_factors"],
+            ctx["bucket_id"], ctx["risk_measure_idx"],
+            ctx["bucket_rc"], ctx["bucket_rm"],
+            ctx["intra_corr_flat"], ctx["bucket_gamma_flat"],
+            ctx["num_buckets"], gpu_arrays=ctx["gpu_constants"],
+        )
+    return fn
+
+
+def brute_force_gpu_search(
+    S, integer_allocation, ctx,
+    max_rounds=50, verbose=False, label="",
+) -> dict:
+    """
+    Brute-force optimizer: evaluates ALL T×(P-1) single-trade moves per round
+    using a forward-only GPU kernel (no gradients needed).
+
+    Each candidate move (trade t: src → dst) only changes 2 portfolios.
+    We stack the 2C changed rows into a single GPU launch, compute delta IM,
+    and pick the best improving move.
+    """
+    T, P = integer_allocation.shape
+    K = S.shape[1]
+    x = integer_allocation.copy()
+    im_history = []
+    total_eval_time = 0.0
+    num_evals = 0
+
+    im_fn = _make_gpu_im_only_fn(ctx)
+
+    # Baseline IM
+    agg_S = np.dot(S.T, x).T  # (P, K)
+    t0 = time.perf_counter()
+    base_ims = im_fn(agg_S)  # (P,)
+    total_eval_time += time.perf_counter() - t0
+    num_evals += 1
+
+    total_im = float(np.sum(base_ims))
+    initial_im = total_im
+    best_im = total_im
+    best_x = x.copy()
+    im_history.append(total_im)
+
+    if verbose:
+        print(f"     [{label} BruteForce] Initial IM: ${total_im:,.0f}")
+
+    for round_idx in range(max_rounds):
+        curr = np.argmax(x, axis=1)  # (T,)
+
+        # Generate ALL T×(P-1) candidate moves (vectorized)
+        all_trades = np.repeat(np.arange(T), P)     # (T*P,)
+        all_targets = np.tile(np.arange(P), T)       # (T*P,)
+        mask = all_targets != np.repeat(curr, P)
+        trade_idx = all_trades[mask]                  # (C,)
+        dst_p = all_targets[mask]                     # (C,)
+        src_p = curr[trade_idx]                       # (C,)
+        C = len(trade_idx)
+
+        if C == 0:
+            break
+
+        # Incremental aggregation: only 2 portfolios change per candidate
+        new_src_agg = agg_S[src_p] - S[trade_idx]    # (C, K)
+        new_dst_agg = agg_S[dst_p] + S[trade_idx]    # (C, K)
+
+        # Single GPU launch for all 2C rows
+        batch = np.vstack([new_src_agg, new_dst_agg])  # (2C, K)
+        t0 = time.perf_counter()
+        batch_ims = im_fn(batch)                        # (2C,)
+        total_eval_time += time.perf_counter() - t0
+        num_evals += 1
+
+        # Compute delta per candidate
+        new_src_ims = batch_ims[:C]
+        new_dst_ims = batch_ims[C:]
+        delta = (new_src_ims - base_ims[src_p]) + (new_dst_ims - base_ims[dst_p])
+
+        # Pick best improving move
+        best_cand = np.argmin(delta)
+        best_delta = float(delta[best_cand])
+
+        if best_delta >= 0.0:
+            if verbose:
+                print(f"     [{label} BruteForce] Round {round_idx}: "
+                      f"no improving move, stopping")
+            break
+
+        # Apply the best move
+        t_move = int(trade_idx[best_cand])
+        from_p = int(src_p[best_cand])
+        to_p = int(dst_p[best_cand])
+
+        x[t_move, from_p] = 0.0
+        x[t_move, to_p] = 1.0
+
+        # Update aggregated sensitivities incrementally
+        agg_S[from_p] -= S[t_move]
+        agg_S[to_p] += S[t_move]
+
+        # Update base IMs for changed portfolios
+        base_ims[from_p] = float(new_src_ims[best_cand])
+        base_ims[to_p] = float(new_dst_ims[best_cand])
+
+        total_im += best_delta
+        im_history.append(total_im)
+
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+
+        if verbose:
+            print(f"     [{label} BruteForce] Round {round_idx}: "
+                  f"move trade {t_move} (p{from_p}->p{to_p}), "
+                  f"delta=${best_delta:,.0f}, IM=${total_im:,.0f}")
+
+    trades_moved = int(np.sum(
+        np.argmax(best_x, axis=1) != np.argmax(integer_allocation, axis=1)
+    ))
+
+    if verbose:
+        reduction = 100.0 * (1.0 - best_im / initial_im) if initial_im > 0 else 0.0
+        print(f"     [{label} BruteForce] Final IM: ${best_im:,.0f} "
+              f"(reduction: {reduction:.1f}%, moves: {trades_moved})")
+
+    return {
+        'final_allocation': best_x,
+        'final_im': best_im,
+        'initial_im': initial_im,
+        'im_history': im_history,
+        'num_evals': num_evals,
+        'eval_time': total_eval_time,
+        'trades_moved': trades_moved,
+        'num_iterations': len(im_history) - 1,
+    }
+
+
+# =============================================================================
 # Step 1: Portfolio Setup
 # =============================================================================
 
@@ -1065,12 +1377,24 @@ def step1_portfolio_setup(ctx, verbose=True):
         result.gpu_time_sec = time.perf_counter() - start
         result.gpu_evals = 1
 
+    # Brute-force (forward-only GPU, no gradients)
+    bf_ims = None
+    if CUDA_AVAILABLE:
+        im_fn = _make_gpu_im_only_fn(ctx)
+        start = time.perf_counter()
+        bf_ims = im_fn(agg_S_T)
+        result.bf_time_sec = time.perf_counter() - start
+        result.bf_evals = 1
+
     ims = aadc_ims if aadc_ims is not None else gpu_ims
+    if ims is None:
+        ims = bf_ims
     result.details = {
         "total_im": float(np.sum(ims)) if ims is not None else 0.0,
         "per_portfolio_im": list(ims) if ims is not None else [],
         "aadc_ims": aadc_ims, "aadc_grads": aadc_grads,
         "gpu_ims": gpu_ims, "gpu_grads": gpu_grads,
+        "bf_ims": bf_ims,
         "agg_S_T": agg_S_T,
     }
 
@@ -1116,7 +1440,7 @@ def step2_margin_attribution(ctx, prev_result, verbose=True):
         start = time.perf_counter()
         aadc_contribs = _compute_attribution(prev_result.details["aadc_grads"])
         result.aadc_time_sec = time.perf_counter() - start
-        result.aadc_evals = 0               # No new evaluate() call
+        result.aadc_evals = 1               # 1 attribution result (from cached gradient)
         result.aadc_kernel_reuses = 0       # Just numpy on cached gradient
 
     # GPU: reuses gradient from Step 1
@@ -1125,9 +1449,28 @@ def step2_margin_attribution(ctx, prev_result, verbose=True):
         start = time.perf_counter()
         gpu_contribs = _compute_attribution(prev_result.details["gpu_grads"])
         result.gpu_time_sec = time.perf_counter() - start
-        result.gpu_evals = 0
+        result.gpu_evals = 1               # 1 attribution result (from cached gradient)
+
+    # Brute-force: bump-and-revalue (remove each trade, recompute IM)
+    bf_contribs = None
+    if CUDA_AVAILABLE:
+        agg_S_T = prev_result.details["agg_S_T"]   # (P, K)
+        base_ims = prev_result.details.get("bf_ims")
+        if base_ims is None:
+            base_ims = prev_result.details.get("gpu_ims")
+        if base_ims is not None:
+            im_fn = _make_gpu_im_only_fn(ctx)
+            start = time.perf_counter()
+            # For each trade t in portfolio p, compute IM of p without t
+            removed_agg = agg_S_T[assignments] - S  # (T, K): each row = portfolio agg minus trade
+            removed_ims = im_fn(removed_agg)         # (T,) single GPU launch
+            bf_contribs = base_ims[assignments] - removed_ims  # contribution per trade
+            result.bf_time_sec = time.perf_counter() - start
+            result.bf_evals = 1  # single batched GPU launch
 
     contribs = aadc_contribs if aadc_contribs is not None else gpu_contribs
+    if contribs is None:
+        contribs = bf_contribs
     total_im = prev_result.details["total_im"]
 
     if contribs is not None:
@@ -1252,7 +1595,51 @@ def step3_intraday_trading(ctx, prev_step1, num_new_trades=50,
         result.gpu_time_sec = gpu_time
         result.gpu_evals = gpu_evals
 
+    # Brute-force: try all P portfolios per trade (forward-only GPU)
+    bf_routing = None
+    if CUDA_AVAILABLE:
+        im_fn = _make_gpu_im_only_fn(ctx)
+        local_S = S.copy()
+        local_alloc = allocation.copy()
+        local_S = np.vstack([local_S, np.zeros((num_new_trades, K))])
+        local_alloc = np.vstack([local_alloc, np.zeros((num_new_trades, P))])
+
+        bf_routing = []
+        bf_evals = 0
+        bf_time = 0.0
+
+        for i, s_new in enumerate(new_trade_sens):
+            # Compute current agg_S
+            agg_S = np.dot(local_S.T, local_alloc).T  # (P, K)
+
+            # Build P candidate rows: agg_S[p] + s_new for each p
+            candidates = agg_S + s_new[np.newaxis, :]  # (P, K) — broadcast
+
+            start = time.perf_counter()
+            cand_ims = im_fn(candidates)  # (P,) single GPU launch
+            bf_time += time.perf_counter() - start
+            bf_evals += 1
+
+            # Current portfolio IMs (from agg_S)
+            start = time.perf_counter()
+            base_ims = im_fn(agg_S)  # (P,)
+            bf_time += time.perf_counter() - start
+            bf_evals += 1
+
+            marginal_ims = cand_ims - base_ims  # (P,)
+            best_p = int(np.argmin(marginal_ims))
+
+            t_new = T + i
+            local_S[t_new, :] = s_new
+            local_alloc[t_new, best_p] = 1.0
+            bf_routing.append((i, best_p, float(marginal_ims[best_p])))
+
+        result.bf_time_sec = bf_time
+        result.bf_evals = bf_evals
+
     routing = aadc_routing if aadc_routing is not None else gpu_routing
+    if routing is None:
+        routing = bf_routing
     if routing:
         portfolio_counts = np.zeros(P, dtype=int)
         for _, best_p, _ in routing:
@@ -1386,7 +1773,18 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
         result.gpu_time_sec = gpu_time
         result.gpu_evals = gpu_evals
 
+    # Brute-force: forward-only GPU (same scenarios, no gradient computation)
+    bf_scenarios = None
+    if CUDA_AVAILABLE:
+        im_fn = _make_gpu_im_only_fn(ctx)
+        bf_grad_fn = lambda agg: (im_fn(agg), None)  # wrap as grad_fn shape
+        bf_scenarios, bf_evals, bf_time = _run_scenarios(bf_grad_fn, "BF")
+        result.bf_time_sec = bf_time
+        result.bf_evals = bf_evals
+
     scenarios = aadc_scenarios if aadc_scenarios is not None else gpu_scenarios
+    if scenarios is None:
+        scenarios = bf_scenarios
     result.details = {"scenarios": scenarios, "base_im": total_im}
 
     if verbose:
@@ -1416,69 +1814,127 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
 # Step 5: EOD Optimization
 # =============================================================================
 
-def step5_eod_optimization(ctx, max_iters=100, verbose=True, method="gradient_descent"):
-    """5:00 PM - Portfolio optimization."""
+def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
+    """5:00 PM - Portfolio optimization. Runs all methods not in exclude list."""
     S = ctx["S"]
     allocation = ctx["initial_allocation"]
+    exclude = exclude or []
+    results = []
 
-    result = StepResult("EOD Optimization", "5:00 PM")
+    ALL_METHODS = [
+        ("gradient_descent", "EOD: GD"),
+        ("adam", "EOD: Adam"),
+        ("gpu_brute_force", "EOD: Brute-Force"),
+    ]
 
-    # AADC (all iterations reuse recorded kernel)
-    aadc_opt = None
-    if AADC_AVAILABLE:
-        grad_fn = _make_aadc_grad_fn(ctx)
-        start = time.perf_counter()
-        aadc_opt = optimize_allocation(
-            S, allocation, grad_fn,
-            max_iters=max_iters, verbose=False, label="AADC",
-            method=method,
-        )
-        result.aadc_time_sec = time.perf_counter() - start
-        result.aadc_evals = aadc_opt["num_evals"]
-        result.aadc_kernel_reuses = aadc_opt["num_evals"]  # All reuse
+    for method, step_name in ALL_METHODS:
+        if method in exclude:
+            continue
 
-    # GPU
-    gpu_opt = None
-    if CUDA_AVAILABLE:
-        grad_fn = _make_gpu_grad_fn(ctx)
-        start = time.perf_counter()
-        gpu_opt = optimize_allocation(
-            S, allocation, grad_fn,
-            max_iters=max_iters, verbose=False, label="GPU",
-            method=method,
-        )
-        result.gpu_time_sec = time.perf_counter() - start
-        result.gpu_evals = gpu_opt["num_evals"]
+        result = StepResult(step_name, "5:00 PM")
 
-    opt = aadc_opt if aadc_opt is not None else gpu_opt
-    if opt:
-        reduction_pct = (opt["initial_im"] - opt["final_im"]) / opt["initial_im"] * 100
-        result.details = {
-            "initial_im": opt["initial_im"],
-            "final_im": opt["final_im"],
-            "reduction_pct": reduction_pct,
-            "trades_moved": opt["trades_moved"],
-            "iterations": opt["num_iterations"],
-            "aadc_opt": aadc_opt,
-            "gpu_opt": gpu_opt,
-        }
-    else:
-        result.details = {}
-
-    if verbose:
-        _print_step_header(result)
-        _print_step_times(result)
-        if opt:
-            print(f"     Initial IM:  ${opt['initial_im']:,.0f}")
-            print(f"     Final IM:    ${opt['final_im']:,.0f} "
-                  f"(reduction: {reduction_pct:.1f}%)")
-            print(f"     Trades moved: {opt['trades_moved']}, "
-                  f"Iterations: {opt['num_iterations']}")
+        if method == "gpu_brute_force":
+            # GPU brute-force: forward-only kernel, no gradients
+            gpu_opt = None
+            aadc_opt = None
+            if CUDA_AVAILABLE:
+                start = time.perf_counter()
+                gpu_opt = brute_force_gpu_search(
+                    S, allocation, ctx,
+                    max_rounds=max_rounds_for_brute_force(max_iters),
+                    verbose=verbose, label="GPU",
+                )
+                result.bf_time_sec = time.perf_counter() - start
+                result.bf_evals = gpu_opt["num_evals"]
+            else:
+                if verbose:
+                    print("     GPU brute-force requires CUDA. Skipping.")
+        else:
+            # AADC: Phase 1 (continuous) + Phase 2 (greedy)
+            aadc_opt = None
             if AADC_AVAILABLE:
-                print(f"     AADC Py: {result.aadc_evals} evals, "
-                      f"all kernel reuse (0 re-recordings)")
+                grad_fn = _make_aadc_grad_fn(ctx)
+                start = time.perf_counter()
+                aadc_opt = optimize_allocation(
+                    S, allocation, grad_fn,
+                    max_iters=max_iters, verbose=False, label="AADC",
+                    method=method,
+                )
+                # Phase 2: greedy local search on rounded integer result
+                greedy = greedy_local_search(
+                    S, aadc_opt['final_allocation'], grad_fn,
+                    max_rounds=50, verbose=verbose, label="AADC",
+                )
+                if greedy['final_im'] < aadc_opt['final_im']:
+                    aadc_opt['final_allocation'] = greedy['final_allocation']
+                    aadc_opt['final_im'] = greedy['final_im']
+                    aadc_opt['trades_moved'] = greedy['trades_moved']
+                aadc_opt['num_evals'] += greedy['num_evals']
+                result.aadc_time_sec = time.perf_counter() - start
+                result.aadc_evals = aadc_opt["num_evals"]
+                result.aadc_kernel_reuses = aadc_opt["num_evals"]  # All reuse
 
-    return result
+            # GPU: Phase 1 (continuous) + Phase 2 (greedy)
+            gpu_opt = None
+            if CUDA_AVAILABLE:
+                grad_fn = _make_gpu_grad_fn(ctx)
+                start = time.perf_counter()
+                gpu_opt = optimize_allocation(
+                    S, allocation, grad_fn,
+                    max_iters=max_iters, verbose=False, label="GPU",
+                    method=method,
+                )
+                # Phase 2: greedy local search on rounded integer result
+                greedy = greedy_local_search(
+                    S, gpu_opt['final_allocation'], grad_fn,
+                    max_rounds=50, verbose=verbose, label="GPU",
+                )
+                if greedy['final_im'] < gpu_opt['final_im']:
+                    gpu_opt['final_allocation'] = greedy['final_allocation']
+                    gpu_opt['final_im'] = greedy['final_im']
+                    gpu_opt['trades_moved'] = greedy['trades_moved']
+                gpu_opt['num_evals'] += greedy['num_evals']
+                result.gpu_time_sec = time.perf_counter() - start
+                result.gpu_evals = gpu_opt["num_evals"]
+
+        opt = aadc_opt if aadc_opt is not None else gpu_opt
+        if opt:
+            reduction_pct = (opt["initial_im"] - opt["final_im"]) / opt["initial_im"] * 100
+            result.details = {
+                "initial_im": opt["initial_im"],
+                "final_im": opt["final_im"],
+                "reduction_pct": reduction_pct,
+                "trades_moved": opt["trades_moved"],
+                "iterations": opt["num_iterations"],
+                "aadc_opt": aadc_opt,
+                "gpu_opt": gpu_opt,
+                "method": method,
+            }
+        else:
+            result.details = {"method": method}
+
+        if verbose:
+            _print_step_header(result)
+            _print_step_times(result)
+            if opt:
+                print(f"     Initial IM:  ${opt['initial_im']:,.0f}")
+                print(f"     Final IM:    ${opt['final_im']:,.0f} "
+                      f"(reduction: {reduction_pct:.1f}%)")
+                print(f"     Trades moved: {opt['trades_moved']}, "
+                      f"Iterations: {opt['num_iterations']}"
+                      + ("" if method == "gpu_brute_force" else " + greedy"))
+                if AADC_AVAILABLE and method != "gpu_brute_force":
+                    print(f"     AADC Py: {result.aadc_evals} evals, "
+                          f"all kernel reuse (0 re-recordings)")
+
+        results.append(result)
+
+    return results
+
+
+def max_rounds_for_brute_force(max_iters):
+    """Map --optimize-iters to brute-force max_rounds (1 move per round)."""
+    return max_iters
 
 
 # =============================================================================
@@ -1504,6 +1960,7 @@ def _print_step_times(result: StepResult):
     aadc_str = _fmt_time(result.aadc_time_sec)
     gpu_str = _fmt_time(result.gpu_time_sec)
     cpp_str = _fmt_time(result.cpp_time_sec)
+    bf_str = _fmt_time(result.bf_time_sec)
     speedup = ""
     if result.aadc_time_sec and result.gpu_time_sec and result.gpu_time_sec > 0:
         ratio = result.aadc_time_sec / result.gpu_time_sec
@@ -1512,6 +1969,8 @@ def _print_step_times(result: StepResult):
         else:
             speedup = f"  (AADC {1/ratio:.1f}x faster)"
     line = f"     AADC Py: {aadc_str:<12}  GPU: {gpu_str:<12}"
+    if result.bf_time_sec is not None:
+        line += f"  BF: {bf_str:<12}"
     if result.cpp_time_sec is not None:
         line += f"  C++ AADC: {cpp_str:<12}"
     line += speedup
@@ -1542,7 +2001,8 @@ def print_cpp_vs_python_comparison(steps, ctx):
     if not has_any:
         return
 
-    s1, s2, s3, s4, s5 = steps
+    s1, s2, s3, s4 = steps[:4]
+    eod_steps = steps[4:]
 
     def _print_im_row(label, py_val, cpp_val):
         """Print a row comparing IM values."""
@@ -1658,34 +2118,35 @@ def print_cpp_vs_python_comparison(steps, ctx):
         if cpp_marginal is not None:
             print(f"     Marginal IM:   C++ ${cpp_marginal:,.0f}")
 
-    # --- Step 5: EOD Optimization ---
-    cpp_opt = s5.details.get("cpp", {})
-    print(f"\n  5:00 PM - EOD Optimization")
-    print(f"  {'-' * 72}")
-    _print_step_times(s5)
-    d5 = s5.details
-    if "initial_im" in d5:
-        py_init = d5["initial_im"]
-        py_final = d5["final_im"]
-        reduction_pct = d5.get("reduction_pct", 0)
-        print(f"     Initial IM:  ${py_init:,.0f}")
-        print(f"     Final IM:    ${py_final:,.0f} "
-              f"(reduction: {reduction_pct:.1f}%)")
-        print(f"     Trades moved: {d5.get('trades_moved', 0)}, "
-              f"Iterations: {d5.get('iterations', 0)}")
-        if cpp_opt:
-            cpp_init = cpp_opt.get("initial_im")
-            cpp_final = cpp_opt.get("final_im")
-            if cpp_init is not None:
-                _print_im_row("Initial IM:", py_init, cpp_init)
-            if cpp_final is not None:
-                _print_im_row("Final IM:", py_final, cpp_final)
-            cpp_moved = cpp_opt.get("trades_moved")
-            if cpp_moved is not None:
-                match = "MATCH" if d5.get("trades_moved") == cpp_moved else \
-                    f"DIFF (Py={d5.get('trades_moved')}, C++={cpp_moved})"
-                print(f"    {'Trades moved:':<16} Py {d5.get('trades_moved', 0):>22}  "
-                      f"|  C++ {cpp_moved:>22}  [{match}]")
+    # --- Step 5: EOD Optimization (one section per method) ---
+    for es in eod_steps:
+        cpp_opt = es.details.get("cpp", {})
+        print(f"\n  5:00 PM - {es.step_name}")
+        print(f"  {'-' * 72}")
+        _print_step_times(es)
+        d5 = es.details
+        if "initial_im" in d5:
+            py_init = d5["initial_im"]
+            py_final = d5["final_im"]
+            reduction_pct = d5.get("reduction_pct", 0)
+            print(f"     Initial IM:  ${py_init:,.0f}")
+            print(f"     Final IM:    ${py_final:,.0f} "
+                  f"(reduction: {reduction_pct:.1f}%)")
+            print(f"     Trades moved: {d5.get('trades_moved', 0)}, "
+                  f"Iterations: {d5.get('iterations', 0)}")
+            if cpp_opt:
+                cpp_init = cpp_opt.get("initial_im")
+                cpp_final = cpp_opt.get("final_im")
+                if cpp_init is not None:
+                    _print_im_row("Initial IM:", py_init, cpp_init)
+                if cpp_final is not None:
+                    _print_im_row("Final IM:", py_final, cpp_final)
+                cpp_moved = cpp_opt.get("trades_moved")
+                if cpp_moved is not None:
+                    match = "MATCH" if d5.get("trades_moved") == cpp_moved else \
+                        f"DIFF (Py={d5.get('trades_moved')}, C++={cpp_moved})"
+                    print(f"    {'Trades moved:':<16} Py {d5.get('trades_moved', 0):>22}  "
+                          f"|  C++ {cpp_moved:>22}  [{match}]")
 
     print("\n" + "=" * 78)
 
@@ -1700,9 +2161,13 @@ def print_workflow_summary(steps, economics, config):
     print(f"  Total AADC Py evaluate() calls:   {economics.total_aadc_evals}")
     print(f"    of which kernel reuses:         {economics.total_aadc_kernel_reuses}")
     print(f"  Total GPU kernel launches:        {economics.total_gpu_evals}")
+    if economics.total_bf_evals > 0:
+        print(f"  Total BF (forward-only) evals:    {economics.total_bf_evals}")
     print(f"  Amortized recording cost/eval:    {economics.amortized_recording_ms:.2f} ms")
     print(f"  Cumulative AADC Py eval time:     {_fmt_time(economics.cumulative_aadc_time)}")
     print(f"  Cumulative GPU eval time:         {_fmt_time(economics.cumulative_gpu_time)}")
+    if economics.cumulative_bf_time > 0:
+        print(f"  Cumulative BF eval time:          {_fmt_time(economics.cumulative_bf_time)}")
     aadc_total = economics.recording_time_sec + economics.cumulative_aadc_time
     print(f"  AADC Py total (rec + eval):       {_fmt_time(aadc_total)}")
     if economics.cumulative_gpu_time > 0 and economics.cumulative_aadc_time > 0:
@@ -1723,11 +2188,16 @@ def print_workflow_summary(steps, economics, config):
 def print_step_summary_table(steps):
     """Print condensed per-step summary table."""
     has_cpp = any(s.cpp_time_sec is not None for s in steps)
-    print("\n" + "=" * 85)
+    has_bf = any(s.bf_time_sec is not None for s in steps)
+    w = 97 if has_bf else 85
+    print("\n" + "=" * w)
     print("  PER-STEP SUMMARY (Full ISDA SIMM v2.6)")
-    print("=" * 85)
+    print("=" * w)
     hdr = f"  {'Step':<30} {'AADC Py':>12} {'GPU':>12}"
     sep = f"  {'-'*30} {'-'*12} {'-'*12}"
+    if has_bf:
+        hdr += f" {'BF':>12}"
+        sep += f" {'-'*12}"
     if has_cpp:
         hdr += f" {'C++ AADC':>12}"
         sep += f" {'-'*12}"
@@ -1736,15 +2206,17 @@ def print_step_summary_table(steps):
     print(hdr)
     print(sep)
     for s in steps:
-        evals = max(s.aadc_evals, s.gpu_evals, s.cpp_evals)
+        evals = max(s.aadc_evals, s.gpu_evals, s.cpp_evals, s.bf_evals)
         reuse = s.aadc_kernel_reuses
         line = (f"  {s.step_name:<30} {_fmt_time(s.aadc_time_sec):>12} "
                 f"{_fmt_time(s.gpu_time_sec):>12}")
+        if has_bf:
+            line += f" {_fmt_time(s.bf_time_sec):>12}"
         if has_cpp:
             line += f" {_fmt_time(s.cpp_time_sec):>12}"
         line += f" {evals:>6} {reuse:>6}"
         print(line)
-    print("=" * 85)
+    print("=" * w)
 
 
 # =============================================================================
@@ -1785,23 +2257,28 @@ def write_workflow_markdown(steps, economics, config, md_path=None):
     lines.append("")
 
     has_cpp = any(s.cpp_time_sec is not None for s in steps)
+    has_bf = any(s.bf_time_sec is not None for s in steps)
 
     lines.append("### Per-Step Results\n")
+    # Build header dynamically based on available backends
+    hdr_cols = ["Step", "AADC Py Time", "GPU Time"]
+    if has_bf:
+        hdr_cols.append("BF Time")
     if has_cpp:
-        lines.append("| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |")
-        lines.append("|------|-------------|----------|---------------|-------|---------------|")
-        for s in steps:
-            evals = max(s.aadc_evals, s.gpu_evals, s.cpp_evals)
-            lines.append(f"| {s.step_time} {s.step_name} | {_fmt_time(s.aadc_time_sec)} | "
-                          f"{_fmt_time(s.gpu_time_sec)} | {_fmt_time(s.cpp_time_sec)} | "
-                          f"{evals} | {s.aadc_kernel_reuses} |")
-    else:
-        lines.append("| Step | AADC Time | GPU Time | Evals | Kernel Reuses |")
-        lines.append("|------|-----------|----------|-------|---------------|")
-        for s in steps:
-            evals = max(s.aadc_evals, s.gpu_evals)
-            lines.append(f"| {s.step_time} {s.step_name} | {_fmt_time(s.aadc_time_sec)} | "
-                          f"{_fmt_time(s.gpu_time_sec)} | {evals} | {s.aadc_kernel_reuses} |")
+        hdr_cols.append("C++ AADC Time")
+    hdr_cols += ["Evals", "Kernel Reuses"]
+    lines.append("| " + " | ".join(hdr_cols) + " |")
+    lines.append("|" + "|".join(["------"] * len(hdr_cols)) + "|")
+    for s in steps:
+        evals = max(s.aadc_evals, s.gpu_evals, s.cpp_evals, s.bf_evals)
+        row = [f"{s.step_time} {s.step_name}",
+               _fmt_time(s.aadc_time_sec), _fmt_time(s.gpu_time_sec)]
+        if has_bf:
+            row.append(_fmt_time(s.bf_time_sec))
+        if has_cpp:
+            row.append(_fmt_time(s.cpp_time_sec))
+        row += [str(evals), str(s.aadc_kernel_reuses)]
+        lines.append("| " + " | ".join(row) + " |")
     lines.append("")
 
     # Kernel Economics
@@ -1814,9 +2291,13 @@ def write_workflow_markdown(steps, economics, config, md_path=None):
     lines.append(f"| Total AADC Py evals | {economics.total_aadc_evals} |")
     lines.append(f"| Total kernel reuses | {economics.total_aadc_kernel_reuses} |")
     lines.append(f"| Total GPU evals | {economics.total_gpu_evals} |")
+    if economics.total_bf_evals > 0:
+        lines.append(f"| Total BF (forward-only) evals | {economics.total_bf_evals} |")
     lines.append(f"| Amortized recording/eval | {economics.amortized_recording_ms:.2f} ms |")
     lines.append(f"| Cumulative AADC Py time | {_fmt_time(economics.cumulative_aadc_time)} |")
     lines.append(f"| Cumulative GPU time | {_fmt_time(economics.cumulative_gpu_time)} |")
+    if economics.cumulative_bf_time > 0:
+        lines.append(f"| Cumulative BF time | {_fmt_time(economics.cumulative_bf_time)} |")
     lines.append(f"| AADC Py total (rec + eval) | {_fmt_time(aadc_total)} |")
     if economics.cumulative_gpu_time > 0 and economics.cumulative_aadc_time > 0:
         lines.append(f"| GPU speedup (eval only) | {economics.cumulative_aadc_time/economics.cumulative_gpu_time:.1f}x |")
@@ -1857,7 +2338,7 @@ def write_workflow_markdown(steps, economics, config, md_path=None):
                     f"{sh}x: ${v:,.0f}" for sh, v in zip(ladder["shock_levels"], ladder["im_values"])
                 ))
                 lines.append("")
-        elif s.step_name == "EOD Optimization" and "initial_im" in d:
+        elif s.step_name.startswith("EOD:") and "initial_im" in d:
             lines.append(f"### {s.step_time} {s.step_name}\n")
             lines.append(f"- Initial IM: ${d['initial_im']:,.0f}")
             lines.append(f"- Final IM: ${d['final_im']:,.0f} (reduction: {d['reduction_pct']:.1f}%)")
@@ -1881,6 +2362,7 @@ def log_workflow_results(steps, economics, config):
     timestamp = datetime.now().isoformat()
     trade_types_str = config["trade_types"]
     log_rows = []
+    max_iters = config.get("optimize_iters", 100)
 
     for s in steps:
         common = dict(
@@ -1892,44 +2374,100 @@ def log_workflow_results(steps, economics, config):
             num_risk_factors=config["K"],
             crif_time_sec=config.get("crif_time", 0),
         )
+        im_result = s.details.get("total_im", s.details.get("initial_im", 0))
+        is_eod = s.step_name.startswith("EOD:")
+        method = s.details.get("method", "gradient_descent") if is_eod else None
 
-        if AADC_AVAILABLE and s.aadc_time_sec is not None:
-            opt = s.details.get("aadc_opt") if s.step_name == "EOD Optimization" else None
+        # Build optimize_result dicts for each backend
+        def _py_opt(key):
+            """Build optimize_result from a Python backend (aadc_opt / gpu_opt)."""
+            opt = s.details.get(key) if is_eod else None
             if opt:
-                opt["max_iters"] = config.get("optimize_iters", 100)
+                opt["max_iters"] = max_iters
+                opt["method"] = method
+            return opt
+
+        aadc_opt = _py_opt("aadc_opt")
+        gpu_opt = _py_opt("gpu_opt")
+
+        # C++ optimize_result (from parsed C++ output)
+        cpp_opt = None
+        if is_eod:
+            cpp_data = s.details.get("cpp", {})
+            if "initial_im" in cpp_data and "final_im" in cpp_data:
+                wall_ms = cpp_data.get("optimization_wall_ms",
+                          cpp_data.get("optimization_eval_ms", 0))
+                cpp_opt = {
+                    "initial_im": cpp_data["initial_im"],
+                    "final_im": cpp_data["final_im"],
+                    "eval_time": wall_ms / 1000.0,
+                    "trades_moved": cpp_data.get("trades_moved", 0),
+                    "num_iterations": cpp_data.get("iterations", 0),
+                    "max_iters": max_iters,
+                    "method": method,
+                }
+
+        # Canonical opt: first available, used for backends without their own
+        canonical_opt = aadc_opt or gpu_opt or cpp_opt
+        if canonical_opt and "eval_time" not in canonical_opt:
+            # aadc_opt/gpu_opt have 'eval_time' key from optimize_allocation
+            pass
+
+        # BF optimize_result — gpu_opt holds brute_force_gpu_search result for BF method
+        bf_opt = gpu_opt if method == "gpu_brute_force" else canonical_opt
+        if bf_opt and "method" not in bf_opt:
+            bf_opt = dict(bf_opt, method=method)
+
+        step_name = s.step_name.lower().replace(' ', '_')
+
+        # Emit a row per backend that actually ran (has timing or evals)
+        if AADC_AVAILABLE and (s.aadc_time_sec or s.aadc_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{s.step_name.lower().replace(' ', '_')}_aadc_full",
+                model_name=f"workflow_{step_name}_aadc_full",
                 model_version=MODEL_VERSION,
                 num_threads=config["num_threads"],
-                im_result=s.details.get("total_im", s.details.get("initial_im", 0)),
-                eval_time_sec=s.aadc_time_sec,
+                im_result=im_result,
+                eval_time_sec=s.aadc_time_sec or 0,
                 kernel_recording_sec=economics.recording_time_sec if s.step_name == "Portfolio Setup" else None,
-                optimize_result=opt,
+                optimize_result=aadc_opt or (canonical_opt if is_eod else None),
+                num_simm_evals=s.aadc_evals,
                 **common,
             ))
 
-        if CUDA_AVAILABLE and s.gpu_time_sec is not None:
-            opt = s.details.get("gpu_opt") if s.step_name == "EOD Optimization" else None
-            if opt:
-                opt["max_iters"] = config.get("optimize_iters", 100)
+        if CUDA_AVAILABLE and (s.gpu_time_sec or s.gpu_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{s.step_name.lower().replace(' ', '_')}_gpu_full",
+                model_name=f"workflow_{step_name}_gpu_full",
                 model_version=MODEL_VERSION,
                 num_threads=1,
-                im_result=s.details.get("total_im", s.details.get("initial_im", 0)),
-                eval_time_sec=s.gpu_time_sec,
-                optimize_result=opt,
+                im_result=im_result,
+                eval_time_sec=s.gpu_time_sec or 0,
+                optimize_result=gpu_opt or (canonical_opt if is_eod else None),
+                num_simm_evals=s.gpu_evals,
                 **common,
             ))
 
-        if CPP_AVAILABLE and s.cpp_time_sec is not None:
+        if CUDA_AVAILABLE and (s.bf_time_sec or s.bf_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{s.step_name.lower().replace(' ', '_')}_cpp_aadc",
+                model_name=f"workflow_{step_name}_bf_gpu",
+                model_version=MODEL_VERSION,
+                num_threads=1,
+                im_result=im_result,
+                eval_time_sec=s.bf_time_sec or 0,
+                optimize_result=bf_opt if is_eod else None,
+                num_simm_evals=s.bf_evals,
+                **common,
+            ))
+
+        if CPP_AVAILABLE and (s.cpp_time_sec or s.cpp_evals):
+            log_rows.append(_build_benchmark_log_row(
+                model_name=f"workflow_{step_name}_cpp_aadc",
                 model_version=MODEL_VERSION,
                 num_threads=config["num_threads"],
-                im_result=s.details.get("total_im", s.details.get("initial_im", 0)),
-                eval_time_sec=s.cpp_time_sec,
+                im_result=im_result,
+                eval_time_sec=s.cpp_time_sec or 0,
                 kernel_recording_sec=economics.cpp_recording_time_sec if s.step_name == "Portfolio Setup" else None,
+                optimize_result=cpp_opt or (canonical_opt if is_eod else None),
+                num_simm_evals=s.cpp_evals,
                 **common,
             ))
 
@@ -1946,7 +2484,7 @@ def run_trading_workflow(
     num_trades=1000, num_portfolios=5, trade_types=None, num_threads=8,
     num_new_trades=50, optimize_iters=100, num_simm_buckets=3,
     refresh_interval=10, verbose=True, command_str="",
-    method="gradient_descent", output_file=None,
+    exclude=None, output_file=None,
 ):
     if trade_types is None:
         trade_types = ["ir_swap"]
@@ -1964,7 +2502,9 @@ def run_trading_workflow(
     print("=" * 70)
     print(f"  Trades: {num_trades:<12} Portfolios: {num_portfolios}")
     print(f"  Types:  {','.join(trade_types):<12} Threads: {num_threads}")
-    print(f"  New trades: {num_new_trades:<8} Optimize iters: {optimize_iters}  Method: {method}")
+    excluded = exclude or []
+    methods_run = [m for m in ['gradient_descent', 'adam', 'gpu_brute_force'] if m not in excluded]
+    print(f"  New trades: {num_new_trades:<8} Optimize iters: {optimize_iters}  Methods: {', '.join(methods_run)}")
     print(f"  AADC: {'Available' if AADC_AVAILABLE else 'NOT available':<12} "
           f"CUDA: {'Available' if CUDA_AVAILABLE else 'NOT available':<12} "
           f"C++: {'Available' if CPP_AVAILABLE else 'NOT available'}")
@@ -1992,7 +2532,7 @@ def run_trading_workflow(
         "K": ctx["K"], "num_new_trades": num_new_trades,
         "optimize_iters": optimize_iters, "num_simm_buckets": num_simm_buckets,
         "crif_time": ctx["crif_time"], "command": command_str,
-        "active_corrs": ctx["active_corrs"], "method": method,
+        "active_corrs": ctx["active_corrs"], "exclude": excluded,
     }
 
     # Run steps
@@ -2029,12 +2569,13 @@ def run_trading_workflow(
         print(f"  Step 4 done: AADC Py {_fmt_time(s4.aadc_time_sec)}, "
               f"GPU {_fmt_time(s4.gpu_time_sec)}")
 
-    s5 = step5_eod_optimization(ctx, optimize_iters, step_verbose, method=method)
-    economics.update(s5)
-    steps.append(s5)
-    if CPP_AVAILABLE and verbose:
-        print(f"  Step 5 done: AADC Py {_fmt_time(s5.aadc_time_sec)}, "
-              f"GPU {_fmt_time(s5.gpu_time_sec)}")
+    s5_list = step5_eod_optimization(ctx, optimize_iters, step_verbose, exclude=excluded)
+    for s5 in s5_list:
+        economics.update(s5)
+        steps.append(s5)
+        if CPP_AVAILABLE and verbose:
+            print(f"  Step 5 ({s5.step_name}) done: AADC Py {_fmt_time(s5.aadc_time_sec)}, "
+                  f"GPU {_fmt_time(s5.gpu_time_sec)}")
 
     # C++ AADC backend (runs all modes on shared data for apples-to-apples)
     if CPP_AVAILABLE:
@@ -2087,8 +2628,10 @@ def main():
     parser.add_argument('--optimize-iters', type=int, default=100)
     parser.add_argument('--simm-buckets', type=int, default=3)
     parser.add_argument('--refresh-interval', type=int, default=10)
-    parser.add_argument('--method', choices=['gradient_descent', 'adam'], default='gradient_descent',
-                        help='Optimization method for EOD step')
+    parser.add_argument('--exclude', nargs='*',
+                        choices=['gradient_descent', 'adam', 'gpu_brute_force'],
+                        default=[],
+                        help='Optimization methods to skip in EOD step (default: run all)')
     parser.add_argument('--output', '-o', type=str, default='auto',
                         help='Save console output to file (default: auto-generated in data/). Use "none" to disable.')
     parser.add_argument('--quiet', '-q', action='store_true')
@@ -2113,6 +2656,8 @@ def main():
     cmd_parts.append(f"--threads {args.threads}")
     cmd_parts.append(f"--new-trades {args.new_trades}")
     cmd_parts.append(f"--optimize-iters {args.optimize_iters}")
+    if args.exclude:
+        cmd_parts.append(f"--exclude {' '.join(args.exclude)}")
     command_str = ' '.join(cmd_parts)
 
     run_trading_workflow(
@@ -2126,7 +2671,7 @@ def main():
         refresh_interval=args.refresh_interval,
         verbose=not args.quiet,
         command_str=command_str,
-        method=args.method,
+        exclude=args.exclude,
         output_file=output_file,
     )
 

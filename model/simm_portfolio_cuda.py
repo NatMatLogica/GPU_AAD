@@ -90,7 +90,7 @@ except ImportError as e:
     TRADE_GENERATORS_AVAILABLE = False
 
 # Version
-MODEL_VERSION = "3.2.0"  # v3.2: Add Adam optimizer
+MODEL_VERSION = "3.3.0"  # v3.3: Add forward-only kernel + brute-force optimizer
 
 
 # =============================================================================
@@ -372,6 +372,192 @@ def preallocate_gpu_arrays(
 
 
 # =============================================================================
+# Forward-Only SIMM Kernel (no gradient) — for brute-force search
+# =============================================================================
+
+if CUDA_AVAILABLE:
+    @cuda.jit
+    def _simm_forward_kernel(
+        sensitivities,        # (N, K)
+        risk_weights,         # (K,)
+        concentration,        # (K,) CR_k
+        bucket_id,            # (K,) int32 -> 0..B-1
+        risk_measure_idx,     # (K,) int32 -> 0=Delta, 1=Vega
+        bucket_rc,            # (B,) int32 -> 0..5
+        bucket_rm,            # (B,) int32 -> 0..1
+        intra_corr_flat,      # (K*K,) intra-bucket correlation
+        bucket_gamma_flat,    # (B*B,) inter-bucket gamma × g_bc
+        psi_matrix,           # (6, 6)
+        num_buckets,          # int scalar (passed as 1-element array)
+        im_output,            # (N,)
+    ):
+        """Forward-only SIMM: computes IM without gradients (~50% less work per thread)."""
+        p = cuda.grid(1)
+        if p >= sensitivities.shape[0]:
+            return
+
+        K = sensitivities.shape[1]
+        B = num_buckets[0]
+        Kc = min(K, MAX_K)
+        Bc = min(B, MAX_B)
+
+        # Local arrays
+        ws = cuda.local.array(MAX_K, dtype=numba.float64)
+        K_b_sq = cuda.local.array(MAX_B, dtype=numba.float64)
+        S_b = cuda.local.array(MAX_B, dtype=numba.float64)
+        margin = cuda.local.array(12, dtype=numba.float64)
+        rc_margin = cuda.local.array(6, dtype=numba.float64)
+
+        for b in range(Bc):
+            K_b_sq[b] = 0.0
+            S_b[b] = 0.0
+        for i in range(12):
+            margin[i] = 0.0
+
+        # Step 1: Weighted sensitivities with concentration
+        for k in range(Kc):
+            ws[k] = sensitivities[p, k] * risk_weights[k] * concentration[k]
+
+        # Step 2: Bucket sums S_b
+        for k in range(Kc):
+            b = bucket_id[k]
+            S_b[b] += ws[k]
+
+        # Step 3: Intra-bucket K_b^2
+        for k in range(Kc):
+            b = bucket_id[k]
+            for l in range(Kc):
+                K_b_sq[b] += intra_corr_flat[k * K + l] * ws[k] * ws[l]
+
+        # Step 4: Per (RC, RM) margin with inter-bucket gamma
+        for b in range(Bc):
+            rc_b = bucket_rc[b]
+            rm_b = bucket_rm[b]
+            rcrm = rc_b * 2 + rm_b
+            margin[rcrm] += K_b_sq[b]
+
+            for c in range(Bc):
+                if c != b and bucket_rc[c] == rc_b and bucket_rm[c] == rm_b:
+                    margin[rcrm] += bucket_gamma_flat[b * B + c] * S_b[b] * S_b[c]
+
+        for i in range(12):
+            margin[i] = math.sqrt(margin[i]) if margin[i] > 0.0 else 0.0
+
+        # Step 5: Per risk class total = Delta + Vega
+        for r in range(6):
+            rc_margin[r] = margin[r * 2] + margin[r * 2 + 1]
+
+        # Step 6: Cross-RC aggregation
+        im_sq = 0.0
+        for r in range(6):
+            for s in range(6):
+                im_sq += psi_matrix[r, s] * rc_margin[r] * rc_margin[s]
+
+        im_output[p] = math.sqrt(im_sq) if im_sq > 0.0 else 0.0
+
+
+def compute_simm_im_only_cuda(
+    sensitivities: np.ndarray,
+    risk_weights: np.ndarray,
+    concentration: np.ndarray,
+    bucket_id: np.ndarray,
+    risk_measure_idx: np.ndarray,
+    bucket_rc: np.ndarray,
+    bucket_rm: np.ndarray,
+    intra_corr_flat: np.ndarray,
+    bucket_gamma_flat: np.ndarray,
+    num_buckets: int,
+    device: int = 0,
+    gpu_arrays: dict = None,
+    max_batch: int = 500_000,
+) -> np.ndarray:
+    """
+    Compute SIMM IM only (no gradients) using forward-only CUDA kernel.
+
+    Supports chunking for large N (> max_batch rows).
+
+    Returns:
+        im_values: (N,) array of IM per row
+    """
+    if not CUDA_AVAILABLE:
+        raise RuntimeError("CUDA not available")
+
+    N, K = sensitivities.shape
+    sensitivities = np.ascontiguousarray(sensitivities, dtype=np.float64)
+
+    if not CUDA_SIMULATOR:
+        cuda.select_device(device)
+
+    # Resolve constant arrays
+    if gpu_arrays is not None:
+        d_weights = gpu_arrays['weights']
+        d_conc = gpu_arrays['concentration']
+        d_bucket_id = gpu_arrays['bucket_id']
+        d_rm_idx = gpu_arrays['risk_measure_idx']
+        d_bucket_rc = gpu_arrays['bucket_rc']
+        d_bucket_rm = gpu_arrays['bucket_rm']
+        d_intra_corr = gpu_arrays['intra_corr']
+        d_bucket_gamma = gpu_arrays['bucket_gamma']
+        d_psi = gpu_arrays['psi']
+        d_num_buckets = gpu_arrays['num_buckets']
+    else:
+        d_weights = cuda.to_device(np.ascontiguousarray(risk_weights, dtype=np.float64))
+        d_conc = cuda.to_device(np.ascontiguousarray(concentration, dtype=np.float64))
+        d_bucket_id = cuda.to_device(np.ascontiguousarray(bucket_id, dtype=np.int32))
+        d_rm_idx = cuda.to_device(np.ascontiguousarray(risk_measure_idx, dtype=np.int32))
+        d_bucket_rc = cuda.to_device(np.ascontiguousarray(bucket_rc, dtype=np.int32))
+        d_bucket_rm = cuda.to_device(np.ascontiguousarray(bucket_rm, dtype=np.int32))
+        d_intra_corr = cuda.to_device(np.ascontiguousarray(intra_corr_flat, dtype=np.float64))
+        d_bucket_gamma = cuda.to_device(np.ascontiguousarray(bucket_gamma_flat, dtype=np.float64))
+        d_psi = cuda.to_device(PSI_MATRIX)
+        d_num_buckets = cuda.to_device(np.array([num_buckets], dtype=np.int32))
+
+    threads_per_block = 256
+
+    # Chunked evaluation for large N
+    if N <= max_batch:
+        im_output = np.zeros(N, dtype=np.float64)
+        d_sens = cuda.to_device(sensitivities)
+        d_im = cuda.to_device(im_output)
+        blocks = (N + threads_per_block - 1) // threads_per_block
+
+        _simm_forward_kernel[blocks, threads_per_block](
+            d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+            d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
+            d_psi, d_num_buckets, d_im
+        )
+
+        if not CUDA_SIMULATOR:
+            cuda.synchronize()
+        d_im.copy_to_host(im_output)
+        return im_output
+    else:
+        # Chunked
+        im_all = np.zeros(N, dtype=np.float64)
+        for start in range(0, N, max_batch):
+            end = min(start + max_batch, N)
+            chunk = sensitivities[start:end]
+            chunk_n = end - start
+            im_chunk = np.zeros(chunk_n, dtype=np.float64)
+            d_sens = cuda.to_device(chunk)
+            d_im = cuda.to_device(im_chunk)
+            blocks = (chunk_n + threads_per_block - 1) // threads_per_block
+
+            _simm_forward_kernel[blocks, threads_per_block](
+                d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+                d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
+                d_psi, d_num_buckets, d_im
+            )
+
+            if not CUDA_SIMULATOR:
+                cuda.synchronize()
+            d_im.copy_to_host(im_chunk)
+            im_all[start:end] = im_chunk
+
+        return im_all
+
+
+# =============================================================================
 # Portfolio Optimization using CUDA
 # =============================================================================
 
@@ -631,23 +817,15 @@ def _optimize_adam(S, initial_allocation, _eval, max_iters, lr, tol, verbose,
 
 
 def _project_to_simplex(x: np.ndarray) -> np.ndarray:
-    """Project each row to probability simplex (sum=1, all>=0)."""
+    """Project each row to probability simplex (sum=1, all>=0), vectorized."""
     T, P = x.shape
-    result = np.zeros_like(x)
-
-    for t in range(T):
-        v = x[t]
-        u = np.sort(v)[::-1]
-        cssv = np.cumsum(u)
-        rho_candidates = np.nonzero(u * np.arange(1, P + 1) > (cssv - 1))[0]
-        if len(rho_candidates) == 0:
-            result[t] = np.ones(P) / P
-        else:
-            rho = rho_candidates[-1]
-            theta = (cssv[rho] - 1) / (rho + 1)
-            result[t] = np.maximum(v - theta, 0)
-
-    return result
+    u = np.sort(x, axis=1)[:, ::-1]
+    cssv = np.cumsum(u, axis=1)
+    arange = np.arange(1, P + 1)
+    mask = u * arange > (cssv - 1)
+    rho = P - 1 - np.argmax(mask[:, ::-1], axis=1)
+    theta = (cssv[np.arange(T), rho] - 1.0) / (rho + 1)
+    return np.maximum(x - theta[:, None], 0.0)
 
 
 def _greedy_local_search_cuda(

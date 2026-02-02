@@ -2702,3 +2702,3543 @@ Auto-generated results from each run are appended below.
 - Final IM: $284,409,381,844,208 (reduction: 0.0%)
 - Trades moved: 0, Iterations: 20
 
+---
+
+## Run: 2026-02-02 15:15:01
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 500 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 13.08 ms | 699.50 ms | 500 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 62 us | 51 us | 500 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.78 ms | 4.90 ms | 480 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.28 ms | 7.32 ms | 790 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 477.80 ms | 562.26 ms | 2.15 ms | 201 | 201 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.13 ms |
+| Total AADC Py evals | 215 |
+| Total kernel reuses | 215 |
+| Total GPU evals | 215 |
+| Amortized recording/eval | 0.18 ms |
+| Cumulative AADC Py time | 497.01 ms |
+| Cumulative GPU time | 1.274 s |
+| AADC Py total (rec + eval) | 535.14 ms |
+| GPU speedup (eval only) | 0.4x |
+| GPU speedup (inc. recording) | 0.4x |
+| C++ AADC recording (1-time) | 26.34 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 4.42 ms |
+| C++ AADC total (rec + eval) | 30.76 ms |
+| C++/Py AADC speedup (eval) | 112.4x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $4,398,050,237,838,401 | - |
+| Rates +50bp | $6,597,075,356,757,600 | +50.0% |
+| Unwind top 5 | $3,244,384,055,266,466 | -26.2% |
+| Add hedge | $4,189,578,842,189,735 | -4.7% |
+
+**IM Ladder:** 0.5x: $2,199,025,118,919,200, 0.75x: $3,298,537,678,378,800, 1.0x: $4,398,050,237,838,401, 1.25x: $5,497,562,797,298,002, 1.5x: $6,597,075,356,757,600
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $4,398,050,237,838,401
+- Final IM: $4,398,050,237,838,401 (reduction: 0.0%)
+- Trades moved: 0, Iterations: 100
+
+---
+
+## Run: 2026-02-02 15:17:26
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 10,000 |
+| Portfolios | 50 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Time | GPU Time | Evals | Kernel Reuses |
+|------|-----------|----------|-------|---------------|
+| 7:00 AM Portfolio Setup | 2.65 ms | 714.44 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 923 us | 697 us | 0 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.95 ms | 5.80 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.93 ms | 7.45 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 23.448 s | 22.915 s | 320 | 320 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 29.74 ms |
+| Total AADC Py evals | 334 |
+| Total kernel reuses | 334 |
+| Total GPU evals | 334 |
+| Amortized recording/eval | 0.09 ms |
+| Cumulative AADC Py time | 23.458 s |
+| Cumulative GPU time | 23.643 s |
+| AADC Py total (rec + eval) | 23.488 s |
+| GPU speedup (eval only) | 1.0x |
+| GPU speedup (inc. recording) | 1.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $328,653,156,849,201,408 | - |
+| Rates +50bp | $492,979,735,273,802,240 | +50.0% |
+| Unwind top 5 | $319,907,633,607,072,576 | -2.7% |
+| Add hedge | $326,888,028,107,727,040 | -0.5% |
+
+**IM Ladder:** 0.5x: $164,326,578,424,600,704, 0.75x: $246,489,867,636,901,120, 1.0x: $328,653,156,849,201,408, 1.25x: $410,816,446,061,501,824, 1.5x: $492,979,735,273,802,240
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $328,653,156,849,201,408
+- Final IM: $328,653,156,849,201,408 (reduction: 0.0%)
+- Trades moved: 0, Iterations: 83
+
+---
+
+## Run: 2026-02-02 15:17:29
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 50,000 |
+| Portfolios | 200 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 48 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Time | GPU Time | Evals | Kernel Reuses |
+|------|-----------|----------|-------|---------------|
+| 7:00 AM Portfolio Setup | 3.09 ms | 1.256 s | 1 | 1 |
+| 8:00 AM Margin Attribution | 5.93 ms | 3.27 ms | 0 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 13.23 ms | 5.99 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 16.67 ms | 8.07 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 249.848 s | 251.831 s | 523 | 523 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.48 ms |
+| Total AADC Py evals | 537 |
+| Total kernel reuses | 537 |
+| Total GPU evals | 537 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 249.887 s |
+| Cumulative GPU time | 253.105 s |
+| AADC Py total (rec + eval) | 249.925 s |
+| GPU speedup (eval only) | 1.0x |
+| GPU speedup (inc. recording) | 1.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $3,184,713,831,084,513,280 | - |
+| Rates +50bp | $4,777,070,746,626,769,920 | +50.0% |
+| Unwind top 5 | $3,166,951,699,865,585,664 | -0.6% |
+| Add hedge | $3,181,121,727,915,088,896 | -0.1% |
+
+**IM Ladder:** 0.5x: $1,592,356,915,542,256,640, 0.75x: $2,388,535,373,313,384,960, 1.0x: $3,184,713,831,084,513,280, 1.25x: $3,980,892,288,855,642,112, 1.5x: $4,777,070,746,626,769,920
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $3,184,713,831,084,513,280
+- Final IM: $3,184,713,831,084,513,280 (reduction: 0.0%)
+- Trades moved: 0, Iterations: 83
+
+---
+
+## Run: 2026-02-02 15:21:27
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 10,000 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 611 us | 711.42 ms | 5.36 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 1.47 ms | 696 us | 5.36 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.89 ms | 5.03 ms | 4.98 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 4.23 ms | 7.19 ms | 15.75 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 7.478 s | 7.520 s | 93.59 ms | 201 | 201 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.87 ms |
+| Total AADC Py evals | 215 |
+| Total kernel reuses | 215 |
+| Total GPU evals | 215 |
+| Amortized recording/eval | 0.18 ms |
+| Cumulative AADC Py time | 7.487 s |
+| Cumulative GPU time | 8.245 s |
+| AADC Py total (rec + eval) | 7.526 s |
+| GPU speedup (eval only) | 0.9x |
+| GPU speedup (inc. recording) | 0.9x |
+| C++ AADC recording (1-time) | 23.21 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 125.04 ms |
+| C++ AADC total (rec + eval) | 148.25 ms |
+| C++/Py AADC speedup (eval) | 59.9x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $290,314,743,418,151,680 | - |
+| Rates +50bp | $435,472,115,127,227,392 | +50.0% |
+| Unwind top 5 | $281,581,699,508,929,152 | -3.0% |
+| Add hedge | $288,562,870,451,485,632 | -0.6% |
+
+**IM Ladder:** 0.5x: $145,157,371,709,075,840, 0.75x: $217,736,057,563,613,696, 1.0x: $290,314,743,418,151,680, 1.25x: $362,893,429,272,689,472, 1.5x: $435,472,115,127,227,392
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $290,314,743,418,151,680
+- Final IM: $290,314,743,418,151,680 (reduction: 0.0%)
+- Trades moved: 0, Iterations: 100
+
+---
+
+## Run: 2026-02-02 15:23:34
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 10,000 |
+| Portfolios | 50 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 714 us | 708.14 ms | 2.44 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 1.56 ms | 704 us | 2.44 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 9.13 ms | 5.41 ms | 24.25 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 2.97 ms | 7.22 ms | 6.12 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 22.305 s | 22.403 s | 71.52 ms | 320 | 320 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.14 ms |
+| Total AADC Py evals | 334 |
+| Total kernel reuses | 334 |
+| Total GPU evals | 334 |
+| Amortized recording/eval | 0.12 ms |
+| Cumulative AADC Py time | 22.320 s |
+| Cumulative GPU time | 23.124 s |
+| AADC Py total (rec + eval) | 22.359 s |
+| GPU speedup (eval only) | 1.0x |
+| GPU speedup (inc. recording) | 1.0x |
+| C++ AADC recording (1-time) | 15.50 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 106.77 ms |
+| C++ AADC total (rec + eval) | 122.27 ms |
+| C++/Py AADC speedup (eval) | 209.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $328,653,156,849,201,408 | - |
+| Rates +50bp | $492,979,735,273,802,240 | +50.0% |
+| Unwind top 5 | $319,907,633,607,072,576 | -2.7% |
+| Add hedge | $326,888,028,107,727,040 | -0.5% |
+
+**IM Ladder:** 0.5x: $164,326,578,424,600,704, 0.75x: $246,489,867,636,901,120, 1.0x: $328,653,156,849,201,408, 1.25x: $410,816,446,061,501,824, 1.5x: $492,979,735,273,802,240
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $328,653,156,849,201,408
+- Final IM: $328,653,156,849,201,408 (reduction: 0.0%)
+- Trades moved: 0, Iterations: 83
+
+---
+
+## Run: 2026-02-02 15:25:56
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 10,000 |
+| Portfolios | 50 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 501 us | 733.05 ms | 1.66 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 1.54 ms | 671 us | 1.66 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.29 ms | 5.59 ms | 15.49 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.51 ms | 7.40 ms | 4.73 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 97.71 ms | 64.21 ms | 59.20 ms | 5 | 5 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 27.87 ms |
+| Total AADC Py evals | 19 |
+| Total kernel reuses | 19 |
+| Total GPU evals | 19 |
+| Amortized recording/eval | 1.47 ms |
+| Cumulative AADC Py time | 105.55 ms |
+| Cumulative GPU time | 810.92 ms |
+| AADC Py total (rec + eval) | 133.43 ms |
+| GPU speedup (eval only) | 0.1x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 6.68 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 82.74 ms |
+| C++ AADC total (rec + eval) | 89.42 ms |
+| C++/Py AADC speedup (eval) | 1.3x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $328,653,156,849,201,408 | - |
+| Rates +50bp | $492,979,735,273,802,240 | +50.0% |
+| Unwind top 5 | $319,907,633,607,072,576 | -2.7% |
+| Add hedge | $326,888,028,107,727,040 | -0.5% |
+
+**IM Ladder:** 0.5x: $164,326,578,424,600,704, 0.75x: $246,489,867,636,901,120, 1.0x: $328,653,156,849,201,408, 1.25x: $410,816,446,061,501,824, 1.5x: $492,979,735,273,802,240
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $328,653,156,849,201,408
+- Final IM: $328,653,156,849,201,408 (reduction: 0.0%)
+- Trades moved: 0, Iterations: 2
+
+---
+
+## Run: 2026-02-02 15:35:57
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 500 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 381 us | 679.40 ms | 510 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 63 us | 33 us | 510 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.96 ms | 4.86 ms | 620 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 4.03 ms | 7.21 ms | 810 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 373.06 ms | 589.68 ms | 2.10 ms | 635 | 635 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.80 ms |
+| Total AADC Py evals | 649 |
+| Total kernel reuses | 649 |
+| Total GPU evals | 649 |
+| Amortized recording/eval | 0.06 ms |
+| Cumulative AADC Py time | 380.49 ms |
+| Cumulative GPU time | 1.281 s |
+| AADC Py total (rec + eval) | 419.29 ms |
+| GPU speedup (eval only) | 0.3x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 25.53 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 4.55 ms |
+| C++ AADC total (rec + eval) | 30.08 ms |
+| C++/Py AADC speedup (eval) | 83.6x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $4,398,050,237,838,401 | - |
+| Rates +50bp | $6,597,075,356,757,600 | +50.0% |
+| Unwind top 5 | $3,244,384,055,266,466 | -26.2% |
+| Add hedge | $4,189,578,842,189,735 | -4.7% |
+
+**IM Ladder:** 0.5x: $2,199,025,118,919,200, 0.75x: $3,298,537,678,378,800, 1.0x: $4,398,050,237,838,401, 1.25x: $5,497,562,797,298,002, 1.5x: $6,597,075,356,757,600
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $4,398,050,237,838,401
+- Final IM: $3,506,215,886,417,054 (reduction: 20.3%)
+- Trades moved: 21, Iterations: 100
+
+---
+
+## Run: 2026-02-02 15:36:57
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 500 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 401 us | 762.39 ms | 340 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 66 us | 33 us | 340 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.00 ms | 4.74 ms | 270 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.19 ms | 7.17 ms | 370 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 310.79 ms | 659.30 ms | 1.73 ms | 635 | 635 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 27.90 ms |
+| Total AADC Py evals | 649 |
+| Total kernel reuses | 649 |
+| Total GPU evals | 649 |
+| Amortized recording/eval | 0.04 ms |
+| Cumulative AADC Py time | 316.44 ms |
+| Cumulative GPU time | 1.434 s |
+| AADC Py total (rec + eval) | 344.34 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 13.00 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 3.05 ms |
+| C++ AADC total (rec + eval) | 16.05 ms |
+| C++/Py AADC speedup (eval) | 103.8x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $4,398,050,237,838,401 | - |
+| Rates +50bp | $6,597,075,356,757,600 | +50.0% |
+| Unwind top 5 | $3,244,384,055,266,466 | -26.2% |
+| Add hedge | $4,189,578,842,189,735 | -4.7% |
+
+**IM Ladder:** 0.5x: $2,199,025,118,919,200, 0.75x: $3,298,537,678,378,800, 1.0x: $4,398,050,237,838,401, 1.25x: $5,497,562,797,298,002, 1.5x: $6,597,075,356,757,600
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $4,398,050,237,838,401
+- Final IM: $3,506,215,886,417,054 (reduction: 20.3%)
+- Trades moved: 21, Iterations: 100
+
+---
+
+## Run: 2026-02-02 15:37:25
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 500 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 513 us | 711.51 ms | 230 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 56 us | 30 us | 230 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.56 ms | 4.73 ms | 410 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.50 ms | 7.12 ms | 400 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 370.75 ms | 597.02 ms | 89.38 ms | 635 | 635 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 44.20 ms |
+| Total AADC Py evals | 649 |
+| Total kernel reuses | 649 |
+| Total GPU evals | 649 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 377.38 ms |
+| Cumulative GPU time | 1.320 s |
+| AADC Py total (rec + eval) | 421.59 ms |
+| GPU speedup (eval only) | 0.3x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 21.41 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 90.65 ms |
+| C++ AADC total (rec + eval) | 112.06 ms |
+| C++/Py AADC speedup (eval) | 4.2x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $4,398,050,237,838,401 | - |
+| Rates +50bp | $6,597,075,356,757,600 | +50.0% |
+| Unwind top 5 | $3,244,384,055,266,466 | -26.2% |
+| Add hedge | $4,189,578,842,189,735 | -4.7% |
+
+**IM Ladder:** 0.5x: $2,199,025,118,919,200, 0.75x: $3,298,537,678,378,800, 1.0x: $4,398,050,237,838,401, 1.25x: $5,497,562,797,298,002, 1.5x: $6,597,075,356,757,600
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $4,398,050,237,838,401
+- Final IM: $3,506,215,886,417,054 (reduction: 20.3%)
+- Trades moved: 21, Iterations: 100
+
+---
+
+## Run: 2026-02-02 15:38:53
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 500 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 391 us | 693.49 ms | 43.29 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 65 us | 34 us | 43.29 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 1.98 ms | 4.95 ms | 230 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.00 ms | 7.30 ms | 360 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 284.28 ms | 594.21 ms | 55.44 ms | 635 | 635 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 29.25 ms |
+| Total AADC Py evals | 649 |
+| Total kernel reuses | 649 |
+| Total GPU evals | 649 |
+| Amortized recording/eval | 0.05 ms |
+| Cumulative AADC Py time | 289.71 ms |
+| Cumulative GPU time | 1.300 s |
+| AADC Py total (rec + eval) | 318.96 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 35.01 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 142.61 ms |
+| C++ AADC total (rec + eval) | 177.62 ms |
+| C++/Py AADC speedup (eval) | 2.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $4,398,050,237,838,401 | - |
+| Rates +50bp | $6,597,075,356,757,600 | +50.0% |
+| Unwind top 5 | $3,244,384,055,266,466 | -26.2% |
+| Add hedge | $4,189,578,842,189,735 | -4.7% |
+
+**IM Ladder:** 0.5x: $2,199,025,118,919,200, 0.75x: $3,298,537,678,378,800, 1.0x: $4,398,050,237,838,401, 1.25x: $5,497,562,797,298,002, 1.5x: $6,597,075,356,757,600
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $4,398,050,237,838,401
+- Final IM: $3,506,215,886,417,054 (reduction: 20.3%)
+- Trades moved: 21, Iterations: 100
+
+---
+
+## Run: 2026-02-02 15:39:28
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 1,000 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 462 us | 720.83 ms | 420 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 118 us | 59 us | 420 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.74 ms | 5.07 ms | 550 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.19 ms | 7.18 ms | 870 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 881.27 ms | 1.251 s | 281.65 ms | 1285 | 1285 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 29.36 ms |
+| Total AADC Py evals | 1299 |
+| Total kernel reuses | 1299 |
+| Total GPU evals | 1299 |
+| Amortized recording/eval | 0.02 ms |
+| Cumulative AADC Py time | 887.77 ms |
+| Cumulative GPU time | 1.984 s |
+| AADC Py total (rec + eval) | 917.13 ms |
+| GPU speedup (eval only) | 0.4x |
+| GPU speedup (inc. recording) | 0.5x |
+| C++ AADC recording (1-time) | 12.57 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 283.91 ms |
+| C++ AADC total (rec + eval) | 296.48 ms |
+| C++/Py AADC speedup (eval) | 3.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $9,581,698,819,279,568 | - |
+| Rates +50bp | $14,372,548,228,919,356 | +50.0% |
+| Unwind top 5 | $7,436,184,419,175,739 | -22.4% |
+| Add hedge | $9,055,211,339,514,372 | -5.5% |
+
+**IM Ladder:** 0.5x: $4,790,849,409,639,784, 0.75x: $7,186,274,114,459,678, 1.0x: $9,581,698,819,279,568, 1.25x: $11,977,123,524,099,462, 1.5x: $14,372,548,228,919,356
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,775,354,108,099,477 (reduction: 8.4%)
+- Trades moved: 29, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:00:42
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 10,000 |
+| Portfolios | 50 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 623 us | 724.19 ms | 3.01 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 1.50 ms | 710 us | 3.01 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.49 ms | 5.38 ms | 28.24 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 4.33 ms | 7.31 ms | 7.32 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 49.153 s | 59.136 s | 123.592 s | 32948 | 32948 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.07 ms |
+| Total AADC Py evals | 32962 |
+| Total kernel reuses | 32962 |
+| Total GPU evals | 32962 |
+| Amortized recording/eval | 0.00 ms |
+| Cumulative AADC Py time | 49.163 s |
+| Cumulative GPU time | 59.874 s |
+| AADC Py total (rec + eval) | 49.202 s |
+| GPU speedup (eval only) | 0.8x |
+| GPU speedup (inc. recording) | 0.8x |
+| C++ AADC recording (1-time) | 9.89 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 123.633 s |
+| C++ AADC total (rec + eval) | 123.643 s |
+| C++/Py AADC speedup (eval) | 0.4x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $328,653,156,849,201,408 | - |
+| Rates +50bp | $492,979,735,273,802,240 | +50.0% |
+| Unwind top 5 | $319,907,633,607,072,576 | -2.7% |
+| Add hedge | $326,888,028,107,727,040 | -0.5% |
+
+**IM Ladder:** 0.5x: $164,326,578,424,600,704, 0.75x: $246,489,867,636,901,120, 1.0x: $328,653,156,849,201,408, 1.25x: $410,816,446,061,501,824, 1.5x: $492,979,735,273,802,240
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $328,653,156,849,201,408
+- Final IM: $289,926,699,726,545,472 (reduction: 11.8%)
+- Trades moved: 297, Iterations: 83
+
+---
+
+## Run: 2026-02-02 16:04:28
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 200 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 697 us | 659.66 ms | 650 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 41 us | 18 us | 650 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.00 ms | 6.56 ms | 860 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.50 ms | 10.59 ms | 370 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 174.49 ms | 512.75 ms | 90.38 ms | 377 | 377 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.34 ms |
+| Total AADC Py evals | 391 |
+| Total kernel reuses | 391 |
+| Total GPU evals | 391 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 181.73 ms |
+| Cumulative GPU time | 1.190 s |
+| AADC Py total (rec + eval) | 220.06 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.26 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 92.91 ms |
+| C++ AADC total (rec + eval) | 118.17 ms |
+| C++/Py AADC speedup (eval) | 2.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $1,461,178,990,191,562 | - |
+| Rates +50bp | $2,191,768,485,287,342 | +50.0% |
+| Unwind top 5 | $824,735,222,717,730 | -43.6% |
+| Add hedge | $1,290,658,991,257,144 | -11.7% |
+
+**IM Ladder:** 0.5x: $730,589,495,095,781, 0.75x: $1,095,884,242,643,671, 1.0x: $1,461,178,990,191,562, 1.25x: $1,826,473,737,739,452, 1.5x: $2,191,768,485,287,342
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $1,461,178,990,191,562
+- Final IM: $783,584,123,463,813 (reduction: 46.4%)
+- Trades moved: 11, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:06:03
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 200 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 480 us | 681.28 ms | 1.34 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 39 us | 17 us | 1.34 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.59 ms | 4.90 ms | 750 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.96 ms | 7.30 ms | 360 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 176.21 ms | 342.88 ms | 113.41 ms | 377 | 377 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.90 ms |
+| Total AADC Py evals | 391 |
+| Total kernel reuses | 391 |
+| Total GPU evals | 391 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 183.28 ms |
+| Cumulative GPU time | 1.036 s |
+| AADC Py total (rec + eval) | 223.18 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 29.57 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 117.20 ms |
+| C++ AADC total (rec + eval) | 146.77 ms |
+| C++/Py AADC speedup (eval) | 1.6x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $1,461,178,990,191,562 | - |
+| Rates +50bp | $2,191,768,485,287,342 | +50.0% |
+| Unwind top 5 | $824,735,222,717,730 | -43.6% |
+| Add hedge | $1,290,658,991,257,144 | -11.7% |
+
+**IM Ladder:** 0.5x: $730,589,495,095,781, 0.75x: $1,095,884,242,643,671, 1.0x: $1,461,178,990,191,562, 1.25x: $1,826,473,737,739,452, 1.5x: $2,191,768,485,287,342
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $1,461,178,990,191,562
+- Final IM: $783,584,123,463,813 (reduction: 46.4%)
+- Trades moved: 11, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:09:05
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 594 |
+| Portfolios | 5 |
+| Trade types | ir_swap,equity_option,fx_option |
+| Risk factors (K) | 108 |
+| Intra-bucket correlations | 223 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 890 us | 685.76 ms | 830 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 290 us | 71 us | 830 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 5.16 ms | 12.44 ms | 910 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 7.19 ms | 19.27 ms | 1.22 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 466.87 ms | 1.257 s | 181.42 ms | 473 | 473 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 87.63 ms |
+| Total AADC Py evals | 487 |
+| Total kernel reuses | 487 |
+| Total GPU evals | 487 |
+| Amortized recording/eval | 0.18 ms |
+| Cumulative AADC Py time | 480.39 ms |
+| Cumulative GPU time | 1.975 s |
+| AADC Py total (rec + eval) | 568.02 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 37.63 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 185.21 ms |
+| C++ AADC total (rec + eval) | 222.84 ms |
+| C++/Py AADC speedup (eval) | 2.6x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $18,014,710,564,760,988 | - |
+| Rates +50bp | $18,132,311,801,664,068 | +0.7% |
+| Unwind top 5 | $13,048,192,324,251,282 | -27.6% |
+| Add hedge | $16,896,971,293,073,774 | -6.2% |
+
+**IM Ladder:** 0.5x: $17,925,403,076,185,306, 0.75x: $17,966,468,260,709,078, 1.0x: $18,014,710,564,760,988, 1.25x: $18,070,029,702,592,344, 1.5x: $18,132,311,801,664,068
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $18,014,710,564,760,988
+- Final IM: $17,271,616,935,692,540 (reduction: 4.1%)
+- Trades moved: 18, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:09:38
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 594 |
+| Portfolios | 5 |
+| Trade types | ir_swap,equity_option,fx_option |
+| Risk factors (K) | 108 |
+| Intra-bucket correlations | 223 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 868 us | 661.46 ms | 860 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 278 us | 71 us | 860 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 4.63 ms | 12.46 ms | 1.19 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 7.09 ms | 19.22 ms | 2.35 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 449.78 ms | 1.246 s | 175.37 ms | 473 | 473 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 86.70 ms |
+| Total AADC Py evals | 487 |
+| Total kernel reuses | 487 |
+| Total GPU evals | 487 |
+| Amortized recording/eval | 0.18 ms |
+| Cumulative AADC Py time | 462.65 ms |
+| Cumulative GPU time | 1.939 s |
+| AADC Py total (rec + eval) | 549.35 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 32.41 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 180.63 ms |
+| C++ AADC total (rec + eval) | 213.04 ms |
+| C++/Py AADC speedup (eval) | 2.6x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $18,014,710,564,760,988 | - |
+| Rates +50bp | $18,132,311,801,664,068 | +0.7% |
+| Unwind top 5 | $13,048,192,324,251,282 | -27.6% |
+| Add hedge | $16,896,971,293,073,774 | -6.2% |
+
+**IM Ladder:** 0.5x: $17,925,403,076,185,306, 0.75x: $17,966,468,260,709,078, 1.0x: $18,014,710,564,760,988, 1.25x: $18,070,029,702,592,344, 1.5x: $18,132,311,801,664,068
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $18,014,710,564,760,988
+- Final IM: $17,271,616,935,692,540 (reduction: 4.1%)
+- Trades moved: 18, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:22:33
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 589 us | 666.99 ms | 630 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 35 us | 12 us | 630 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.06 ms | 4.74 ms | 800 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.85 ms | 7.20 ms | 290 us | 8 | 8 |
+| 5:00 PM EOD Optimization | N/A | 472.14 ms | 81.63 ms | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.80 ms |
+| Total AADC Py evals | 14 |
+| Total kernel reuses | 14 |
+| Total GPU evals | 60 |
+| Amortized recording/eval | 2.77 ms |
+| Cumulative AADC Py time | 7.53 ms |
+| Cumulative GPU time | 1.151 s |
+| AADC Py total (rec + eval) | 46.33 ms |
+| GPU speedup (eval only) | 0.0x |
+| GPU speedup (inc. recording) | 0.0x |
+| C++ AADC recording (1-time) | 25.16 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 83.98 ms |
+| C++ AADC total (rec + eval) | 109.14 ms |
+| C++/Py AADC speedup (eval) | 0.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 16:22:44
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 640 us | 667.61 ms | 540 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 35 us | 13 us | 540 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.58 ms | 4.78 ms | 780 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.71 ms | 7.18 ms | 270 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 148.11 ms | 320.19 ms | 84.18 ms | 361 | 361 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 37.74 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 155.08 ms |
+| Cumulative GPU time | 999.77 ms |
+| AADC Py total (rec + eval) | 192.81 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.11 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 86.31 ms |
+| C++ AADC total (rec + eval) | 111.42 ms |
+| C++/Py AADC speedup (eval) | 1.8x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:22:52
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 667 us | 681.60 ms | 570 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 36 us | 13 us | 570 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.96 ms | 4.73 ms | 830 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.88 ms | 7.10 ms | 320 us | 8 | 8 |
+| 5:00 PM EOD Optimization | 163.62 ms | 320.62 ms | 79.82 ms | 361 | 361 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.10 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 171.17 ms |
+| Cumulative GPU time | 1.014 s |
+| AADC Py total (rec + eval) | 209.26 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.02 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 82.11 ms |
+| C++ AADC total (rec + eval) | 107.13 ms |
+| C++/Py AADC speedup (eval) | 2.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:23:41
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 594 |
+| Portfolios | 5 |
+| Trade types | ir_swap,equity_option,fx_option |
+| Risk factors (K) | 108 |
+| Intra-bucket correlations | 223 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 980 us | 671.27 ms | 870 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 275 us | 72 us | 870 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 4.88 ms | 12.57 ms | 1.32 ms | 5 | 5 |
+| 2:00 PM What-If Scenarios | 7.22 ms | 19.25 ms | 2.31 ms | 8 | 8 |
+| 5:00 PM EOD Optimization | 457.84 ms | 1.179 s | 226.11 ms | 473 | 473 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 87.29 ms |
+| Total AADC Py evals | 487 |
+| Total kernel reuses | 487 |
+| Total GPU evals | 487 |
+| Amortized recording/eval | 0.18 ms |
+| Cumulative AADC Py time | 471.20 ms |
+| Cumulative GPU time | 1.882 s |
+| AADC Py total (rec + eval) | 558.49 ms |
+| GPU speedup (eval only) | 0.3x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 65.16 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 231.48 ms |
+| C++ AADC total (rec + eval) | 296.64 ms |
+| C++/Py AADC speedup (eval) | 2.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $18,014,710,564,760,988 | - |
+| Rates +50bp | $18,132,311,801,664,068 | +0.7% |
+| Unwind top 5 | $13,048,192,324,251,282 | -27.6% |
+| Add hedge | $16,896,971,293,073,774 | -6.2% |
+
+**IM Ladder:** 0.5x: $17,925,403,076,185,306, 0.75x: $17,966,468,260,709,078, 1.0x: $18,014,710,564,760,988, 1.25x: $18,070,029,702,592,344, 1.5x: $18,132,311,801,664,068
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $18,014,710,564,760,988
+- Final IM: $17,271,616,935,692,540 (reduction: 4.1%)
+- Trades moved: 18, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:24:45
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 590 us | 664.99 ms | 560 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 35 us | 13 us | 560 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.88 ms | 4.56 ms | 790 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.99 ms | 7.11 ms | 270 us | 8 | 8 |
+| 5:00 PM EOD Optimization | N/A | 347.35 ms | 86.08 ms | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.02 ms |
+| Total AADC Py evals | 14 |
+| Total kernel reuses | 14 |
+| Total GPU evals | 60 |
+| Amortized recording/eval | 2.72 ms |
+| Cumulative AADC Py time | 7.49 ms |
+| Cumulative GPU time | 1.024 s |
+| AADC Py total (rec + eval) | 45.51 ms |
+| GPU speedup (eval only) | 0.0x |
+| GPU speedup (inc. recording) | 0.0x |
+| C++ AADC recording (1-time) | 25.54 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 88.26 ms |
+| C++ AADC total (rec + eval) | 113.80 ms |
+| C++/Py AADC speedup (eval) | 0.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 16:26:46
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 200 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 707 us | 662.59 ms | 630 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 44 us | 18 us | 630 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.30 ms | 4.96 ms | 520 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.76 ms | 7.26 ms | 390 us | 8 | 8 |
+| 5:00 PM EOD Optimization | N/A | 447.48 ms | 112.11 ms | 98 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.06 ms |
+| Total AADC Py evals | 14 |
+| Total kernel reuses | 14 |
+| Total GPU evals | 112 |
+| Amortized recording/eval | 2.79 ms |
+| Cumulative AADC Py time | 7.81 ms |
+| Cumulative GPU time | 1.122 s |
+| AADC Py total (rec + eval) | 46.87 ms |
+| GPU speedup (eval only) | 0.0x |
+| GPU speedup (inc. recording) | 0.0x |
+| C++ AADC recording (1-time) | 25.22 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 114.28 ms |
+| C++ AADC total (rec + eval) | 139.50 ms |
+| C++/Py AADC speedup (eval) | 0.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $1,461,178,990,191,562 | - |
+| Rates +50bp | $2,191,768,485,287,342 | +50.0% |
+| Unwind top 5 | $824,735,222,717,730 | -43.6% |
+| Add hedge | $1,290,658,991,257,144 | -11.7% |
+
+**IM Ladder:** 0.5x: $730,589,495,095,781, 0.75x: $1,095,884,242,643,671, 1.0x: $1,461,178,990,191,562, 1.25x: $1,826,473,737,739,452, 1.5x: $2,191,768,485,287,342
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $1,461,178,990,191,562
+- Final IM: $768,900,239,560,082 (reduction: 47.4%)
+- Trades moved: 90, Iterations: 96
+
+---
+
+## Run: 2026-02-02 16:28:47
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 754 us | 668.31 ms | 540 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 37 us | 13 us | 540 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.96 ms | 4.93 ms | 800 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 4.06 ms | 7.64 ms | 270 us | 8 | 8 |
+| 5:00 PM EOD Optimization | N/A | 355.84 ms | 81.76 ms | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.26 ms |
+| Total AADC Py evals | 14 |
+| Total kernel reuses | 14 |
+| Total GPU evals | 60 |
+| Amortized recording/eval | 2.73 ms |
+| Cumulative AADC Py time | 7.81 ms |
+| Cumulative GPU time | 1.037 s |
+| AADC Py total (rec + eval) | 46.07 ms |
+| GPU speedup (eval only) | 0.0x |
+| GPU speedup (inc. recording) | 0.0x |
+| C++ AADC recording (1-time) | 25.07 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 83.91 ms |
+| C++ AADC total (rec + eval) | 108.98 ms |
+| C++/Py AADC speedup (eval) | 0.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD Optimization
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 16:32:33
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 661 us | 681.71 ms | 540 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 36 us | 12 us | 540 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.21 ms | 4.87 ms | 480 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 5.43 ms | 7.36 ms | 260 us | 8 | 8 |
+| 5:00 PM EOD: GD | 170.57 ms | 323.22 ms | 82.66 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 71.40 ms | 137.94 ms | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | 354.78 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.58 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 581 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 251.31 ms |
+| Cumulative GPU time | 1.510 s |
+| AADC Py total (rec + eval) | 289.88 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 24.99 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 84.48 ms |
+| C++ AADC total (rec + eval) | 109.47 ms |
+| C++/Py AADC speedup (eval) | 3.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 16:32:43
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 771 us | 663.64 ms | 310 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 34 us | 12 us | 310 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.13 ms | 4.82 ms | 580 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.98 ms | 7.26 ms | 170 us | 8 | 8 |
+| 5:00 PM EOD: GD | 163.40 ms | 317.05 ms | 57.53 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 66.66 ms | 135.47 ms | N/A | 160 | 160 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 37.92 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 237.98 ms |
+| Cumulative GPU time | 1.128 s |
+| AADC Py total (rec + eval) | 275.90 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 21.09 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 58.90 ms |
+| C++ AADC total (rec + eval) | 79.99 ms |
+| C++/Py AADC speedup (eval) | 4.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+---
+
+## Run: 2026-02-02 16:32:51
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 650 us | 674.84 ms | 520 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 35 us | 12 us | 520 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.50 ms | 4.63 ms | 830 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.84 ms | 7.18 ms | 270 us | 8 | 8 |
+| 5:00 PM EOD: GD | 158.32 ms | 347.27 ms | 74.38 ms | 361 | 361 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.10 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 165.34 ms |
+| Cumulative GPU time | 1.034 s |
+| AADC Py total (rec + eval) | 203.45 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.36 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 76.52 ms |
+| C++ AADC total (rec + eval) | 101.88 ms |
+| C++/Py AADC speedup (eval) | 2.2x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:33:39
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 543 us | 662.44 ms | 540 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 40 us | 13 us | 540 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.82 ms | 4.61 ms | 590 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 4.63 ms | 7.54 ms | 260 us | 8 | 8 |
+| 5:00 PM EOD: GD | 149.62 ms | 319.45 ms | 82.64 ms | 361 | 361 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.13 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 157.66 ms |
+| Cumulative GPU time | 994.05 ms |
+| AADC Py total (rec + eval) | 195.79 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.04 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 84.57 ms |
+| C++ AADC total (rec + eval) | 109.61 ms |
+| C++/Py AADC speedup (eval) | 1.9x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:35:51
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 200 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|-------------|----------|---------------|-------|---------------|
+| 7:00 AM Portfolio Setup | 679 us | 653.59 ms | 650 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 41 us | 18 us | 650 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.86 ms | 4.83 ms | 860 us | 5 | 5 |
+| 2:00 PM What-If Scenarios | 3.78 ms | 7.28 ms | 380 us | 8 | 8 |
+| 5:00 PM EOD: GD | 168.44 ms | 335.98 ms | 101.25 ms | 377 | 377 |
+| 5:00 PM EOD: Adam | 93.70 ms | 175.10 ms | N/A | 203 | 203 |
+| 5:00 PM EOD: Brute-Force | N/A | 445.51 ms | N/A | 98 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 37.69 ms |
+| Total AADC Py evals | 594 |
+| Total kernel reuses | 594 |
+| Total GPU evals | 692 |
+| Amortized recording/eval | 0.06 ms |
+| Cumulative AADC Py time | 269.49 ms |
+| Cumulative GPU time | 1.622 s |
+| AADC Py total (rec + eval) | 307.18 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.34 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 103.79 ms |
+| C++ AADC total (rec + eval) | 129.13 ms |
+| C++/Py AADC speedup (eval) | 2.6x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $1,461,178,990,191,562 | - |
+| Rates +50bp | $2,191,768,485,287,342 | +50.0% |
+| Unwind top 5 | $824,735,222,717,730 | -43.6% |
+| Add hedge | $1,290,658,991,257,144 | -11.7% |
+
+**IM Ladder:** 0.5x: $730,589,495,095,781, 0.75x: $1,095,884,242,643,671, 1.0x: $1,461,178,990,191,562, 1.25x: $1,826,473,737,739,452, 1.5x: $2,191,768,485,287,342
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $1,461,178,990,191,562
+- Final IM: $783,584,123,463,813 (reduction: 46.4%)
+- Trades moved: 11, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $1,461,178,990,191,562
+- Final IM: $782,379,255,335,625 (reduction: 46.5%)
+- Trades moved: 16, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $1,461,178,990,191,562
+- Final IM: $768,900,239,560,082 (reduction: 47.4%)
+- Trades moved: 90, Iterations: 96
+
+---
+
+## Run: 2026-02-02 16:42:41
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 667 us | 662.79 ms | 313.44 ms | 220 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 32 us | 12 us | 733 us | 220 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.80 ms | 4.73 ms | 60.89 ms | 550 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.26 ms | 7.57 ms | 4.76 ms | 110 us | 8 | 8 |
+| 5:00 PM EOD: GD | 171.08 ms | 322.48 ms | N/A | 53.65 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 73.42 ms | 140.15 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 36.11 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.35 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 253.25 ms |
+| Cumulative GPU time | 1.138 s |
+| Cumulative BF time | 415.93 ms |
+| AADC Py total (rec + eval) | 291.60 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 20.44 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 54.75 ms |
+| C++ AADC total (rec + eval) | 75.19 ms |
+| C++/Py AADC speedup (eval) | 4.6x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 16:42:53
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 727 us | 681.72 ms | 319.66 ms | 520 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 34 us | 13 us | 766 us | 520 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.93 ms | 4.72 ms | 60.16 ms | 540 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.27 ms | 7.16 ms | 4.78 ms | 320 us | 8 | 8 |
+| 5:00 PM EOD: GD | 167.14 ms | 321.30 ms | N/A | 88.00 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 65.88 ms | 137.98 ms | N/A | N/A | 160 | 160 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 37.76 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 110 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 240.97 ms |
+| Cumulative GPU time | 1.153 s |
+| Cumulative BF time | 385.37 ms |
+| AADC Py total (rec + eval) | 278.73 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.50 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 89.90 ms |
+| C++ AADC total (rec + eval) | 115.40 ms |
+| C++/Py AADC speedup (eval) | 2.7x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+---
+
+## Run: 2026-02-02 16:43:10
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 543 us | 666.85 ms | 315.25 ms | 600 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 36 us | 12 us | 737 us | 600 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.78 ms | 4.74 ms | 61.64 ms | 800 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.43 ms | 7.12 ms | 4.75 ms | 280 us | 8 | 8 |
+| 5:00 PM EOD: GD | 161.27 ms | 321.59 ms | N/A | 81.17 ms | 361 | 361 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 37.49 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Total BF (forward-only) evals | 110 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 169.06 ms |
+| Cumulative GPU time | 1.000 s |
+| Cumulative BF time | 382.38 ms |
+| AADC Py total (rec + eval) | 206.56 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 26.32 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 83.45 ms |
+| C++ AADC total (rec + eval) | 109.77 ms |
+| C++/Py AADC speedup (eval) | 2.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:45:25
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 730 us | 682.42 ms | 318.41 ms | 530 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 34 us | 12 us | 744 us | 530 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.61 ms | 4.68 ms | 60.32 ms | 800 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.33 ms | 7.08 ms | 4.84 ms | 270 us | 8 | 8 |
+| 5:00 PM EOD: GD | 166.92 ms | 321.92 ms | N/A | 76.39 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 70.08 ms | 139.11 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.70 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 42.03 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.08 ms |
+| Cumulative AADC Py time | 244.71 ms |
+| Cumulative GPU time | 1.155 s |
+| Cumulative BF time | 420.02 ms |
+| AADC Py total (rec + eval) | 286.74 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.99 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 78.52 ms |
+| C++ AADC total (rec + eval) | 104.51 ms |
+| C++/Py AADC speedup (eval) | 3.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 16:54:24
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 10,000 |
+| Portfolios | 55 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 1.08 ms | 705.48 ms | 313.29 ms | 3.37 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 1.59 ms | 667 us | 1.74 ms | 3.37 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.79 ms | 5.21 ms | 63.17 ms | 27.36 ms | 100 | 5 |
+| 2:00 PM What-If Scenarios | 5.49 ms | 7.14 ms | 4.89 ms | 8.22 ms | 8 | 8 |
+| 5:00 PM EOD: GD | 54.989 s | 59.156 s | N/A | 136.188 s | 35339 | 35339 |
+| 5:00 PM EOD: Adam | 51.656 s | 57.894 s | N/A | N/A | 35042 | 35042 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 24.831 s | N/A | 101 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.37 ms |
+| Total AADC Py evals | 70395 |
+| Total kernel reuses | 70395 |
+| Total GPU evals | 70391 |
+| Total BF (forward-only) evals | 211 |
+| Amortized recording/eval | 0.00 ms |
+| Cumulative AADC Py time | 106.657 s |
+| Cumulative GPU time | 117.769 s |
+| Cumulative BF time | 25.214 s |
+| AADC Py total (rec + eval) | 106.696 s |
+| GPU speedup (eval only) | 0.9x |
+| GPU speedup (inc. recording) | 0.9x |
+| C++ AADC recording (1-time) | 22.76 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 136.230 s |
+| C++ AADC total (rec + eval) | 136.253 s |
+| C++/Py AADC speedup (eval) | 0.8x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $338,095,924,305,762,112 | - |
+| Rates +50bp | $507,143,886,458,643,328 | +50.0% |
+| Unwind top 5 | $329,322,738,695,503,488 | -2.6% |
+| Add hedge | $336,331,369,222,568,832 | -0.5% |
+
+**IM Ladder:** 0.5x: $169,047,962,152,881,056, 0.75x: $253,571,943,229,321,664, 1.0x: $338,095,924,305,762,112, 1.25x: $422,619,905,382,202,752, 1.5x: $507,143,886,458,643,328
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $338,095,924,305,762,112
+- Final IM: $289,972,498,532,747,712 (reduction: 14.2%)
+- Trades moved: 347, Iterations: 70
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $338,095,924,305,762,112
+- Final IM: $289,972,498,532,747,712 (reduction: 14.2%)
+- Trades moved: 347, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $338,095,924,305,762,112
+- Final IM: $295,503,324,384,436,800 (reduction: 12.6%)
+- Trades moved: 100, Iterations: 100
+
+---
+
+## Run: 2026-02-02 16:59:29
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 677 us | 664.78 ms | 316.57 ms | 570 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 34 us | 13 us | 739 us | 570 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.09 ms | 4.71 ms | 60.86 ms | 490 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 3.78 ms | 7.16 ms | 4.83 ms | 260 us | 8 | 8 |
+| 5:00 PM EOD: GD | 162.85 ms | 326.65 ms | N/A | 88.28 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 69.13 ms | 140.77 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.48 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 37.58 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 239.56 ms |
+| Cumulative GPU time | 1.144 s |
+| Cumulative BF time | 418.48 ms |
+| AADC Py total (rec + eval) | 277.14 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.38 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 90.17 ms |
+| C++ AADC total (rec + eval) | 115.55 ms |
+| C++/Py AADC speedup (eval) | 2.7x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:03:48
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 50 |
+| Portfolios | 3 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 4 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 377 us | 672.31 ms | 316.55 ms | 300 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 32 us | 10 us | 767 us | 300 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.21 ms | 4.69 ms | 58.95 ms | 90 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 2.87 ms | 7.15 ms | 4.76 ms | 200 us | 8 | 8 |
+| 5:00 PM EOD: GD | 102.38 ms | 301.89 ms | N/A | 1.98 ms | 341 | 341 |
+| 5:00 PM EOD: Adam | 24.38 ms | 74.29 ms | N/A | N/A | 85 | 85 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 15.52 ms | N/A | 23 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.34 ms |
+| Total AADC Py evals | 440 |
+| Total kernel reuses | 440 |
+| Total GPU evals | 440 |
+| Total BF (forward-only) evals | 133 |
+| Amortized recording/eval | 0.09 ms |
+| Cumulative AADC Py time | 132.25 ms |
+| Cumulative GPU time | 1.060 s |
+| Cumulative BF time | 396.56 ms |
+| AADC Py total (rec + eval) | 171.58 ms |
+| GPU speedup (eval only) | 0.1x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.68 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 2.87 ms |
+| C++ AADC total (rec + eval) | 28.55 ms |
+| C++/Py AADC speedup (eval) | 46.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $399,527,208,153,231 | - |
+| Rates +50bp | $599,290,812,229,847 | +50.0% |
+| Unwind top 5 | $219,331,272,299,183 | -45.1% |
+| Add hedge | $348,280,189,327,689 | -12.8% |
+
+**IM Ladder:** 0.5x: $199,763,604,076,616, 0.75x: $299,645,406,114,924, 1.0x: $399,527,208,153,231, 1.25x: $499,409,010,191,539, 1.5x: $599,290,812,229,847
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $399,527,208,153,231
+- Final IM: $224,906,438,534,310 (reduction: 43.7%)
+- Trades moved: 9, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $399,527,208,153,231
+- Final IM: $226,097,595,695,469 (reduction: 43.4%)
+- Trades moved: 9, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $399,527,208,153,231
+- Final IM: $223,523,754,079,867 (reduction: 44.1%)
+- Trades moved: 20, Iterations: 21
+
+---
+
+## Run: 2026-02-02 17:05:05
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 676 us | 669.00 ms | 315.17 ms | 550 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 34 us | 13 us | 755 us | 550 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.03 ms | 4.72 ms | 60.36 ms | 800 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.05 ms | 7.15 ms | 4.81 ms | 280 us | 8 | 8 |
+| 5:00 PM EOD: GD | 174.54 ms | 323.01 ms | N/A | 87.56 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 68.58 ms | 139.20 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.24 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.86 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 250.90 ms |
+| Cumulative GPU time | 1.143 s |
+| Cumulative BF time | 416.34 ms |
+| AADC Py total (rec + eval) | 289.76 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.3x |
+| C++ AADC recording (1-time) | 25.44 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 89.74 ms |
+| C++ AADC total (rec + eval) | 115.18 ms |
+| C++/Py AADC speedup (eval) | 2.8x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:05:58
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 666 us | 667.80 ms | 316.10 ms | 540 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 35 us | 13 us | 744 us | 540 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.55 ms | 4.69 ms | 60.17 ms | 780 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 3.67 ms | 7.16 ms | 4.80 ms | 280 us | 8 | 8 |
+| 5:00 PM EOD: GD | 147.71 ms | 323.01 ms | N/A | 85.22 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 62.28 ms | 139.46 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.44 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.66 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 216.92 ms |
+| Cumulative GPU time | 1.142 s |
+| Cumulative BF time | 417.25 ms |
+| AADC Py total (rec + eval) | 255.58 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.85 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 87.36 ms |
+| C++ AADC total (rec + eval) | 113.21 ms |
+| C++/Py AADC speedup (eval) | 2.5x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:09:34
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 1,000 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 16 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 921 us | 680.39 ms | 375.20 ms | 1.33 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 106 us | 59 us | 933 us | 1.33 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 4.76 ms | 4.91 ms | 60.53 ms | 2.19 ms | 100 | 5 |
+| 2:00 PM What-If Scenarios | 6.25 ms | 7.10 ms | 4.70 ms | 1.41 ms | 8 | 8 |
+| 5:00 PM EOD: GD | 963.33 ms | 1.187 s | N/A | 1.860 s | 1285 | 1285 |
+| 5:00 PM EOD: Adam | 784.63 ms | 953.59 ms | N/A | N/A | 1089 | 1089 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 177.85 ms | N/A | 101 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 30.30 ms |
+| Total AADC Py evals | 2388 |
+| Total kernel reuses | 2388 |
+| Total GPU evals | 2388 |
+| Total BF (forward-only) evals | 211 |
+| Amortized recording/eval | 0.01 ms |
+| Cumulative AADC Py time | 1.760 s |
+| Cumulative GPU time | 2.833 s |
+| Cumulative BF time | 619.21 ms |
+| AADC Py total (rec + eval) | 1.790 s |
+| GPU speedup (eval only) | 0.6x |
+| GPU speedup (inc. recording) | 0.6x |
+| C++ AADC recording (1-time) | 27.62 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 1.866 s |
+| C++ AADC total (rec + eval) | 1.893 s |
+| C++/Py AADC speedup (eval) | 0.9x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $9,581,698,819,279,568 | - |
+| Rates +50bp | $14,372,548,228,919,356 | +50.0% |
+| Unwind top 5 | $7,436,184,419,175,739 | -22.4% |
+| Add hedge | $9,055,211,339,514,372 | -5.5% |
+
+**IM Ladder:** 0.5x: $4,790,849,409,639,784, 0.75x: $7,186,274,114,459,678, 1.0x: $9,581,698,819,279,568, 1.25x: $11,977,123,524,099,462, 1.5x: $14,372,548,228,919,356
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,775,354,108,099,477 (reduction: 8.4%)
+- Trades moved: 29, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,775,354,108,099,477 (reduction: 8.4%)
+- Trades moved: 29, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,761,984,846,896,136 (reduction: 8.6%)
+- Trades moved: 100, Iterations: 100
+
+---
+
+## Run: 2026-02-02 17:11:29
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 722 us | 688.10 ms | 320.18 ms | 590 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 36 us | 13 us | 774 us | 590 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.36 ms | 4.95 ms | 60.28 ms | 800 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.43 ms | 7.19 ms | 4.74 ms | 280 us | 8 | 8 |
+| 5:00 PM EOD: GD | 166.24 ms | 322.06 ms | N/A | 85.75 ms | 361 | 361 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.80 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 39.28 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 174.79 ms |
+| Cumulative GPU time | 1.022 s |
+| Cumulative BF time | 421.78 ms |
+| AADC Py total (rec + eval) | 214.07 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 26.07 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 88.01 ms |
+| C++ AADC total (rec + eval) | 114.08 ms |
+| C++/Py AADC speedup (eval) | 2.0x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:12:03
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 649 us | 699.33 ms | 326.65 ms | 590 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 36 us | 13 us | 773 us | 590 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.01 ms | 5.03 ms | 62.14 ms | 680 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.01 ms | 7.37 ms | 4.99 ms | 280 us | 8 | 8 |
+| 5:00 PM EOD: GD | 157.11 ms | 331.46 ms | N/A | 72.56 ms | 361 | 361 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 36.46 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 45.28 ms |
+| Total AADC Py evals | 375 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 375 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.12 ms |
+| Cumulative AADC Py time | 164.81 ms |
+| Cumulative GPU time | 1.043 s |
+| Cumulative BF time | 431.01 ms |
+| AADC Py total (rec + eval) | 210.09 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 17.51 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 74.70 ms |
+| C++ AADC total (rec + eval) | 92.21 ms |
+| C++/Py AADC speedup (eval) | 2.2x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:12:29
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 649 us | 672.66 ms | 313.57 ms | 590 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 34 us | 13 us | 779 us | 590 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.95 ms | 4.65 ms | 60.15 ms | 870 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.40 ms | 7.38 ms | 4.81 ms | 280 us | 8 | 8 |
+| 5:00 PM EOD: GD | 153.66 ms | 320.26 ms | N/A | 90.91 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 69.44 ms | 137.81 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.18 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.48 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 231.14 ms |
+| Cumulative GPU time | 1.143 s |
+| Cumulative BF time | 414.49 ms |
+| AADC Py total (rec + eval) | 269.62 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.76 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 93.24 ms |
+| C++ AADC total (rec + eval) | 119.00 ms |
+| C++/Py AADC speedup (eval) | 2.5x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:15:14
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 685 us | 665.68 ms | 315.00 ms | 620 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 32 us | 13 us | 755 us | 620 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 2.87 ms | 4.68 ms | 59.98 ms | 630 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 3.97 ms | 7.14 ms | 4.82 ms | 250 us | 8 | 8 |
+| 5:00 PM EOD: GD | 159.42 ms | 327.40 ms | N/A | 80.88 ms | 361 | 361 |
+| 5:00 PM EOD: Adam | 71.47 ms | 141.46 ms | N/A | N/A | 160 | 160 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 35.01 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.72 ms |
+| Total AADC Py evals | 535 |
+| Total kernel reuses | 535 |
+| Total GPU evals | 535 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.07 ms |
+| Cumulative AADC Py time | 238.44 ms |
+| Cumulative GPU time | 1.146 s |
+| Cumulative BF time | 415.56 ms |
+| AADC Py total (rec + eval) | 277.16 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 18.04 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 83.00 ms |
+| C++ AADC total (rec + eval) | 101.04 ms |
+| C++/Py AADC speedup (eval) | 2.9x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $242,727,029,107,781 (reduction: 43.7%)
+- Trades moved: 10, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:16:09
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 1,000 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 16 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 1.08 ms | 643.09 ms | 353.55 ms | 1.59 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 93 us | 57 us | 890 us | 1.59 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 4.86 ms | 4.86 ms | 61.89 ms | 1.27 ms | 100 | 5 |
+| 2:00 PM What-If Scenarios | 6.16 ms | 7.08 ms | 4.70 ms | 1.42 ms | 8 | 8 |
+| 5:00 PM EOD: GD | 910.61 ms | 1.159 s | N/A | 1.885 s | 1285 | 1285 |
+| 5:00 PM EOD: Adam | 788.78 ms | 975.79 ms | N/A | N/A | 1089 | 1089 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 175.55 ms | N/A | 101 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 30.03 ms |
+| Total AADC Py evals | 2388 |
+| Total kernel reuses | 2388 |
+| Total GPU evals | 2388 |
+| Total BF (forward-only) evals | 211 |
+| Amortized recording/eval | 0.01 ms |
+| Cumulative AADC Py time | 1.712 s |
+| Cumulative GPU time | 2.790 s |
+| Cumulative BF time | 596.58 ms |
+| AADC Py total (rec + eval) | 1.742 s |
+| GPU speedup (eval only) | 0.6x |
+| GPU speedup (inc. recording) | 0.6x |
+| C++ AADC recording (1-time) | 26.71 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 1.891 s |
+| C++ AADC total (rec + eval) | 1.918 s |
+| C++/Py AADC speedup (eval) | 0.9x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $9,581,698,819,279,568 | - |
+| Rates +50bp | $14,372,548,228,919,356 | +50.0% |
+| Unwind top 5 | $7,436,184,419,175,739 | -22.4% |
+| Add hedge | $9,055,211,339,514,372 | -5.5% |
+
+**IM Ladder:** 0.5x: $4,790,849,409,639,784, 0.75x: $7,186,274,114,459,678, 1.0x: $9,581,698,819,279,568, 1.25x: $11,977,123,524,099,462, 1.5x: $14,372,548,228,919,356
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,775,354,108,099,477 (reduction: 8.4%)
+- Trades moved: 29, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,775,354,108,099,477 (reduction: 8.4%)
+- Trades moved: 29, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $9,581,698,819,279,568
+- Final IM: $8,761,984,846,896,136 (reduction: 8.6%)
+- Trades moved: 100, Iterations: 100
+
+---
+
+## Run: 2026-02-02 17:17:35
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 100 |
+| Portfolios | 5 |
+| Trade types | ir_swap |
+| Risk factors (K) | 30 |
+| Intra-bucket correlations | 135 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 8 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 628 us | 689.34 ms | 321.23 ms | 510 us | 1 | 1 |
+| 8:00 AM Margin Attribution | 36 us | 13 us | 768 us | 510 us | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 3.09 ms | 4.98 ms | 60.21 ms | 560 us | 100 | 5 |
+| 2:00 PM What-If Scenarios | 4.44 ms | 7.24 ms | 4.94 ms | 340 us | 8 | 8 |
+| 5:00 PM EOD: GD | 165.32 ms | 325.06 ms | N/A | 82.71 ms | 361 | 361 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 36.11 ms | N/A | 46 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 38.30 ms |
+| Total AADC Py evals | 376 |
+| Total kernel reuses | 375 |
+| Total GPU evals | 376 |
+| Total BF (forward-only) evals | 156 |
+| Amortized recording/eval | 0.10 ms |
+| Cumulative AADC Py time | 173.52 ms |
+| Cumulative GPU time | 1.027 s |
+| Cumulative BF time | 423.26 ms |
+| AADC Py total (rec + eval) | 211.81 ms |
+| GPU speedup (eval only) | 0.2x |
+| GPU speedup (inc. recording) | 0.2x |
+| C++ AADC recording (1-time) | 25.55 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 84.63 ms |
+| C++ AADC total (rec + eval) | 110.18 ms |
+| C++/Py AADC speedup (eval) | 2.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $431,171,465,361,081 | - |
+| Rates +50bp | $646,757,198,041,622 | +50.0% |
+| Unwind top 5 | $285,111,375,625,315 | -33.9% |
+| Add hedge | $397,384,055,991,420 | -7.8% |
+
+**IM Ladder:** 0.5x: $215,585,732,680,541, 0.75x: $323,378,599,020,811, 1.0x: $431,171,465,361,081, 1.25x: $538,964,331,701,352, 1.5x: $646,757,198,041,622
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $257,121,259,762,633 (reduction: 40.4%)
+- Trades moved: 7, Iterations: 100
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $431,171,465,361,081
+- Final IM: $223,743,793,992,934 (reduction: 48.1%)
+- Trades moved: 41, Iterations: 44
+
+---
+
+## Run: 2026-02-02 17:18:44
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| SIMM formula | Full ISDA v2.6 (correlations + concentration) |
+| Trades | 2,964 |
+| Portfolios | 5 |
+| Trade types | ir_swap,equity_option,fx_option |
+| Risk factors (K) | 108 |
+| Intra-bucket correlations | 223 pairs |
+| New trades (intraday) | 50 |
+| Optimize iterations | 100 |
+| Threads | 16 |
+| AADC available | True |
+| CUDA available | True |
+| C++ AADC available | True |
+
+### Per-Step Results
+
+| Step | AADC Py Time | GPU Time | BF Time | C++ AADC Time | Evals | Kernel Reuses |
+|------|------|------|------|------|------|------|
+| 7:00 AM Portfolio Setup | 1.78 ms | 672.59 ms | 380.58 ms | 2.83 ms | 1 | 1 |
+| 8:00 AM Margin Attribution | 1.13 ms | 518 us | 3.43 ms | 2.83 ms | 1 | 0 |
+| 9AM-4PM Intraday Pre-Trade | 7.31 ms | 12.99 ms | 162.50 ms | 3.43 ms | 100 | 5 |
+| 2:00 PM What-If Scenarios | 9.41 ms | 19.43 ms | 12.96 ms | 10.58 ms | 8 | 8 |
+| 5:00 PM EOD: GD | 3.394 s | 7.058 s | N/A | 5.706 s | 2802 | 2802 |
+| 5:00 PM EOD: Adam | 3.082 s | 6.560 s | N/A | N/A | 2624 | 2624 |
+| 5:00 PM EOD: Brute-Force | N/A | N/A | 925.30 ms | N/A | 101 | 0 |
+
+### Kernel Economics
+
+| Metric | Value |
+|--------|-------|
+| Kernel recordings | 1 |
+| AADC Py recording (1-time) | 88.65 ms |
+| Total AADC Py evals | 5441 |
+| Total kernel reuses | 5440 |
+| Total GPU evals | 5441 |
+| Total BF (forward-only) evals | 211 |
+| Amortized recording/eval | 0.02 ms |
+| Cumulative AADC Py time | 6.495 s |
+| Cumulative GPU time | 14.324 s |
+| Cumulative BF time | 1.485 s |
+| AADC Py total (rec + eval) | 6.584 s |
+| GPU speedup (eval only) | 0.5x |
+| GPU speedup (inc. recording) | 0.5x |
+| C++ AADC recording (1-time) | 63.31 ms |
+| Total C++ AADC evals | 9 |
+| Cumulative C++ AADC time | 5.726 s |
+| C++ AADC total (rec + eval) | 5.789 s |
+| C++/Py AADC speedup (eval) | 1.1x |
+
+### 8:00 AM Margin Attribution
+
+- Euler decomposition error: 0.0000%
+
+### 2:00 PM What-If Scenarios
+
+| Scenario | IM | Change |
+|----------|-------|--------|
+| Baseline | $212,749,734,346,840,384 | - |
+| Rates +50bp | $213,316,797,033,357,760 | +0.3% |
+| Unwind top 5 | $199,550,299,735,914,240 | -6.2% |
+| Add hedge | $210,083,103,920,062,080 | -1.3% |
+
+**IM Ladder:** 0.5x: $212,287,206,342,988,896, 0.75x: $212,505,328,096,443,264, 1.0x: $212,749,734,346,840,384, 1.25x: $213,020,278,526,655,808, 1.5x: $213,316,797,033,357,760
+
+### 5:00 PM EOD: GD
+
+- Initial IM: $212,749,734,346,840,384
+- Final IM: $211,594,477,442,935,776 (reduction: 0.5%)
+- Trades moved: 64, Iterations: 100
+
+### 5:00 PM EOD: Adam
+
+- Initial IM: $212,749,734,346,840,384
+- Final IM: $211,594,477,442,935,776 (reduction: 0.5%)
+- Trades moved: 64, Iterations: 2
+
+### 5:00 PM EOD: Brute-Force
+
+- Initial IM: $212,749,734,346,840,352
+- Final IM: $211,584,141,702,786,208 (reduction: 0.5%)
+- Trades moved: 100, Iterations: 100
+

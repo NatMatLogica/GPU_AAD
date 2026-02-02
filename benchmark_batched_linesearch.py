@@ -48,6 +48,7 @@ except ImportError:
 from benchmark_trading_workflow import (
     setup_portfolio_and_kernel,
     optimize_allocation,
+    greedy_local_search,
     _eval_aadc,
     _eval_gpu,
     _make_aadc_grad_fn,
@@ -177,35 +178,63 @@ def run_benchmark(
 
     results = {}
 
-    # --- AADC Python ---
-    if AADC_AVAILABLE:
-        grad_fn = _make_aadc_grad_fn(ctx)
+    def _run_pipeline(label, grad_fn, is_serial):
+        """Run Phase 1 (continuous) + Phase 2 (greedy) optimization pipeline."""
+        tag = f"{label} {'serial' if is_serial else 'batched'}"
+        t0 = time.perf_counter()
 
-        print(f"\n  {'='*60}")
-        print(f"  AADC Python")
-        print(f"  {'='*60}")
+        # Phase 1: continuous relaxation
+        if is_serial:
+            phase1 = optimize_allocation(
+                S, allocation, grad_fn,
+                max_iters=optimize_iters, verbose=False, label=tag,
+                method=method,
+            )
+        else:
+            phase1 = optimize_allocation_batched(
+                S, allocation, grad_fn,
+                max_iters=optimize_iters, verbose=False, label=tag,
+                method=method, ls_candidates=ls_candidates,
+            )
 
-        # Serial
-        print(f"  Running serial {method}...")
-        serial_res = optimize_allocation(
-            S, allocation, grad_fn,
-            max_iters=optimize_iters, verbose=False, label="AADC serial",
-            method=method,
+        # Phase 2: greedy local search on rounded integer allocation
+        greedy = greedy_local_search(
+            S, phase1['final_allocation'], grad_fn,
+            max_rounds=50, verbose=False, label=tag,
         )
+
+        wall_time = time.perf_counter() - t0
+
+        # Merge: use greedy result if it improved
+        final_im = min(phase1['final_im'], greedy['final_im'])
+        final_alloc = greedy['final_allocation'] if greedy['final_im'] < phase1['final_im'] else phase1['final_allocation']
+        trades_moved = int(np.sum(
+            np.argmax(final_alloc, axis=1) != np.argmax(allocation, axis=1)
+        ))
+        total_evals = phase1['num_evals'] + greedy['num_evals']
+
+        return {
+            'final_allocation': final_alloc,
+            'final_im': final_im,
+            'initial_im': phase1['initial_im'],
+            'im_history': phase1['im_history'] + greedy['im_history'],
+            'num_iterations': phase1.get('num_iterations', 0),
+            'num_evals': total_evals,
+            'num_ls_evals': phase1.get('num_ls_evals', 0),
+            'eval_time': wall_time,
+            'grad_time': phase1.get('grad_time', 0),
+            'trades_moved': trades_moved,
+            'phase1_im': phase1['final_im'],
+            'greedy_im': greedy['final_im'],
+            'greedy_evals': greedy['num_evals'],
+        }
+
+    def _print_backend_results(backend_label, serial_res, batched_res):
         serial_reduction = (serial_res['initial_im'] - serial_res['final_im']) / serial_res['initial_im'] * 100
-
-        # Batched
-        print(f"  Running batched {method} (ls_candidates={ls_candidates})...")
-        batched_res = optimize_allocation_batched(
-            S, allocation, grad_fn,
-            max_iters=optimize_iters, verbose=False, label="AADC batched",
-            method=method, ls_candidates=ls_candidates,
-        )
         batched_reduction = (batched_res['initial_im'] - batched_res['final_im']) / batched_res['initial_im'] * 100
-
         speedup = serial_res['eval_time'] / batched_res['eval_time'] if batched_res['eval_time'] > 0 else 0
 
-        print(f"\n  {'Method':<20} {'Eval Time':>12} {'Evals':>7} {'Final IM':>18} {'Reduction':>10}")
+        print(f"\n  {'Method':<20} {'Wall Time':>12} {'Evals':>7} {'Final IM':>18} {'Reduction':>10}")
         print(f"  {'-'*20} {'-'*12} {'-'*7} {'-'*18} {'-'*10}")
         print(f"  {'Serial ' + method:<20} {_fmt_time(serial_res['eval_time']):>12} "
               f"{serial_res['num_evals']:>7} ${serial_res['final_im']:>16,.0f} "
@@ -214,12 +243,29 @@ def run_benchmark(
               f"{batched_res['num_evals']:>7} ${batched_res['final_im']:>16,.0f} "
               f"{batched_reduction:>9.1f}%")
         print(f"\n  Speedup: {speedup:.2f}x")
-        print(f"  Serial:  {serial_res['num_iterations']} iters, "
-              f"{serial_res['trades_moved']} trades moved")
-        print(f"  Batched: {batched_res['num_iterations']} iters, "
-              f"{batched_res['trades_moved']} trades moved, "
-              f"{batched_res['num_ls_evals']} LS batch calls")
+        print(f"  Serial:  {serial_res['num_iterations']} iters + greedy → "
+              f"{serial_res['trades_moved']} trades moved "
+              f"(phase1 ${serial_res['phase1_im']:,.0f}, greedy ${serial_res['greedy_im']:,.0f})")
+        print(f"  Batched: {batched_res['num_iterations']} iters + greedy → "
+              f"{batched_res['trades_moved']} trades moved "
+              f"(phase1 ${batched_res['phase1_im']:,.0f}, greedy ${batched_res['greedy_im']:,.0f})")
+        return speedup
 
+    # --- AADC Python ---
+    if AADC_AVAILABLE:
+        grad_fn = _make_aadc_grad_fn(ctx)
+
+        print(f"\n  {'='*60}")
+        print(f"  AADC Python")
+        print(f"  {'='*60}")
+
+        print(f"  Running serial {method} + greedy...")
+        serial_res = _run_pipeline("AADC", grad_fn, is_serial=True)
+
+        print(f"  Running batched {method} (ls_candidates={ls_candidates}) + greedy...")
+        batched_res = _run_pipeline("AADC", grad_fn, is_serial=False)
+
+        speedup = _print_backend_results("AADC Py", serial_res, batched_res)
         results["aadc"] = {
             "serial": serial_res, "batched": batched_res, "speedup": speedup,
         }
@@ -232,41 +278,13 @@ def run_benchmark(
         print(f"  GPU (CUDA)")
         print(f"  {'='*60}")
 
-        # Serial
-        print(f"  Running serial {method}...")
-        serial_res = optimize_allocation(
-            S, allocation, grad_fn,
-            max_iters=optimize_iters, verbose=False, label="GPU serial",
-            method=method,
-        )
-        serial_reduction = (serial_res['initial_im'] - serial_res['final_im']) / serial_res['initial_im'] * 100
+        print(f"  Running serial {method} + greedy...")
+        serial_res = _run_pipeline("GPU", grad_fn, is_serial=True)
 
-        # Batched
-        print(f"  Running batched {method} (ls_candidates={ls_candidates})...")
-        batched_res = optimize_allocation_batched(
-            S, allocation, grad_fn,
-            max_iters=optimize_iters, verbose=False, label="GPU batched",
-            method=method, ls_candidates=ls_candidates,
-        )
-        batched_reduction = (batched_res['initial_im'] - batched_res['final_im']) / batched_res['initial_im'] * 100
+        print(f"  Running batched {method} (ls_candidates={ls_candidates}) + greedy...")
+        batched_res = _run_pipeline("GPU", grad_fn, is_serial=False)
 
-        speedup = serial_res['eval_time'] / batched_res['eval_time'] if batched_res['eval_time'] > 0 else 0
-
-        print(f"\n  {'Method':<20} {'Eval Time':>12} {'Evals':>7} {'Final IM':>18} {'Reduction':>10}")
-        print(f"  {'-'*20} {'-'*12} {'-'*7} {'-'*18} {'-'*10}")
-        print(f"  {'Serial ' + method:<20} {_fmt_time(serial_res['eval_time']):>12} "
-              f"{serial_res['num_evals']:>7} ${serial_res['final_im']:>16,.0f} "
-              f"{serial_reduction:>9.1f}%")
-        print(f"  {'Batched ' + method:<20} {_fmt_time(batched_res['eval_time']):>12} "
-              f"{batched_res['num_evals']:>7} ${batched_res['final_im']:>16,.0f} "
-              f"{batched_reduction:>9.1f}%")
-        print(f"\n  Speedup: {speedup:.2f}x")
-        print(f"  Serial:  {serial_res['num_iterations']} iters, "
-              f"{serial_res['trades_moved']} trades moved")
-        print(f"  Batched: {batched_res['num_iterations']} iters, "
-              f"{batched_res['trades_moved']} trades moved, "
-              f"{batched_res['num_ls_evals']} LS batch calls")
-
+        speedup = _print_backend_results("GPU", serial_res, batched_res)
         results["gpu"] = {
             "serial": serial_res, "batched": batched_res, "speedup": speedup,
         }
