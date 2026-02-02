@@ -25,7 +25,7 @@ Usage:
 Version: 2.7.0
 """
 
-MODEL_VERSION = "2.7.0"
+MODEL_VERSION = "2.8.0"
 
 import sys
 import os
@@ -329,15 +329,43 @@ def _run_cpp_mode(mode, num_trades, num_portfolios, num_threads, seed,
         return None
 
 
+def _parse_cpp_optimize_section(stdout, recording_ms):
+    """Parse the [OPTIMIZE] section from C++ --mode all output."""
+    opt_section = re.search(r"\[OPTIMIZE\](.*?)(?:Recording time:|$)", stdout, re.DOTALL)
+    if not opt_section:
+        return None
+    s = opt_section.group(1)
+    parsed = {"recording_time_ms": recording_ms}
+    m = re.search(r"Initial IM:\s+\$([\d,.]+)", s)
+    if m: parsed["initial_im"] = float(m.group(1).replace(",", ""))
+    finals = re.findall(r"Final IM:\s+\$([\d,.]+)", s)
+    if finals: parsed["final_im"] = float(finals[-1].replace(",", ""))
+    moved_all = re.findall(r"Trades moved:\s+(\d+)", s)
+    if moved_all: parsed["trades_moved"] = int(moved_all[-1])
+    m = re.search(r"Iterations:\s+(\d+)", s)
+    if m: parsed["iterations"] = int(m.group(1))
+    m = re.search(r"Optimization eval:\s+([\d.]+)\s*ms", s)
+    if m: parsed["optimization_eval_ms"] = float(m.group(1))
+    m = re.search(r"Optimization wall:\s+([\d.]+)\s*ms", s)
+    if m: parsed["optimization_wall_ms"] = float(m.group(1))
+    return parsed
+
+
 def _run_all_cpp_modes(num_trades, num_portfolios, num_threads, optimize_iters,
-                       seed=42, input_dir=None):
-    """Run C++ AADC binary in --mode all (single process, shared import/kernel)."""
+                       seed=42, input_dir=None, optimize_methods=None):
+    """Run C++ AADC binary in --mode all for each optimization method.
+
+    First run (gradient_descent): parses all sections (attribution, whatif,
+    pretrade, optimize). Subsequent runs (adam, etc.): only parse optimize.
+    The ``optimize`` key in the returned dict maps method name to parsed results.
+    """
     if not CPP_AVAILABLE:
         return {}
 
-    print("\n  Running C++ AADC backend (single process, --mode all)...")
+    if optimize_methods is None:
+        optimize_methods = ["gradient_descent", "adam"]
 
-    cmd = [
+    base_cmd = [
         CPP_BINARY,
         "--trades", str(num_trades),
         "--portfolios", str(num_portfolios),
@@ -347,120 +375,111 @@ def _run_all_cpp_modes(num_trades, num_portfolios, num_threads, optimize_iters,
         "--max-iters", str(optimize_iters),
     ]
     if input_dir:
-        cmd.extend(["--input-dir", input_dir])
+        base_cmd.extend(["--input-dir", input_dir])
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if result.returncode != 0:
-            print(f"    C++ all mode failed (exit code {result.returncode})")
-            if result.stderr:
-                print(f"      stderr: {result.stderr[:300]}")
-            return {}
+    cpp_results = {}
+    recording_ms = 0
 
-        stdout = result.stdout
-        cpp_results = {}
+    for i, method in enumerate(optimize_methods):
+        is_primary = (i == 0)
+        cmd = base_cmd + ["--method", method]
+        label = f"--mode all --method {method}"
+        print(f"\n  Running C++ AADC backend ({label})...")
 
-        # Parse recording time (shared across all modes)
-        m = re.search(r"Recording time:\s+([\d.]+)\s*ms", stdout)
-        recording_ms = float(m.group(1)) if m else 0
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if result.returncode != 0:
+                print(f"    C++ {method} failed (exit code {result.returncode})")
+                if result.stderr:
+                    print(f"      stderr: {result.stderr[:300]}")
+                continue
 
-        m = re.search(r"Total wall time:\s+([\d.]+)\s*ms", stdout)
-        total_wall_ms = float(m.group(1)) if m else 0
+            stdout = result.stdout
 
-        # Parse [ATTRIBUTION] section
-        attr_section = re.search(r"\[ATTRIBUTION\](.*?)\[WHATIF\]", stdout, re.DOTALL)
-        if attr_section:
-            s = attr_section.group(1)
-            parsed = {"recording_time_ms": recording_ms}
-            m = re.search(r"Total IM:\s+\$([\d,.]+)", s)
-            if m: parsed["total_im"] = float(m.group(1).replace(",", ""))
-            m = re.search(r"Euler check \(ratio\):\s+([\d.]+)", s)
-            if m: parsed["euler_ratio"] = float(m.group(1))
-            m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
-            if m: parsed["eval_time_ms"] = float(m.group(1))
-            cpp_results["attribution"] = parsed
-            print(f"    attribution: {parsed.get('eval_time_ms', 0):.2f} ms eval")
+            m = re.search(r"Recording time:\s+([\d.]+)\s*ms", stdout)
+            run_recording_ms = float(m.group(1)) if m else 0
 
-        # Parse [WHATIF] section
-        wi_section = re.search(r"\[WHATIF\](.*?)\[PRETRADE\]", stdout, re.DOTALL)
-        if wi_section:
-            s = wi_section.group(1)
-            parsed = {"recording_time_ms": recording_ms, "scenarios": {}}
-            m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
-            if m: parsed["eval_time_ms"] = float(m.group(1))
-            m = re.search(r"Marginal IM:\s+\$([\d,.]+)", s)
-            if m: parsed["marginal_im"] = float(m.group(1).replace(",", ""))
-            # Unwind scenario
-            m = re.search(r"Unwind top \d+: Base=\$([\d,.]+)\s+Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
-            if m:
-                parsed["scenarios"]["unwind"] = {
-                    "base_im": float(m.group(1).replace(",", "")),
-                    "scenario_im": float(m.group(2).replace(",", "")),
-                    "change_pct": float(m.group(3)),
-                }
-            # Stress IR
-            m = re.search(r"Stress IR [\d.]+x: Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
-            if m:
-                parsed["scenarios"]["stress_ir"] = {
-                    "scenario_im": float(m.group(1).replace(",", "")),
-                    "change_pct": float(m.group(2)),
-                }
-            # Stress Equity
-            m = re.search(r"Stress Equity [\d.]+x: Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
-            if m:
-                parsed["scenarios"]["stress_eq"] = {
-                    "scenario_im": float(m.group(1).replace(",", "")),
-                    "change_pct": float(m.group(2)),
-                }
-            cpp_results["whatif"] = parsed
-            print(f"    whatif: {parsed.get('eval_time_ms', 0):.2f} ms eval")
+            m = re.search(r"Total wall time:\s+([\d.]+)\s*ms", stdout)
+            total_wall_ms = float(m.group(1)) if m else 0
 
-        # Parse [PRETRADE] section
-        pt_section = re.search(r"\[PRETRADE\](.*?)\[OPTIMIZE\]", stdout, re.DOTALL)
-        if pt_section:
-            s = pt_section.group(1)
-            parsed = {"recording_time_ms": recording_ms}
-            m = re.search(r"Best portfolio:\s+(\d+)", s)
-            if m: parsed["best_portfolio"] = int(m.group(1))
-            m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
-            if m: parsed["routing_eval_ms"] = float(m.group(1))
-            cpp_results["pretrade"] = parsed
-            print(f"    pretrade: {parsed.get('routing_eval_ms', 0):.2f} ms eval")
+            # Only parse non-optimize sections from the primary run
+            if is_primary:
+                recording_ms = run_recording_ms
 
-        # Parse [OPTIMIZE] section
-        opt_section = re.search(r"\[OPTIMIZE\](.*?)(?:Recording time:|$)", stdout, re.DOTALL)
-        if opt_section:
-            s = opt_section.group(1)
-            parsed = {"recording_time_ms": recording_ms}
-            m = re.search(r"Initial IM:\s+\$([\d,.]+)", s)
-            if m: parsed["initial_im"] = float(m.group(1).replace(",", ""))
-            # Use findall to get the LAST occurrence (summary line, not sub-optimizer)
-            finals = re.findall(r"Final IM:\s+\$([\d,.]+)", s)
-            if finals: parsed["final_im"] = float(finals[-1].replace(",", ""))
-            moved_all = re.findall(r"Trades moved:\s+(\d+)", s)
-            if moved_all: parsed["trades_moved"] = int(moved_all[-1])
-            m = re.search(r"Iterations:\s+(\d+)", s)
-            if m: parsed["iterations"] = int(m.group(1))
-            m = re.search(r"Optimization eval:\s+([\d.]+)\s*ms", s)
-            if m: parsed["optimization_eval_ms"] = float(m.group(1))
-            m = re.search(r"Optimization wall:\s+([\d.]+)\s*ms", s)
-            if m: parsed["optimization_wall_ms"] = float(m.group(1))
-            cpp_results["optimize"] = parsed
-            wall = parsed.get('optimization_wall_ms', parsed.get('optimization_eval_ms', 0))
-            kern = parsed.get('optimization_eval_ms', 0)
-            print(f"    optimize: {wall:.2f} ms wall ({kern:.2f} ms kernel eval)")
+                attr_section = re.search(r"\[ATTRIBUTION\](.*?)\[WHATIF\]", stdout, re.DOTALL)
+                if attr_section:
+                    s = attr_section.group(1)
+                    parsed = {"recording_time_ms": recording_ms}
+                    m = re.search(r"Total IM:\s+\$([\d,.]+)", s)
+                    if m: parsed["total_im"] = float(m.group(1).replace(",", ""))
+                    m = re.search(r"Euler check \(ratio\):\s+([\d.]+)", s)
+                    if m: parsed["euler_ratio"] = float(m.group(1))
+                    m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
+                    if m: parsed["eval_time_ms"] = float(m.group(1))
+                    cpp_results["attribution"] = parsed
+                    print(f"    attribution: {parsed.get('eval_time_ms', 0):.2f} ms eval")
 
-        print(f"    Total wall time: {total_wall_ms:.1f} ms "
-              f"(import+recording+all evals in ONE process)")
+                wi_section = re.search(r"\[WHATIF\](.*?)\[PRETRADE\]", stdout, re.DOTALL)
+                if wi_section:
+                    s = wi_section.group(1)
+                    parsed = {"recording_time_ms": recording_ms, "scenarios": {}}
+                    m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
+                    if m: parsed["eval_time_ms"] = float(m.group(1))
+                    m = re.search(r"Marginal IM:\s+\$([\d,.]+)", s)
+                    if m: parsed["marginal_im"] = float(m.group(1).replace(",", ""))
+                    m = re.search(r"Unwind top \d+: Base=\$([\d,.]+)\s+Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
+                    if m:
+                        parsed["scenarios"]["unwind"] = {
+                            "base_im": float(m.group(1).replace(",", "")),
+                            "scenario_im": float(m.group(2).replace(",", "")),
+                            "change_pct": float(m.group(3)),
+                        }
+                    m = re.search(r"Stress IR [\d.]+x: Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
+                    if m:
+                        parsed["scenarios"]["stress_ir"] = {
+                            "scenario_im": float(m.group(1).replace(",", "")),
+                            "change_pct": float(m.group(2)),
+                        }
+                    m = re.search(r"Stress Equity [\d.]+x: Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
+                    if m:
+                        parsed["scenarios"]["stress_eq"] = {
+                            "scenario_im": float(m.group(1).replace(",", "")),
+                            "change_pct": float(m.group(2)),
+                        }
+                    cpp_results["whatif"] = parsed
+                    print(f"    whatif: {parsed.get('eval_time_ms', 0):.2f} ms eval")
 
-        return cpp_results
+                pt_section = re.search(r"\[PRETRADE\](.*?)\[OPTIMIZE\]", stdout, re.DOTALL)
+                if pt_section:
+                    s = pt_section.group(1)
+                    parsed = {"recording_time_ms": recording_ms}
+                    m = re.search(r"Best portfolio:\s+(\d+)", s)
+                    if m: parsed["best_portfolio"] = int(m.group(1))
+                    m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
+                    if m: parsed["routing_eval_ms"] = float(m.group(1))
+                    cpp_results["pretrade"] = parsed
+                    print(f"    pretrade: {parsed.get('routing_eval_ms', 0):.2f} ms eval")
 
-    except subprocess.TimeoutExpired:
-        print(f"    C++ all mode timed out (600s)")
-        return {}
-    except Exception as e:
-        print(f"    C++ all mode error: {e}")
-        return {}
+            # Parse [OPTIMIZE] for every method
+            parsed = _parse_cpp_optimize_section(stdout, run_recording_ms)
+            if parsed:
+                parsed["method"] = method
+                if "optimize" not in cpp_results:
+                    cpp_results["optimize"] = {}
+                cpp_results["optimize"][method] = parsed
+                wall = parsed.get('optimization_wall_ms', parsed.get('optimization_eval_ms', 0))
+                kern = parsed.get('optimization_eval_ms', 0)
+                print(f"    optimize ({method}): {wall:.2f} ms wall ({kern:.2f} ms kernel eval)")
+
+            print(f"    Total wall time: {total_wall_ms:.1f} ms"
+                  + (" (import+recording+all evals in ONE process)" if is_primary else ""))
+
+        except subprocess.TimeoutExpired:
+            print(f"    C++ {method} timed out (600s)")
+        except Exception as e:
+            print(f"    C++ {method} error: {e}")
+
+    return cpp_results
 
 
 def _apply_cpp_results(steps, economics, cpp_results):
@@ -477,8 +496,10 @@ def _apply_cpp_results(steps, economics, cpp_results):
     if "attribution" in cpp_results:
         rec_ms = cpp_results["attribution"].get("recording_time_ms", 0)
     elif "optimize" in cpp_results:
-        rec_ms = cpp_results["optimize"].get("recording_time_ms",
-                  cpp_results["optimize"].get("kernel_recording_ms", 0))
+        # optimize is now a dict keyed by method name
+        first_opt = next(iter(cpp_results["optimize"].values()), {})
+        rec_ms = first_opt.get("recording_time_ms",
+                  first_opt.get("kernel_recording_ms", 0))
     economics.cpp_recording_time_sec = rec_ms / 1000.0
 
     if "attribution" in cpp_results:
@@ -504,30 +525,29 @@ def _apply_cpp_results(steps, economics, cpp_results):
         r = cpp_results["whatif"]
         eval_ms = r.get("eval_time_ms", 0)
         if eval_ms == 0:
-            # Fallback: estimate from total wall time minus setup overhead
             total_ms = r.get("total_wall_time_ms", 0)
             setup_ms = r.get("recording_time_ms", 0) + r.get("crif_time_ms", 0)
             eval_ms = max(0, total_ms - setup_ms)
         s4.cpp_time_sec = eval_ms / 1000.0
         s4.cpp_evals = 4  # unwind + stress_ir + stress_eq + marginal
 
-    # Step 5 (Optimization): C++ uses GD — apply to matching EOD step
+    # Step 5 (Optimization): apply each C++ method result to matching EOD step
     if "optimize" in cpp_results:
-        r = cpp_results["optimize"]
-        opt_ms = r.get("optimization_wall_ms", r.get("optimization_eval_ms", 0))
-        iters = r.get("iterations", 0)
-        # Find the GD EOD step (C++ uses gradient_descent)
-        target = None
-        for es in eod_steps:
-            if es.details.get("method") == "gradient_descent":
-                target = es
-                break
-        if target is None and eod_steps:
-            target = eod_steps[0]  # fallback to first EOD step
-        if target is not None:
-            target.cpp_time_sec = opt_ms / 1000.0
-            target.cpp_evals = iters + 2  # init eval + iterations + final eval
-            target.details["cpp"] = cpp_results["optimize"]
+        opt_by_method = cpp_results["optimize"]  # dict: method_name -> parsed
+        for method_name, r in opt_by_method.items():
+            opt_ms = r.get("optimization_wall_ms", r.get("optimization_eval_ms", 0))
+            iters = r.get("iterations", 0)
+            target = None
+            for es in eod_steps:
+                if es.details.get("method") == method_name:
+                    target = es
+                    break
+            if target is None and eod_steps and len(opt_by_method) == 1:
+                target = eod_steps[0]  # single-method fallback
+            if target is not None:
+                target.cpp_time_sec = opt_ms / 1000.0
+                target.cpp_evals = iters + 2  # init eval + iterations + final eval
+                target.details["cpp"] = r
 
     # Store raw C++ parsed results in step details for comparison output
     if "attribution" in cpp_results:
@@ -2503,8 +2523,9 @@ def run_trading_workflow(
     print(f"  Trades: {num_trades:<12} Portfolios: {num_portfolios}")
     print(f"  Types:  {','.join(trade_types):<12} Threads: {num_threads}")
     excluded = exclude or []
-    methods_run = [m for m in ['gradient_descent', 'adam', 'gpu_brute_force'] if m not in excluded]
-    print(f"  New trades: {num_new_trades:<8} Optimize iters: {optimize_iters}  Methods: {', '.join(methods_run)}")
+    optimizers = [m for m in ['gradient_descent', 'adam'] if m not in excluded]
+    opt_label = ', '.join(optimizers) + (' + brute_force' if 'gpu_brute_force' not in excluded else '')
+    print(f"  New trades: {num_new_trades:<8} Optimize iters: {optimize_iters}  Optimizer: {opt_label}")
     print(f"  AADC: {'Available' if AADC_AVAILABLE else 'NOT available':<12} "
           f"CUDA: {'Available' if CUDA_AVAILABLE else 'NOT available':<12} "
           f"C++: {'Available' if CPP_AVAILABLE else 'NOT available'}")
@@ -2585,9 +2606,11 @@ def run_trading_workflow(
         _export_shared_data(ctx, shared_data_dir)
         print(f"\n  Exported shared data to {shared_data_dir} for C++ backend")
 
+        # C++ supports GD and Adam; filter by exclude list
+        cpp_opt_methods = [m for m in ["gradient_descent", "adam"] if m not in excluded]
         cpp_results = _run_all_cpp_modes(
             num_trades, num_portfolios, num_threads, optimize_iters,
-            seed=42, input_dir=shared_data_dir
+            seed=42, input_dir=shared_data_dir, optimize_methods=cpp_opt_methods
         )
         _apply_cpp_results(steps, economics, cpp_results)
         if economics.cpp_recording_time_sec > 0:
@@ -2628,10 +2651,12 @@ def main():
     parser.add_argument('--optimize-iters', type=int, default=100)
     parser.add_argument('--simm-buckets', type=int, default=3)
     parser.add_argument('--refresh-interval', type=int, default=10)
-    parser.add_argument('--exclude', nargs='*',
-                        choices=['gradient_descent', 'adam', 'gpu_brute_force'],
-                        default=[],
-                        help='Optimization methods to skip in EOD step (default: run all)')
+    parser.add_argument('--optimizer', nargs='*',
+                        choices=['gradient_descent', 'adam'],
+                        default=['adam'],
+                        help='Optimizer(s) for EOD step (default: adam). '
+                             'Pass both for side-by-side comparison. '
+                             'GPU brute-force always runs separately.')
     parser.add_argument('--output', '-o', type=str, default='auto',
                         help='Save console output to file (default: auto-generated in data/). Use "none" to disable.')
     parser.add_argument('--quiet', '-q', action='store_true')
@@ -2648,6 +2673,10 @@ def main():
     else:
         output_file = args.output
 
+    # Convert --optimizer to exclude list (brute force always runs)
+    all_opt_methods = ['gradient_descent', 'adam']
+    exclude = [m for m in all_opt_methods if m not in args.optimizer]
+
     cmd_parts = ["python benchmark_trading_workflow.py"]
     cmd_parts.append(f"--trades {args.trades}")
     cmd_parts.append(f"--portfolios {args.portfolios}")
@@ -2656,8 +2685,8 @@ def main():
     cmd_parts.append(f"--threads {args.threads}")
     cmd_parts.append(f"--new-trades {args.new_trades}")
     cmd_parts.append(f"--optimize-iters {args.optimize_iters}")
-    if args.exclude:
-        cmd_parts.append(f"--exclude {' '.join(args.exclude)}")
+    if args.optimizer != ['adam']:
+        cmd_parts.append(f"--optimizer {' '.join(args.optimizer)}")
     command_str = ' '.join(cmd_parts)
 
     run_trading_workflow(
@@ -2671,7 +2700,7 @@ def main():
         refresh_interval=args.refresh_interval,
         verbose=not args.quiet,
         command_str=command_str,
-        exclude=args.exclude,
+        exclude=exclude,
         output_file=output_file,
     )
 

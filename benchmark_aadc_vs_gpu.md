@@ -334,3 +334,95 @@ In these runs, the optimizer converged in only 2 iterations with 0 trades moved 
 ### Recommendation
 
 For production use, the serial line search with Armijo early exit remains the better default. Batched line search is beneficial specifically for GPU workloads with small portfolio counts (P < 10) where kernel launch latency is the bottleneck.
+
+---
+
+## Trading Day Workflow: 4-Backend Benchmark (2026-02-02)
+
+### Overview
+
+The trading workflow (`benchmark_trading_workflow.py` v2.8.0) simulates a full trading day in 5 steps, with up to 4 compute backends measured per step:
+
+| Backend | Code | Description |
+|---------|------|-------------|
+| **AADC Python** | `aadc_full` | Python AADC kernel: single `aadc.evaluate()` for all P portfolios, gradient via adjoint |
+| **GPU CUDA** | `gpu_full` | Numba CUDA kernel: handwritten SIMM + analytical gradient |
+| **Brute-Force GPU** | `bf_gpu` | Forward-only CUDA kernel: no gradients, enumerates candidates |
+| **C++ AADC** | `cpp_aadc` | C++ binary (`build/simm_optimizer`): AADC SDK with OpenMP threading |
+
+### Workflow Steps
+
+| Step | Name | Time | What it does | Backends |
+|------|------|------|-------------|----------|
+| 1 | Portfolio Setup | 9:00 AM | Compute IM for initial allocation | AADC, GPU, BF, C++ |
+| 2 | Margin Attribution | 10:00 AM | Euler-allocated IM contribution per trade | AADC, GPU, BF, C++ |
+| 3 | Pre-Trade Routing | 1:00 PM | Route new trades to best counterparty | AADC, GPU, BF, C++ |
+| 4 | What-If Scenarios | 3:00 PM | Unwind, stress IR/EQ, marginal IM | AADC, GPU, BF, C++ |
+| 5 | EOD Optimization | 5:00 PM | Reallocate trades to minimize total IM | Per method (see below) |
+
+### EOD Optimization Methods
+
+Step 5 runs up to 3 optimization methods (controlled by `--exclude`):
+
+| Method | Step Name | Phase 1 | Phase 2 | Backends |
+|--------|-----------|---------|---------|----------|
+| `gradient_descent` | EOD: GD | Continuous GD with Armijo line search | Greedy local search | AADC, GPU, C++ |
+| `adam` | EOD: Adam | Adam optimizer (β1=0.9, β2=0.999) | Greedy local search | AADC, GPU, C++ |
+| `gpu_brute_force` | EOD: Brute-Force | Enumerate all T×(P-1) single-trade moves | Accept best per round | BF |
+
+### Brute-Force Implementation Per Step
+
+| Step | BF Approach | GPU Launches | Complexity |
+|------|-------------|-------------|------------|
+| 1 (Setup) | Forward-only IM eval | 1 | O(P×K²) |
+| 2 (Attribution) | Bump-and-revalue: remove each trade, recompute IM | 1 (batched) | O(T×K²) |
+| 3 (Pre-Trade) | Try all P portfolios for each new trade | 2 per trade | O(N×P×K²) |
+| 4 (What-If) | Forward-only scenario evaluation | 1 per scenario | O(S×K²) |
+| 5 (Brute-Force) | Evaluate all T×(P-1) single-trade moves per round | 1 per round | O(R×T×P×K²) |
+
+### CSV Logging
+
+Each run produces rows in `data/execution_log_portfolio.csv`. Row count per run:
+- Steps 1-4: up to 4 rows each (aadc, gpu, bf, cpp — only if backend ran)
+- EOD GD: 3 rows (aadc, gpu, cpp)
+- EOD Adam: 3 rows (aadc, gpu, cpp)
+- EOD Brute-Force: 1 row (bf)
+- **Total: up to 23 rows per run** (22 without exclusions on a machine with all backends)
+
+### C++ AADC Backend
+
+The C++ binary (`build/simm_optimizer`) supports both GD and Adam optimization via `--method`. The Python workflow invokes it with `--mode all` for each method:
+
+1. **GD run**: `simm_optimizer --mode all --method gradient_descent --input-dir <shared_data>` — parses attribution, whatif, pretrade, and GD optimize
+2. **Adam run**: `simm_optimizer --mode all --method adam --input-dir <shared_data>` — only optimize section used (attribution/whatif/pretrade identical)
+
+Both runs share the same exported sensitivity matrix and allocation from the Python workflow (`data/shared_benchmark_data/`), ensuring apples-to-apples comparison.
+
+### C++ Adam Optimizer (`allocation_optimizer.h`)
+
+The C++ Adam implementation (lines 604-733) uses:
+- Hyperparameters: β1=0.9, β2=0.999, ε=1e-8
+- Bias-corrected moments: m̂ = m/(1-β1^t), v̂ = v/(1-β2^t)
+- Adaptive step: lr × m̂ / (√v̂ + ε)
+- Backtracking line search on final step (β=0.5, up to 10 retries)
+- Early stopping after 20 consecutive stalling iterations
+- Simplex projection per row (sum=1, all≥0)
+- Greedy refinement on integer allocation (top-k gradient-guided moves)
+
+### Usage
+
+```bash
+source venv/bin/activate
+
+# Default: all 3 methods, all backends
+python benchmark_trading_workflow.py --trades 1000 --portfolios 5
+
+# Exclude brute-force
+python benchmark_trading_workflow.py --trades 1000 --portfolios 5 --exclude gpu_brute_force
+
+# Exclude Adam and brute-force (GD only)
+python benchmark_trading_workflow.py --trades 1000 --portfolios 5 --exclude adam gpu_brute_force
+
+# Quick test with minimal output
+python benchmark_trading_workflow.py --trades 100 --portfolios 3 --output none
+```
