@@ -22,14 +22,15 @@ Usage:
     python benchmark_trading_workflow.py --trades 5000 --portfolios 10 \\
         --new-trades 50 --optimize-iters 100 --refresh-interval 10
 
-Version: 2.3.0
+Version: 2.5.0
 """
 
-MODEL_VERSION = "2.3.0"
+MODEL_VERSION = "2.5.0"
 
 import sys
 import os
 import re
+import io
 import time
 import argparse
 import subprocess
@@ -39,6 +40,25 @@ from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict
+
+
+class TeeWriter:
+    """Write to both stdout and a file simultaneously."""
+    def __init__(self, file_path):
+        self._stdout = sys.stdout
+        self._file = open(file_path, 'w')
+
+    def write(self, text):
+        self._stdout.write(text)
+        self._file.write(text)
+
+    def flush(self):
+        self._stdout.flush()
+        self._file.flush()
+
+    def close(self):
+        self._file.close()
+        sys.stdout = self._stdout
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -159,7 +179,7 @@ class KernelEconomics:
 # =============================================================================
 
 def _run_cpp_mode(mode, num_trades, num_portfolios, num_threads, seed,
-                  max_iters=100, extra_args=None):
+                  max_iters=100, extra_args=None, input_dir=None):
     """Run C++ AADC binary for a given mode and parse stdout for timing metrics."""
     if not CPP_AVAILABLE:
         return None
@@ -174,6 +194,8 @@ def _run_cpp_mode(mode, num_trades, num_portfolios, num_threads, seed,
         "--max-iters", str(max_iters),
         "--no-greedy",
     ]
+    if input_dir:
+        cmd.extend(["--input-dir", input_dir])
     if extra_args:
         cmd.extend(extra_args)
 
@@ -300,25 +322,137 @@ def _run_cpp_mode(mode, num_trades, num_portfolios, num_threads, seed,
 
 
 def _run_all_cpp_modes(num_trades, num_portfolios, num_threads, optimize_iters,
-                       seed=42):
-    """Run C++ AADC binary for all workflow modes and return parsed results."""
+                       seed=42, input_dir=None):
+    """Run C++ AADC binary in --mode all (single process, shared import/kernel)."""
     if not CPP_AVAILABLE:
         return {}
 
-    print("\n  Running C++ AADC backend...")
-    cpp_results = {}
+    print("\n  Running C++ AADC backend (single process, --mode all)...")
 
-    for mode, iters in [("attribution", 0), ("pretrade", 0),
-                         ("whatif", 0), ("optimize", optimize_iters)]:
-        mi = iters if mode == "optimize" else 100
-        cpp_res = _run_cpp_mode(mode, num_trades, num_portfolios, num_threads,
-                                seed=seed, max_iters=mi)
-        if cpp_res:
-            cpp_results[mode] = cpp_res
-            wall = cpp_res.get("total_wall_time_ms", 0)
-            print(f"    {mode}: {wall:.1f} ms total wall time")
+    cmd = [
+        CPP_BINARY,
+        "--trades", str(num_trades),
+        "--portfolios", str(num_portfolios),
+        "--threads", str(num_threads),
+        "--seed", str(seed),
+        "--mode", "all",
+        "--max-iters", str(optimize_iters),
+        "--no-greedy",
+    ]
+    if input_dir:
+        cmd.extend(["--input-dir", input_dir])
 
-    return cpp_results
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if result.returncode != 0:
+            print(f"    C++ all mode failed (exit code {result.returncode})")
+            if result.stderr:
+                print(f"      stderr: {result.stderr[:300]}")
+            return {}
+
+        stdout = result.stdout
+        cpp_results = {}
+
+        # Parse recording time (shared across all modes)
+        m = re.search(r"Recording time:\s+([\d.]+)\s*ms", stdout)
+        recording_ms = float(m.group(1)) if m else 0
+
+        m = re.search(r"Total wall time:\s+([\d.]+)\s*ms", stdout)
+        total_wall_ms = float(m.group(1)) if m else 0
+
+        # Parse [ATTRIBUTION] section
+        attr_section = re.search(r"\[ATTRIBUTION\](.*?)\[WHATIF\]", stdout, re.DOTALL)
+        if attr_section:
+            s = attr_section.group(1)
+            parsed = {"recording_time_ms": recording_ms}
+            m = re.search(r"Total IM:\s+\$([\d,.]+)", s)
+            if m: parsed["total_im"] = float(m.group(1).replace(",", ""))
+            m = re.search(r"Euler check \(ratio\):\s+([\d.]+)", s)
+            if m: parsed["euler_ratio"] = float(m.group(1))
+            m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
+            if m: parsed["eval_time_ms"] = float(m.group(1))
+            cpp_results["attribution"] = parsed
+            print(f"    attribution: {parsed.get('eval_time_ms', 0):.2f} ms eval")
+
+        # Parse [WHATIF] section
+        wi_section = re.search(r"\[WHATIF\](.*?)\[PRETRADE\]", stdout, re.DOTALL)
+        if wi_section:
+            s = wi_section.group(1)
+            parsed = {"recording_time_ms": recording_ms, "scenarios": {}}
+            m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
+            if m: parsed["eval_time_ms"] = float(m.group(1))
+            m = re.search(r"Marginal IM:\s+\$([\d,.]+)", s)
+            if m: parsed["marginal_im"] = float(m.group(1).replace(",", ""))
+            # Unwind scenario
+            m = re.search(r"Unwind top \d+: Base=\$([\d,.]+)\s+Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
+            if m:
+                parsed["scenarios"]["unwind"] = {
+                    "base_im": float(m.group(1).replace(",", "")),
+                    "scenario_im": float(m.group(2).replace(",", "")),
+                    "change_pct": float(m.group(3)),
+                }
+            # Stress IR
+            m = re.search(r"Stress IR [\d.]+x: Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
+            if m:
+                parsed["scenarios"]["stress_ir"] = {
+                    "scenario_im": float(m.group(1).replace(",", "")),
+                    "change_pct": float(m.group(2)),
+                }
+            # Stress Equity
+            m = re.search(r"Stress Equity [\d.]+x: Scenario=\$([\d,.]+)\s+\(([\d.+-]+)%\)", s)
+            if m:
+                parsed["scenarios"]["stress_eq"] = {
+                    "scenario_im": float(m.group(1).replace(",", "")),
+                    "change_pct": float(m.group(2)),
+                }
+            cpp_results["whatif"] = parsed
+            print(f"    whatif: {parsed.get('eval_time_ms', 0):.2f} ms eval")
+
+        # Parse [PRETRADE] section
+        pt_section = re.search(r"\[PRETRADE\](.*?)\[OPTIMIZE\]", stdout, re.DOTALL)
+        if pt_section:
+            s = pt_section.group(1)
+            parsed = {"recording_time_ms": recording_ms}
+            m = re.search(r"Best portfolio:\s+(\d+)", s)
+            if m: parsed["best_portfolio"] = int(m.group(1))
+            m = re.search(r"Eval time:\s+([\d.]+)\s*ms", s)
+            if m: parsed["routing_eval_ms"] = float(m.group(1))
+            cpp_results["pretrade"] = parsed
+            print(f"    pretrade: {parsed.get('routing_eval_ms', 0):.2f} ms eval")
+
+        # Parse [OPTIMIZE] section
+        opt_section = re.search(r"\[OPTIMIZE\](.*?)(?:Recording time:|$)", stdout, re.DOTALL)
+        if opt_section:
+            s = opt_section.group(1)
+            parsed = {"recording_time_ms": recording_ms}
+            m = re.search(r"Initial IM:\s+\$([\d,.]+)", s)
+            if m: parsed["initial_im"] = float(m.group(1).replace(",", ""))
+            m = re.search(r"Final IM:\s+\$([\d,.]+)", s)
+            if m: parsed["final_im"] = float(m.group(1).replace(",", ""))
+            m = re.search(r"Trades moved:\s+(\d+)", s)
+            if m: parsed["trades_moved"] = int(m.group(1))
+            m = re.search(r"Iterations:\s+(\d+)", s)
+            if m: parsed["iterations"] = int(m.group(1))
+            m = re.search(r"Optimization eval:\s+([\d.]+)\s*ms", s)
+            if m: parsed["optimization_eval_ms"] = float(m.group(1))
+            m = re.search(r"Optimization wall:\s+([\d.]+)\s*ms", s)
+            if m: parsed["optimization_wall_ms"] = float(m.group(1))
+            cpp_results["optimize"] = parsed
+            wall = parsed.get('optimization_wall_ms', parsed.get('optimization_eval_ms', 0))
+            kern = parsed.get('optimization_eval_ms', 0)
+            print(f"    optimize: {wall:.2f} ms wall ({kern:.2f} ms kernel eval)")
+
+        print(f"    Total wall time: {total_wall_ms:.1f} ms "
+              f"(import+recording+all evals in ONE process)")
+
+        return cpp_results
+
+    except subprocess.TimeoutExpired:
+        print(f"    C++ all mode timed out (600s)")
+        return {}
+    except Exception as e:
+        print(f"    C++ all mode error: {e}")
+        return {}
 
 
 def _apply_cpp_results(steps, economics, cpp_results):
@@ -368,13 +502,26 @@ def _apply_cpp_results(steps, economics, cpp_results):
         s4.cpp_time_sec = eval_ms / 1000.0
         s4.cpp_evals = 4  # unwind + stress_ir + stress_eq + marginal
 
-    # Step 5 (Optimization): C++ optimization eval time
+    # Step 5 (Optimization): C++ optimization wall time (apples-to-apples with Python)
     if "optimize" in cpp_results:
         r = cpp_results["optimize"]
-        opt_ms = r.get("optimization_eval_ms", 0)
+        # Use wall time (includes projection, matmuls, line search) for fair comparison
+        # Fall back to eval-only time if wall not available
+        opt_ms = r.get("optimization_wall_ms", r.get("optimization_eval_ms", 0))
         s5.cpp_time_sec = opt_ms / 1000.0
         iters = r.get("iterations", 0)
         s5.cpp_evals = iters + 2  # init eval + iterations + final eval
+
+    # Store raw C++ parsed results in step details for comparison output
+    if "attribution" in cpp_results:
+        s1.details["cpp"] = cpp_results["attribution"]
+        s2.details["cpp"] = cpp_results["attribution"]  # Attribution step uses same data
+    if "pretrade" in cpp_results:
+        s3.details["cpp"] = cpp_results["pretrade"]
+    if "whatif" in cpp_results:
+        s4.details["cpp"] = cpp_results["whatif"]
+    if "optimize" in cpp_results:
+        s5.details["cpp"] = cpp_results["optimize"]
 
     # Update economics totals
     for s in steps:
@@ -406,10 +553,11 @@ def setup_portfolio_and_kernel(
     trade_crifs = precompute_all_trade_crifs(trades, market, num_threads, workers)
     crif_time = time.perf_counter() - crif_start
 
-    # Build sensitivity matrix
+    # Build sensitivity matrix (only trades with CRIF entries)
     risk_factors = _get_unique_risk_factors(trade_crifs)
     trade_ids = sorted(trade_crifs.keys())
     S = _build_sensitivity_matrix(trade_crifs, trade_ids, risk_factors)
+    T = len(trade_ids)  # May be < len(trades) if some trades produce no CRIF
     K = len(risk_factors)
 
     # Risk weights, risk class indices, and risk measure indices
@@ -607,6 +755,73 @@ def setup_portfolio_and_kernel(
         "T": T, "P": P, "K": K, "B": B, "num_threads": num_threads,
         "crif_time": crif_time, "active_corrs": active_corrs,
     }
+
+
+# =============================================================================
+# Data Export for C++ Backend (apples-to-apples comparison)
+# =============================================================================
+
+TENOR_LABEL_TO_IDX = {
+    "2w": 0, "1m": 1, "3m": 2, "6m": 3, "1y": 4, "2y": 5,
+    "3y": 6, "5y": 7, "10y": 8, "15y": 9, "20y": 10, "30y": 11,
+}
+
+
+def _export_shared_data(ctx, output_dir):
+    """
+    Export sensitivity matrix, factor metadata, allocation, and trade IDs
+    to CSV files for consumption by the C++ AADC backend.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    S = ctx["S"]
+    T, K = S.shape
+    risk_factors = ctx["risk_factors"]
+    factor_metadata = ctx["factor_metadata"]
+    trade_ids = ctx["trade_ids"]
+    allocation = ctx["initial_allocation"]
+    P = allocation.shape[1]
+
+    # 1. sensitivity_matrix.csv
+    with open(os.path.join(output_dir, "sensitivity_matrix.csv"), "w") as f:
+        f.write(f"{T},{K}\n")
+        for t in range(T):
+            f.write(",".join(f"{S[t,k]:.15g}" for k in range(K)) + "\n")
+
+    # 2. risk_factors.csv
+    with open(os.path.join(output_dir, "risk_factors.csv"), "w") as f:
+        f.write("risk_type,qualifier,bucket,label1\n")
+        for rt, qualifier, bucket, label1 in risk_factors:
+            bstr = str(bucket) if bucket else "0"
+            f.write(f"{rt},{qualifier},{bstr},{label1}\n")
+
+    # 3. factor_metadata.csv
+    with open(os.path.join(output_dir, "factor_metadata.csv"), "w") as f:
+        f.write("risk_class,risk_measure,risk_type,qualifier,bucket,label1,"
+                "tenor_idx,weight,cr,bucket_key\n")
+        for fm in factor_metadata:
+            rc_name = fm.risk_class
+            rm_name = "Vega" if fm.is_vega else "Delta"
+            bstr = str(fm.bucket) if fm.bucket else "0"
+            tenor_idx = -1
+            if fm.risk_type in ("Risk_IRCurve", "Risk_IRVol") and fm.label1:
+                tenor_idx = TENOR_LABEL_TO_IDX.get(fm.label1, -1)
+            f.write(f"{rc_name},{rm_name},{fm.risk_type},{fm.qualifier},"
+                    f"{bstr},{fm.label1},{tenor_idx},"
+                    f"{fm.weight:.15g},{fm.cr:.15g},{fm.bucket_key}\n")
+
+    # 4. allocation.csv
+    with open(os.path.join(output_dir, "allocation.csv"), "w") as f:
+        f.write(f"{T},{P}\n")
+        for t in range(T):
+            f.write(",".join(f"{allocation[t,p]:.15g}" for p in range(P)) + "\n")
+
+    # 5. trade_ids.csv
+    with open(os.path.join(output_dir, "trade_ids.csv"), "w") as f:
+        for tid in trade_ids:
+            f.write(f"{tid}\n")
+
+    return output_dir
 
 
 # =============================================================================
@@ -863,7 +1078,7 @@ def step1_portfolio_setup(ctx, verbose=True):
         _print_step_header(result)
         print(f"     CRIF computation (shared):   {ctx['crif_time']:.3f} s")
         if AADC_AVAILABLE:
-            print(f"     Kernel recording (1-time):   {ctx['rec_time']*1000:.2f} ms")
+            print(f"     AADC Py kernel recording:    {ctx['rec_time']*1000:.2f} ms")
         print(f"     Correlations: {ctx['active_corrs']} non-trivial pairs")
         cr = ctx["concentration_factors"]
         print(f"     Concentration: min={cr.min():.2f}, max={cr.max():.2f}")
@@ -1260,7 +1475,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, method="gradient_de
             print(f"     Trades moved: {opt['trades_moved']}, "
                   f"Iterations: {opt['num_iterations']}")
             if AADC_AVAILABLE:
-                print(f"     AADC: {result.aadc_evals} evals, "
+                print(f"     AADC Py: {result.aadc_evals} evals, "
                       f"all kernel reuse (0 re-recordings)")
 
     return result
@@ -1296,11 +1511,119 @@ def _print_step_times(result: StepResult):
             speedup = f"  (GPU {ratio:.1f}x faster)"
         else:
             speedup = f"  (AADC {1/ratio:.1f}x faster)"
-    line = f"     AADC: {aadc_str:<12}  GPU: {gpu_str:<12}"
+    line = f"     AADC Py: {aadc_str:<12}  GPU: {gpu_str:<12}"
     if result.cpp_time_sec is not None:
-        line += f"  C++: {cpp_str:<12}"
+        line += f"  C++ AADC: {cpp_str:<12}"
     line += speedup
     print(line)
+
+
+def _match_label(py_val, cpp_val, tol_pct=1.0):
+    """Return MATCH/DIFF label comparing two values. tol_pct is % tolerance."""
+    if py_val is None or cpp_val is None:
+        return ""
+    if py_val == 0 and cpp_val == 0:
+        return "MATCH"
+    ref = max(abs(py_val), abs(cpp_val), 1e-10)
+    diff_pct = abs(py_val - cpp_val) / ref * 100
+    if diff_pct < tol_pct:
+        return "MATCH"
+    return f"DIFF {diff_pct:.2f}%"
+
+
+def _fmt_im(val):
+    """Format IM value compactly."""
+    return f"${val:,.0f}"
+
+
+def print_cpp_vs_python_comparison(steps):
+    """Print per-step comparison of AADC Python vs C++ AADC key values."""
+    has_any = any("cpp" in s.details for s in steps)
+    if not has_any:
+        return
+
+    print("\n" + "=" * 78)
+    print("  AADC PYTHON vs C++ AADC — VALUE COMPARISON")
+    print("=" * 78)
+
+    s1, s2, s3, s4, s5 = steps
+
+    def _print_im_row(label, py_val, cpp_val):
+        """Print a row comparing IM values."""
+        py_s = _fmt_im(py_val) if py_val is not None else "N/A"
+        cpp_s = _fmt_im(cpp_val) if cpp_val is not None else "N/A"
+        ml = _match_label(py_val, cpp_val) if py_val is not None and cpp_val is not None else ""
+        print(f"    {label:<16} Py {py_s:>22}  |  C++ {cpp_s:>22}  [{ml}]")
+
+    # Step 1 / Step 2: Attribution (Total IM, Euler ratio)
+    cpp_attr = s2.details.get("cpp", {})
+    if cpp_attr:
+        print(f"\n  Step 1-2: Portfolio Setup / Margin Attribution")
+        print(f"  {'-' * 72}")
+        py_im = s1.details.get("total_im")
+        cpp_im = cpp_attr.get("total_im")
+        _print_im_row("Total IM:", py_im, cpp_im)
+        # Note: C++ attribution runs on single-portfolio aggregation,
+        # Python sums per-portfolio IMs, so DIFF is expected here.
+        if py_im and cpp_im and abs(py_im - cpp_im) / max(abs(py_im), 1e-10) > 0.01:
+            print(f"    {'':>16} (C++ attribution uses single-portfolio view; see EOD for full match)")
+
+        py_euler_sum = s2.details.get("euler_sum", 0)
+        py_euler_ratio = py_euler_sum / py_im if py_im and py_im > 0 else None
+        cpp_euler = cpp_attr.get("euler_ratio")
+        if py_euler_ratio is not None and cpp_euler is not None:
+            ml = _match_label(py_euler_ratio, cpp_euler)
+            print(f"    {'Euler ratio:':<16} Py {py_euler_ratio:>22.6f}  |  C++ {cpp_euler:>22.6f}  [{ml}]")
+
+    # Step 4: What-If Scenarios
+    cpp_wi = s4.details.get("cpp", {})
+    py_scenarios = s4.details.get("scenarios", {})
+    if cpp_wi and py_scenarios:
+        print(f"\n  Step 4: What-If Scenarios")
+        print(f"  {'-' * 72}")
+        # Stress IR (Python stress_50bp == C++ stress_ir, both scale rates by 1.5)
+        py_stress = py_scenarios.get("stress_50bp", {})
+        cpp_stress = cpp_wi.get("scenarios", {}).get("stress_ir", {})
+        if py_stress and cpp_stress:
+            _print_im_row("Stress IR:", py_stress.get("im"), cpp_stress.get("scenario_im"))
+
+        # Unwind top 5
+        py_unwind = py_scenarios.get("unwind_top5", {})
+        cpp_unwind = cpp_wi.get("scenarios", {}).get("unwind", {})
+        if py_unwind and cpp_unwind:
+            _print_im_row("Unwind top5:", py_unwind.get("im"), cpp_unwind.get("scenario_im"))
+
+        # Stress Equity
+        cpp_stress_eq = cpp_wi.get("scenarios", {}).get("stress_eq", {})
+        if cpp_stress_eq:
+            print(f"    {'Stress Equity:':<16} {'':>25}  |  C++ {_fmt_im(cpp_stress_eq.get('scenario_im', 0)):>22}")
+
+        # Marginal IM
+        cpp_marginal = cpp_wi.get("marginal_im")
+        if cpp_marginal is not None:
+            print(f"    {'Marginal IM:':<16} {'':>25}  |  C++ {_fmt_im(cpp_marginal):>22}")
+
+    # Step 5: EOD Optimization (apples-to-apples — both use same allocation matrix)
+    cpp_opt = s5.details.get("cpp", {})
+    if cpp_opt and s5.details.get("initial_im") is not None:
+        print(f"\n  Step 5: EOD Optimization (same allocation — apples-to-apples)")
+        print(f"  {'-' * 72}")
+        _print_im_row("Initial IM:", s5.details.get("initial_im"), cpp_opt.get("initial_im"))
+        _print_im_row("Final IM:", s5.details.get("final_im"), cpp_opt.get("final_im"))
+
+        py_moved = s5.details.get("trades_moved")
+        cpp_moved = cpp_opt.get("trades_moved")
+        if py_moved is not None and cpp_moved is not None:
+            match = "MATCH" if py_moved == cpp_moved else f"DIFF (Py={py_moved}, C++={cpp_moved})"
+            print(f"    {'Trades moved:':<16} Py {py_moved:>22}  |  C++ {cpp_moved:>22}  [{match}]")
+
+        py_iters = s5.details.get("iterations")
+        cpp_iters = cpp_opt.get("iterations")
+        if py_iters is not None and cpp_iters is not None:
+            match = "MATCH" if py_iters == cpp_iters else f"Py={py_iters}, C++={cpp_iters}"
+            print(f"    {'Iterations:':<16} Py {py_iters:>22}  |  C++ {cpp_iters:>22}  [{match}]")
+
+    print("\n" + "=" * 78)
 
 
 def print_workflow_summary(steps, economics, config):
@@ -1559,10 +1882,18 @@ def run_trading_workflow(
     num_trades=1000, num_portfolios=5, trade_types=None, num_threads=8,
     num_new_trades=50, optimize_iters=100, num_simm_buckets=3,
     refresh_interval=10, verbose=True, command_str="",
-    method="gradient_descent",
+    method="gradient_descent", output_file=None,
 ):
     if trade_types is None:
         trade_types = ["ir_swap"]
+
+    # Tee output to file if requested
+    tee = None
+    if output_file:
+        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), output_file)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        tee = TeeWriter(output_path)
+        sys.stdout = tee
 
     print("=" * 70)
     print("  Trading Day Workflow: AADC Py vs GPU vs C++ AADC (Full ISDA SIMM v2.6)")
@@ -1623,12 +1954,25 @@ def run_trading_workflow(
     economics.update(s5)
     steps.append(s5)
 
-    # C++ AADC backend (runs all modes, maps results to steps)
+    # C++ AADC backend (runs all modes on shared data for apples-to-apples)
     if CPP_AVAILABLE:
+        shared_data_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "data", "shared_benchmark_data"
+        )
+        _export_shared_data(ctx, shared_data_dir)
+        print(f"\n  Exported shared data to {shared_data_dir} for C++ backend")
+
         cpp_results = _run_all_cpp_modes(
-            num_trades, num_portfolios, num_threads, optimize_iters, seed=42
+            num_trades, num_portfolios, num_threads, optimize_iters,
+            seed=42, input_dir=shared_data_dir
         )
         _apply_cpp_results(steps, economics, cpp_results)
+        if economics.cpp_recording_time_sec > 0:
+            print(f"  C++ AADC kernel recording:      {economics.cpp_recording_time_sec*1000:.2f} ms")
+
+    # C++ vs Python value comparison
+    if CPP_AVAILABLE and verbose:
+        print_cpp_vs_python_comparison(steps)
 
     # Summary
     print_step_summary_table(steps)
@@ -1641,6 +1985,10 @@ def run_trading_workflow(
     print("\n" + "=" * 70)
     print("  Done.")
     print("=" * 70)
+
+    if tee:
+        print(f"\n  Console output saved to {output_path}")
+        tee.close()
 
     return {"steps": steps, "economics": economics, "config": config}
 
@@ -1659,10 +2007,21 @@ def main():
     parser.add_argument('--refresh-interval', type=int, default=10)
     parser.add_argument('--method', choices=['gradient_descent', 'adam'], default='gradient_descent',
                         help='Optimization method for EOD step')
+    parser.add_argument('--output', '-o', type=str, default='auto',
+                        help='Save console output to file (default: auto-generated in data/). Use "none" to disable.')
     parser.add_argument('--quiet', '-q', action='store_true')
 
     args = parser.parse_args()
     trade_types = [t.strip() for t in args.trade_types.split(',')]
+
+    # Resolve output file
+    if args.output == 'none':
+        output_file = None
+    elif args.output == 'auto':
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_file = f"data/benchmark_workflow_{ts}.txt"
+    else:
+        output_file = args.output
 
     cmd_parts = ["python benchmark_trading_workflow.py"]
     cmd_parts.append(f"--trades {args.trades}")
@@ -1686,6 +2045,7 @@ def main():
         verbose=not args.quiet,
         command_str=command_str,
         method=args.method,
+        output_file=output_file,
     )
 
 

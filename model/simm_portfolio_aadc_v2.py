@@ -49,7 +49,8 @@ from Weights_and_Corr.v2_6 import (
     ir_corr, reg_vol_rw, low_vol_rw, high_vol_rw,
     reg_vol_ccy_bucket, low_vol_ccy_bucket,
     inflation_rw, inflation_corr, sub_curves_corr,
-    ir_gamma_diff_ccy,
+    ir_gamma_diff_ccy, cr_gamma_diff_ccy,
+    creditQ_corr_non_res, equity_corr_non_res, commodity_corr_non_res,
 )
 
 from model.simm_portfolio_aadc import (
@@ -77,6 +78,11 @@ from model.simm_portfolio_aadc import (
 from Weights_and_Corr.v2_6 import (
     ccy_basis_swap_spread_rw, ccy_basis_spread_corr,
 )
+
+# Inter-bucket gamma matrices (converted to numpy for fast lookup)
+_EQ_INTER = np.array([list(row) for row in equity_corr_non_res])
+_CM_INTER = np.array([list(row) for row in commodity_corr_non_res])
+_CQ_INTER = np.array([list(row) for row in creditQ_corr_non_res])
 
 # Cross-risk-class correlation matrix
 _PSI_MATRIX = np.array([

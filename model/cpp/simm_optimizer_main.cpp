@@ -41,6 +41,7 @@
 #include "execution_logger.h"
 #include "crif_aadc.h"
 #include "simm_analytics.h"
+#include "data_import.h"
 
 using namespace simm;
 // Trade type alias is defined in crif_aadc.h (namespace simm)
@@ -329,6 +330,7 @@ int main(int argc, char* argv[]) {
     bool greedy_refinement = true;
     bool pre_weighted = false;
     std::string log_path = std::string(PROJECT_SOURCE_DIR) + "/data/execution_log_portfolio.csv";
+    std::string input_dir = "";
 
     // Parse CLI
     for (int i = 1; i < argc; ++i) {
@@ -347,6 +349,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--pre-weighted") pre_weighted = true;
         else if (arg == "--quiet") verbose = false;
         else if (arg == "--log" && i+1 < argc) log_path = argv[++i];
+        else if (arg == "--input-dir" && i+1 < argc) input_dir = argv[++i];
         else if (arg == "--help") {
             std::cout << "ISDA-SIMM Optimizer (C++ AADC)\n\n"
                       << "Usage: simm_optimizer [options]\n\n"
@@ -364,7 +367,8 @@ int main(int argc, char* argv[]) {
                       << "  --no-greedy       Skip greedy refinement after continuous optimization\n"
                       << "  --pre-weighted    Use pre-weighted SIMM kernel (smaller tape, faster eval)\n"
                       << "  --quiet           Suppress verbose output\n"
-                      << "  --log PATH        Log file path (default: data/execution_log_portfolio.csv)\n";
+                      << "  --log PATH        Log file path (default: data/execution_log_portfolio.csv)\n"
+                      << "  --input-dir DIR   Load S matrix, metadata, allocation from DIR (Python export)\n";
             return 0;
         }
     }
@@ -388,79 +392,121 @@ int main(int argc, char* argv[]) {
     std::cout << "  Method:       " << method << "\n";
     std::cout << "  Seed:         " << seed << "\n";
     std::cout << "  Greedy:       " << (greedy_refinement ? "yes" : "no") << "\n";
+    if (!input_dir.empty())
+        std::cout << "  Input dir:    " << input_dir << "\n";
     std::cout << "  SIMM version: 2.6\n\n";
 
-    // ========== Step 1: Generate portfolio and market ==========
-    std::cout << "--- Step 1: Generate portfolio ---\n";
-    std::mt19937 rng(seed);
-    MarketEnv mkt = buildMarket();
-    std::vector<Trade> portfolio = generatePortfolio(num_trades, rng);
-
-    int n_irs=0, n_eq=0, n_inf=0, n_fx=0, n_xccy=0;
-    for (auto& t : portfolio) {
-        if (std::holds_alternative<IRSwapTrade>(t)) ++n_irs;
-        else if (std::holds_alternative<EquityOptionTrade>(t)) ++n_eq;
-        else if (std::holds_alternative<InflationSwapTrade>(t)) ++n_inf;
-        else if (std::holds_alternative<FXOptionTrade>(t)) ++n_fx;
-        else if (std::holds_alternative<XCCYSwapTrade>(t)) ++n_xccy;
-    }
-    std::cout << "  IRS: " << n_irs << ", EQ Options: " << n_eq
-              << ", Inflation: " << n_inf << ", FX Options: " << n_fx
-              << ", XCCY: " << n_xccy << "\n\n";
-
-    // ========== Step 2: Compute per-trade CRIF sensitivities ==========
-    std::vector<std::string> trade_ids(num_trades);
-    std::vector<std::vector<CRIFRecord>> trade_crifs(num_trades);
+    // ========== Steps 1-3: Build or import sensitivity matrix + metadata ==========
+    SensitivityMatrix S;
+    std::vector<FactorMeta> metadata;
+    std::vector<Trade> portfolio;  // Only populated in generate mode
+    std::string trade_types;
     double crif_time = 0.0;
-    double crif_recording_time = 0.0;
+    int total_crif_rows = 0;
 
-    for (int t = 0; t < num_trades; ++t)
-        trade_ids[t] = "T" + std::to_string(t);
+    if (!input_dir.empty()) {
+        // ---- Import mode: load pre-computed data from Python ----
+        std::cout << "--- Import Mode: Loading shared data from " << input_dir << " ---\n";
+        auto import_start = std::chrono::high_resolution_clock::now();
 
-    if (crif_method == "aadc") {
-        std::cout << "--- Step 2: Compute CRIF sensitivities (AADC adjoint) ---\n";
-        double aadc_eval_time = 0.0;
-        computeAllCRIFsAADC(portfolio, mkt, num_threads, trade_crifs,
-                            crif_recording_time, aadc_eval_time);
-        crif_time = aadc_eval_time;
-        std::cout << "  AADC recording: " << std::fixed << std::setprecision(2)
-                  << crif_recording_time * 1000 << " ms\n";
+        S = loadSensitivityMatrix(input_dir);
+        metadata = loadFactorMetadata(input_dir);
+        num_trades = S.T;
+
+        auto import_end = std::chrono::high_resolution_clock::now();
+        double import_time = std::chrono::duration<double>(import_end - import_start).count();
+
+        std::cout << "  Dimensions: T=" << S.T << " x K=" << S.K << "\n";
+        std::cout << "  Import time: " << std::fixed << std::setprecision(2)
+                  << import_time * 1000 << " ms\n";
+
+        std::cout << "  Risk factors by class: ";
+        std::array<int, NUM_RISK_CLASSES> rc_counts{};
+        for (auto& m : metadata) rc_counts[static_cast<int>(m.risk_class)]++;
+        for (int i = 0; i < NUM_RISK_CLASSES; ++i) {
+            if (rc_counts[i] > 0)
+                std::cout << riskClassName(static_cast<RiskClass>(i)) << "=" << rc_counts[i] << " ";
+        }
+        std::cout << "\n";
+
+        trade_types = "imported";
+        std::cout << "\n";
     } else {
-        std::cout << "--- Step 2: Compute CRIF sensitivities (bump & revalue) ---\n";
-        auto crif_start = std::chrono::high_resolution_clock::now();
+        // ---- Generate mode: original Steps 1-3 ----
+        std::cout << "--- Step 1: Generate portfolio ---\n";
+        std::mt19937 rng(seed);
+        MarketEnv mkt = buildMarket();
+        portfolio = generatePortfolio(num_trades, rng);
 
-        #pragma omp parallel for schedule(dynamic)
-        for (int t = 0; t < num_trades; ++t) {
-            trade_crifs[t] = computeTradeCRIF(portfolio[t], mkt);
+        int n_irs=0, n_eq=0, n_inf=0, n_fx=0, n_xccy=0;
+        for (auto& t : portfolio) {
+            if (std::holds_alternative<IRSwapTrade>(t)) ++n_irs;
+            else if (std::holds_alternative<EquityOptionTrade>(t)) ++n_eq;
+            else if (std::holds_alternative<InflationSwapTrade>(t)) ++n_inf;
+            else if (std::holds_alternative<FXOptionTrade>(t)) ++n_fx;
+            else if (std::holds_alternative<XCCYSwapTrade>(t)) ++n_xccy;
+        }
+        std::cout << "  IRS: " << n_irs << ", EQ Options: " << n_eq
+                  << ", Inflation: " << n_inf << ", FX Options: " << n_fx
+                  << ", XCCY: " << n_xccy << "\n\n";
+
+        // Build trade_types string
+        if (n_irs > 0) trade_types += "ir_swap";
+        if (n_eq > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "equity_option"; }
+        if (n_inf > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "inflation_swap"; }
+        if (n_fx > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "fx_option"; }
+        if (n_xccy > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "xccy_swap"; }
+
+        std::vector<std::string> trade_ids(num_trades);
+        std::vector<std::vector<CRIFRecord>> trade_crifs(num_trades);
+        double crif_recording_time = 0.0;
+
+        for (int t = 0; t < num_trades; ++t)
+            trade_ids[t] = "T" + std::to_string(t);
+
+        if (crif_method == "aadc") {
+            std::cout << "--- Step 2: Compute CRIF sensitivities (AADC adjoint) ---\n";
+            double aadc_eval_time = 0.0;
+            computeAllCRIFsAADC(portfolio, mkt, num_threads, trade_crifs,
+                                crif_recording_time, aadc_eval_time);
+            crif_time = aadc_eval_time;
+            std::cout << "  AADC recording: " << std::fixed << std::setprecision(2)
+                      << crif_recording_time * 1000 << " ms\n";
+        } else {
+            std::cout << "--- Step 2: Compute CRIF sensitivities (bump & revalue) ---\n";
+            auto crif_start = std::chrono::high_resolution_clock::now();
+
+            #pragma omp parallel for schedule(dynamic)
+            for (int t = 0; t < num_trades; ++t) {
+                trade_crifs[t] = computeTradeCRIF(portfolio[t], mkt);
+            }
+
+            auto crif_end = std::chrono::high_resolution_clock::now();
+            crif_time = std::chrono::duration<double>(crif_end - crif_start).count();
         }
 
-        auto crif_end = std::chrono::high_resolution_clock::now();
-        crif_time = std::chrono::duration<double>(crif_end - crif_start).count();
+        total_crif_rows = 0;
+        for (auto& c : trade_crifs) total_crif_rows += static_cast<int>(c.size());
+        std::cout << "  CRIF rows: " << total_crif_rows << " (avg "
+                  << std::setprecision(1) << double(total_crif_rows)/num_trades << "/trade)\n";
+        std::cout << "  Time: " << std::fixed << std::setprecision(2) << crif_time * 1000 << " ms\n\n";
+
+        std::cout << "--- Step 3: Build sensitivity matrix ---\n";
+        S = buildSensitivityMatrix(trade_ids, trade_crifs);
+        std::cout << "  Dimensions: T=" << S.T << " x K=" << S.K << "\n";
+
+        auto bucket_sums = computeBucketSumSensitivities(S, S.risk_factors);
+        metadata = buildFactorMetadata(S.risk_factors, bucket_sums);
+
+        std::cout << "  Risk factors by class: ";
+        std::array<int, NUM_RISK_CLASSES> rc_counts{};
+        for (auto& m : metadata) rc_counts[static_cast<int>(m.risk_class)]++;
+        for (int i = 0; i < NUM_RISK_CLASSES; ++i) {
+            if (rc_counts[i] > 0)
+                std::cout << riskClassName(static_cast<RiskClass>(i)) << "=" << rc_counts[i] << " ";
+        }
+        std::cout << "\n\n";
     }
-
-    int total_crif_rows = 0;
-    for (auto& c : trade_crifs) total_crif_rows += static_cast<int>(c.size());
-    std::cout << "  CRIF rows: " << total_crif_rows << " (avg "
-              << std::setprecision(1) << double(total_crif_rows)/num_trades << "/trade)\n";
-    std::cout << "  Time: " << std::fixed << std::setprecision(2) << crif_time * 1000 << " ms\n\n";
-
-    // ========== Step 3: Build sensitivity matrix ==========
-    std::cout << "--- Step 3: Build sensitivity matrix ---\n";
-    SensitivityMatrix S = buildSensitivityMatrix(trade_ids, trade_crifs);
-    std::cout << "  Dimensions: T=" << S.T << " x K=" << S.K << "\n";
-
-    // Compute bucket sums for concentration factors
-    auto bucket_sums = computeBucketSumSensitivities(S, S.risk_factors);
-    auto metadata = buildFactorMetadata(S.risk_factors, bucket_sums);
-
-    std::cout << "  Risk factors by class: ";
-    std::array<int, NUM_RISK_CLASSES> rc_counts{};
-    for (auto& m : metadata) rc_counts[static_cast<int>(m.risk_class)]++;
-    for (int i = 0; i < NUM_RISK_CLASSES; ++i) {
-        if (rc_counts[i] > 0)
-            std::cout << riskClassName(static_cast<RiskClass>(i)) << "=" << rc_counts[i] << " ";
-    }
-    std::cout << "\n\n";
 
     // ========== Step 4: Record AADC SIMM kernel (with cache) ==========
     std::cout << "--- Step 4: Record AADC SIMM kernel ---\n";
@@ -566,16 +612,23 @@ int main(int argc, char* argv[]) {
         // ---- Pre-Trade Mode: Counterparty routing + Bilateral vs Cleared ----
         std::cout << "--- Pre-Trade Mode ---\n\n";
 
-        // Create initial allocation (round-robin)
-        AllocationMatrix alloc(num_trades, num_portfolios);
-        for (int t = 0; t < num_trades; ++t)
-            alloc(t, t % num_portfolios) = 1.0;
+        // Load or create initial allocation
+        AllocationMatrix alloc(0, 0);
+        if (!input_dir.empty()) {
+            alloc = loadAllocation(input_dir);
+            num_portfolios = alloc.P;
+        } else {
+            alloc = AllocationMatrix(num_trades, num_portfolios);
+            for (int t = 0; t < num_trades; ++t)
+                alloc(t, t % num_portfolios) = 1.0;
+        }
 
         // Generate a synthetic new trade's CRIF
         std::cout << "  Generating synthetic new trade CRIF...\n";
+        MarketEnv mkt_pt = buildMarket();
         std::mt19937 rng2(seed + 999);
         auto new_trades = generatePortfolio(1, rng2);
-        auto new_crif = computeTradeCRIF(new_trades[0], mkt);
+        auto new_crif = computeTradeCRIF(new_trades[0], mkt_pt);
 
         // Counterparty routing
         std::cout << "  [1] Counterparty Routing (across " << num_portfolios << " portfolios):\n";
@@ -590,28 +643,38 @@ int main(int argc, char* argv[]) {
                   << " (marginal IM = $" << std::setprecision(2) << routing.best_marginal_im << ")\n";
         std::cout << "      Eval time: " << std::setprecision(2) << routing.eval_time_sec * 1000 << " ms\n\n";
 
-        // Bilateral vs Cleared
-        std::cout << "  [2] Bilateral vs Cleared:\n";
-        auto clearing = bilateralVsCleared(kernel, S, portfolio, num_threads);
-        std::cout << "      SIMM bilateral: $" << std::fixed << std::setprecision(2) << clearing.simm_margin << "\n";
-        std::cout << "      CCP cleared:    $" << clearing.ccp_margin << "\n";
-        std::cout << "      Difference:     $" << clearing.margin_difference
-                  << " (" << std::setprecision(1) << clearing.difference_pct << "%)\n";
-        std::cout << "      Recommendation: " << clearing.recommendation << "\n";
+        // Bilateral vs Cleared (requires trade objects, skip in import mode)
+        if (!input_dir.empty()) {
+            std::cout << "  [2] Bilateral vs Cleared: skipped (import mode)\n";
+        } else {
+            std::cout << "  [2] Bilateral vs Cleared:\n";
+            auto clearing = bilateralVsCleared(kernel, S, portfolio, num_threads);
+            std::cout << "      SIMM bilateral: $" << std::fixed << std::setprecision(2) << clearing.simm_margin << "\n";
+            std::cout << "      CCP cleared:    $" << clearing.ccp_margin << "\n";
+            std::cout << "      Difference:     $" << clearing.margin_difference
+                      << " (" << std::setprecision(1) << clearing.difference_pct << "%)\n";
+            std::cout << "      Recommendation: " << clearing.recommendation << "\n";
+        }
 
         auto total_end = std::chrono::high_resolution_clock::now();
         double total_time = std::chrono::duration<double>(total_end - total_start).count();
         std::cout << "\n  Total wall time: " << std::setprecision(2) << total_time * 1000 << " ms\n";
         std::cout << "================================================================================\n";
 
-    } else {
-        // ---- Optimize Mode (default) ----
+    } else if (mode == "optimize") {
+        // ---- Optimize Mode ----
 
         // ========== Step 5: Create initial allocation ==========
         std::cout << "--- Step 5: Initialize allocation ---\n";
-        AllocationMatrix alloc(num_trades, num_portfolios);
-        for (int t = 0; t < num_trades; ++t) {
-            alloc(t, t % num_portfolios) = 1.0;  // Round-robin
+        AllocationMatrix alloc(0, 0);
+        if (!input_dir.empty()) {
+            alloc = loadAllocation(input_dir);
+            num_portfolios = alloc.P;
+        } else {
+            alloc = AllocationMatrix(num_trades, num_portfolios);
+            for (int t = 0; t < num_trades; ++t) {
+                alloc(t, t % num_portfolios) = 1.0;  // Round-robin
+            }
         }
 
         // Verify: compute initial IM
@@ -677,25 +740,148 @@ int main(int argc, char* argv[]) {
         std::cout << "================================================================================\n";
 
         // ========== Log ==========
-        // Build trade_types string matching Python format
-        std::string trade_types;
-        if (n_irs > 0) trade_types += "ir_swap";
-        if (n_eq > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "equity_option"; }
-        if (n_inf > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "inflation_swap"; }
-        if (n_fx > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "fx_option"; }
-        if (n_xccy > 0) { if (!trade_types.empty()) trade_types += ","; trade_types += "xccy_swap"; }
-        // Quote if contains commas (CSV convention)
-        if (trade_types.find(',') != std::string::npos)
-            trade_types = "\"" + trade_types + "\"";
+        // Quote trade_types if contains commas (CSV convention)
+        std::string log_trade_types = trade_types;
+        if (log_trade_types.find(',') != std::string::npos)
+            log_trade_types = "\"" + log_trade_types + "\"";
 
         // Determine convergence: check if optimizer stopped before max_iters
         bool converged = opt_result.num_iterations < max_iters;
 
         logResult(log_path, opt_result, num_trades, num_portfolios, S.K, num_threads,
-                  method, trade_types, crif_time, kernel.recording_time_sec,
+                  method, log_trade_types, crif_time, kernel.recording_time_sec,
                   init_eval.eval_time_sec, opt_result.total_eval_time_sec,
                   total_crif_rows, max_iters, converged);
         std::cout << "Logged to " << log_path << "\n";
+
+    } else if (mode == "all") {
+        // ================================================================
+        // ALL Mode: Run attribution + whatif + pretrade + optimize
+        // in a SINGLE process (shared import, shared kernel).
+        // Output uses [SECTION] markers for Python parsing.
+        // ================================================================
+        std::cout << "--- All Mode (Combined Workflow) ---\n\n";
+
+        // Load or create allocation
+        AllocationMatrix alloc(0, 0);
+        if (!input_dir.empty()) {
+            alloc = loadAllocation(input_dir);
+            num_portfolios = alloc.P;
+        } else {
+            alloc = AllocationMatrix(num_trades, num_portfolios);
+            for (int t = 0; t < num_trades; ++t)
+                alloc(t, t % num_portfolios) = 1.0;
+        }
+
+        // [ATTRIBUTION]
+        std::cout << "[ATTRIBUTION]\n";
+        {
+            auto attrib = computeMarginAttribution(kernel, S, num_threads);
+            std::cout << std::fixed;
+            std::cout << "  Total IM: $" << std::setprecision(2) << attrib.total_im << "\n";
+            std::cout << "  Euler check (ratio): " << std::setprecision(6)
+                      << (attrib.total_im > 0 ? attrib.sum_contributions / attrib.total_im : 0.0) << "\n";
+            std::cout << "  Eval time: " << std::setprecision(2) << attrib.eval_time_sec * 1000 << " ms\n\n";
+        }
+
+        // [WHATIF]
+        std::cout << "[WHATIF]\n";
+        {
+            auto wi_start = std::chrono::high_resolution_clock::now();
+
+            auto unwind = whatIfUnwindTopN(kernel, S, num_threads, unwind_n);
+            std::cout << "  Unwind top " << unwind_n << ": Base=$"
+                      << std::fixed << std::setprecision(2) << unwind.base_im
+                      << " Scenario=$" << unwind.scenario_im
+                      << " (" << std::setprecision(1) << unwind.im_change_pct << "%)\n";
+
+            auto stress = whatIfStressScenario(kernel, S, stress_factor, num_threads,
+                                               metadata, RiskClass::Rates);
+            std::cout << "  Stress IR " << stress_factor << "x: Scenario=$"
+                      << std::fixed << std::setprecision(2) << stress.scenario_im
+                      << " (" << std::setprecision(1) << stress.im_change_pct << "%)\n";
+
+            auto stress_eq = whatIfStressScenario(kernel, S, stress_factor, num_threads,
+                                                  metadata, RiskClass::Equity);
+            std::cout << "  Stress Equity " << stress_factor << "x: Scenario=$"
+                      << std::fixed << std::setprecision(2) << stress_eq.scenario_im
+                      << " (" << std::setprecision(1) << stress_eq.im_change_pct << "%)\n";
+
+            double grad_im = 0.0;
+            auto grad_k = computePortfolioGradientK(kernel, S, grad_im);
+            std::vector<double> new_sens(S.K, 0.0);
+            for (int k = 0; k < std::min(S.K, NUM_IR_TENORS); ++k)
+                new_sens[k] = 1000.0;
+            double marginal = computeMarginalIM(grad_k, new_sens, S.K);
+            std::cout << "  Marginal IM: $" << std::fixed << std::setprecision(2) << marginal << "\n";
+
+            auto wi_end = std::chrono::high_resolution_clock::now();
+            double wi_time = std::chrono::duration<double>(wi_end - wi_start).count();
+            std::cout << "  Eval time: " << std::setprecision(2) << wi_time * 1000 << " ms\n\n";
+        }
+
+        // [PRETRADE]
+        std::cout << "[PRETRADE]\n";
+        {
+            MarketEnv mkt_pt = buildMarket();
+            std::mt19937 rng2(seed + 999);
+            auto new_trades_pt = generatePortfolio(1, rng2);
+            auto new_crif = computeTradeCRIF(new_trades_pt[0], mkt_pt);
+
+            auto routing = counterpartyRouting(kernel, S, alloc, new_crif, num_threads);
+            std::cout << "  Best portfolio: " << routing.best_portfolio
+                      << " (marginal IM=$" << std::fixed << std::setprecision(2) << routing.best_marginal_im << ")\n";
+            std::cout << "  Eval time: " << std::setprecision(2) << routing.eval_time_sec * 1000 << " ms\n\n";
+        }
+
+        // [OPTIMIZE]
+        std::cout << "[OPTIMIZE]\n";
+        {
+            auto opt_wall_start = std::chrono::high_resolution_clock::now();
+
+            auto init_eval = evaluateAllPortfoliosMT(kernel, S, alloc, num_threads);
+            double init_total_im = std::accumulate(init_eval.ims.begin(), init_eval.ims.end(), 0.0);
+            std::cout << "  Initial IM: $" << std::fixed << std::setprecision(2) << init_total_im << "\n";
+
+            OptimizationResult opt_result;
+            if (method == "gradient_descent") {
+                opt_result = optimizeGradientDescent(kernel, S, alloc, num_threads,
+                                                      max_iters, 0.0, 1e-6, verbose);
+            } else {
+                opt_result = optimizeAdam(kernel, S, alloc, num_threads,
+                                           max_iters, 0.0, 1e-6, verbose);
+            }
+
+            if (greedy_refinement) {
+                AllocationMatrix int_alloc = roundToInteger(opt_result.final_allocation);
+                auto greedy_result = greedyLocalSearch(kernel, S, int_alloc, num_threads, 50, verbose);
+                if (greedy_result.final_im < opt_result.final_im) {
+                    opt_result.final_allocation = std::move(greedy_result.final_allocation);
+                    opt_result.final_im = greedy_result.final_im;
+                    opt_result.trades_moved = countTradesMoved(alloc, opt_result.final_allocation);
+                    opt_result.total_eval_time_sec += greedy_result.total_eval_time_sec;
+                }
+            }
+
+            auto opt_wall_end = std::chrono::high_resolution_clock::now();
+            double opt_wall_sec = std::chrono::duration<double>(opt_wall_end - opt_wall_start).count();
+
+            std::cout << "  Final IM: $" << std::setprecision(2) << opt_result.final_im << "\n";
+            std::cout << "  Trades moved: " << opt_result.trades_moved << "\n";
+            std::cout << "  Iterations: " << opt_result.num_iterations << "\n";
+            std::cout << "  Optimization eval: " << std::setprecision(2)
+                      << opt_result.total_eval_time_sec * 1000 << " ms\n";
+            std::cout << "  Optimization wall: " << std::setprecision(2)
+                      << opt_wall_sec * 1000 << " ms\n\n";
+        }
+
+        // Summary
+        auto total_end = std::chrono::high_resolution_clock::now();
+        double total_time = std::chrono::duration<double>(total_end - total_start).count();
+        std::cout << "Recording time: " << std::fixed << std::setprecision(2)
+                  << kernel.recording_time_sec * 1000 << " ms\n";
+        std::cout << "Total wall time: " << std::setprecision(2) << total_time * 1000 << " ms\n";
+        std::cout << "================================================================================\n";
     }
 
     return 0;

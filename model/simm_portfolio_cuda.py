@@ -110,7 +110,7 @@ MODEL_VERSION = "3.2.0"  # v3.2: Add Adam optimizer
 # =============================================================================
 
 MAX_K = 200   # Max risk factors
-MAX_B = 64    # Max buckets (across all RC × RM combinations)
+MAX_B = 128   # Max buckets (across all RC × RM combinations)
 
 if CUDA_AVAILABLE:
     @cuda.jit
