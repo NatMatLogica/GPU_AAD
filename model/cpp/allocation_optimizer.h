@@ -1,6 +1,6 @@
 // Allocation Optimizer with Batched AADC Evaluation
 // Ported from model/simm_portfolio_aadc_v2.py + simm_allocation_optimizer_v2.py
-// Version: 1.0.0
+// Version: 2.0.0
 #pragma once
 
 #include <vector>
@@ -272,6 +272,131 @@ inline EvalResult evaluateAllPortfoliosMT(
     // Step 3: Chain rule
     std::vector<double> gradient(T * P);
     matmulAB(S.data.data(), grad_matrix.data(), gradient.data(), T, K, P);
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double eval_time = std::chrono::duration<double>(t_end - t_start).count();
+
+    return {std::move(gradient), std::move(ims), eval_time};
+}
+
+// ============================================================================
+// Pre-Weighted Evaluation: WS = S * diag(rw*cr) aggregated outside kernel
+// Gradients: dIM/ds = dIM/dWS * rw * cr, applied via chain rule on weighted_S
+// ============================================================================
+inline EvalResult evaluateAllPortfoliosPreWeightedMT(
+    SIMMKernel& kernel,
+    const SensitivityMatrix& S,
+    const AllocationMatrix& allocation,
+    const std::vector<FactorMeta>& metadata,
+    int num_threads)
+{
+    int T = allocation.T;
+    int P = allocation.P;
+    int K = kernel.K;
+    assert(S.T == T && S.K == K);
+
+    auto t_start = std::chrono::high_resolution_clock::now();
+
+    // Step 1: Pre-weight sensitivities: weighted_S[t,k] = S[t,k] * rw[k] * cr[k]
+    std::vector<double> weighted_S(T * K);
+    for (int t = 0; t < T; ++t)
+        for (int k = 0; k < K; ++k)
+            weighted_S[t * K + k] = S.data[t * K + k] * metadata[k].weight * metadata[k].cr;
+
+    // Step 2: agg_WS = weighted_S^T @ allocation -> (K, P)
+    std::vector<double> agg_WS(K * P);
+    matmulATB(weighted_S.data(), allocation.data.data(), agg_WS.data(), T, K, P);
+
+    // Step 3: Evaluate AADC kernel (same batched AVX logic)
+    int num_batches = (P + AVX_WIDTH - 1) / AVX_WIDTH;
+    std::vector<double> ims(P, 0.0);
+    std::vector<double> grad_matrix(K * P, 0.0);
+
+    if (P <= AVX_WIDTH || num_threads <= 1) {
+        auto ws = kernel.funcs.createWorkSpace();
+        for (int batch = 0; batch < num_batches; ++batch) {
+            int p_start = batch * AVX_WIDTH;
+            for (int k = 0; k < K; ++k) {
+                mmType mm_val;
+                double* ptr = reinterpret_cast<double*>(&mm_val);
+                for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                    int p = p_start + lane;
+                    ptr[lane] = (p < P) ? agg_WS[k * P + p] : 0.0;
+                }
+                ws->setVal(kernel.sens_handles[k], mm_val);
+            }
+            kernel.funcs.forward(*ws);
+            {
+                mmType mm_im = ws->val(kernel.im_output);
+                double* ip = reinterpret_cast<double*>(&mm_im);
+                for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                    int p = p_start + lane;
+                    if (p < P) ims[p] = ip[lane];
+                }
+            }
+            ws->resetDiff();
+            ws->setDiff(kernel.im_output, 1.0);
+            kernel.funcs.reverse(*ws);
+            for (int k = 0; k < K; ++k) {
+                mmType mm_grad = ws->diff(kernel.sens_handles[k]);
+                double* gp = reinterpret_cast<double*>(&mm_grad);
+                for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                    int p = p_start + lane;
+                    if (p < P) grad_matrix[k * P + p] = gp[lane];
+                }
+            }
+        }
+    } else {
+        int actual_threads = std::min(num_threads, num_batches);
+        std::vector<std::shared_ptr<AADCWorkSpace<mmType>>> workspaces(actual_threads);
+        for (int i = 0; i < actual_threads; ++i) {
+            workspaces[i] = kernel.funcs.createWorkSpace();
+        }
+        #pragma omp parallel for num_threads(actual_threads) schedule(dynamic)
+        for (int batch = 0; batch < num_batches; ++batch) {
+            #ifdef _OPENMP
+            int tid = omp_get_thread_num();
+            #else
+            int tid = 0;
+            #endif
+            auto& ws = *workspaces[tid];
+            int p_start = batch * AVX_WIDTH;
+            for (int k = 0; k < K; ++k) {
+                mmType mm_val;
+                double* ptr = reinterpret_cast<double*>(&mm_val);
+                for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                    int p = p_start + lane;
+                    ptr[lane] = (p < P) ? agg_WS[k * P + p] : 0.0;
+                }
+                ws.setVal(kernel.sens_handles[k], mm_val);
+            }
+            kernel.funcs.forward(ws);
+            {
+                mmType mm_im = ws.val(kernel.im_output);
+                double* ip = reinterpret_cast<double*>(&mm_im);
+                for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                    int p = p_start + lane;
+                    if (p < P) ims[p] = ip[lane];
+                }
+            }
+            ws.resetDiff();
+            ws.setDiff(kernel.im_output, 1.0);
+            kernel.funcs.reverse(ws);
+            for (int k = 0; k < K; ++k) {
+                mmType mm_grad = ws.diff(kernel.sens_handles[k]);
+                double* gp = reinterpret_cast<double*>(&mm_grad);
+                for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                    int p = p_start + lane;
+                    if (p < P) grad_matrix[k * P + p] = gp[lane];
+                }
+            }
+        }
+    }
+
+    // Step 4: Chain rule with weighted_S (not S)
+    // gradient[t,p] = sum_k weighted_S[t,k] * grad_matrix[k,p]
+    std::vector<double> gradient(T * P);
+    matmulAB(weighted_S.data(), grad_matrix.data(), gradient.data(), T, K, P);
 
     auto t_end = std::chrono::high_resolution_clock::now();
     double eval_time = std::chrono::duration<double>(t_end - t_start).count();

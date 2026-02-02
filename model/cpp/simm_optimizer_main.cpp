@@ -322,11 +322,12 @@ int main(int argc, char* argv[]) {
     int seed = 42;
     std::string method = "adam";
     std::string mode = "optimize";
-    std::string crif_method = "bump";
+    std::string crif_method = "aadc";
     int unwind_n = 5;
     double stress_factor = 1.5;
     bool verbose = true;
     bool greedy_refinement = true;
+    bool pre_weighted = false;
     std::string log_path = std::string(PROJECT_SOURCE_DIR) + "/data/execution_log_portfolio.csv";
 
     // Parse CLI
@@ -343,6 +344,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--unwind-n" && i+1 < argc) unwind_n = std::stoi(argv[++i]);
         else if (arg == "--stress-factor" && i+1 < argc) stress_factor = std::stod(argv[++i]);
         else if (arg == "--no-greedy") greedy_refinement = false;
+        else if (arg == "--pre-weighted") pre_weighted = true;
         else if (arg == "--quiet") verbose = false;
         else if (arg == "--log" && i+1 < argc) log_path = argv[++i];
         else if (arg == "--help") {
@@ -356,10 +358,11 @@ int main(int argc, char* argv[]) {
                       << "  --seed N          Random seed (default: 42)\n"
                       << "  --method M        Optimizer: gradient_descent, adam (default: adam)\n"
                       << "  --mode M          Mode: optimize, attribution, whatif, pretrade (default: optimize)\n"
-                      << "  --crif-method M   CRIF: aadc, bump (default: bump)\n"
+                      << "  --crif-method M   CRIF: aadc, bump (default: aadc)\n"
                       << "  --unwind-n N      Trades to unwind in whatif mode (default: 5)\n"
                       << "  --stress-factor F Shock multiplier in whatif mode (default: 1.5)\n"
                       << "  --no-greedy       Skip greedy refinement after continuous optimization\n"
+                      << "  --pre-weighted    Use pre-weighted SIMM kernel (smaller tape, faster eval)\n"
                       << "  --quiet           Suppress verbose output\n"
                       << "  --log PATH        Log file path (default: data/execution_log_portfolio.csv)\n";
             return 0;
@@ -459,13 +462,15 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "\n\n";
 
-    // ========== Step 4: Record SIMM aggregation kernel ==========
+    // ========== Step 4: Record AADC SIMM kernel (with cache) ==========
     std::cout << "--- Step 4: Record AADC SIMM kernel ---\n";
-    SIMMKernel kernel;
-    recordSIMMKernel(kernel, S.K, metadata);
-    std::cout << "  K inputs: " << kernel.K << "\n";
+    static SIMMKernelCache simm_cache;
+    SIMMKernel& kernel = getOrRecordSIMMKernel(simm_cache, S.K, metadata, pre_weighted);
+    std::cout << "  K inputs: " << kernel.K
+              << (pre_weighted ? " (pre-weighted)" : "") << "\n";
     std::cout << "  Recording time: " << std::fixed << std::setprecision(2)
-              << kernel.recording_time_sec * 1000 << " ms\n\n";
+              << kernel.recording_time_sec * 1000 << " ms"
+              << " (cache: " << simm_cache.hits() << " hits, " << simm_cache.misses() << " misses)\n\n";
 
     // ========== Mode Dispatch ==========
 
@@ -501,6 +506,7 @@ int main(int argc, char* argv[]) {
     } else if (mode == "whatif") {
         // ---- What-If Mode: Unwind + Stress scenarios ----
         std::cout << "--- What-If Mode ---\n\n";
+        auto eval_start = std::chrono::high_resolution_clock::now();
 
         // Unwind top N
         std::cout << "  [1] Unwind top " << unwind_n << " contributors:\n";
@@ -547,9 +553,13 @@ int main(int argc, char* argv[]) {
         double marginal = computeMarginalIM(grad_k, new_sens, S.K);
         std::cout << "      Marginal IM: $" << std::fixed << std::setprecision(2) << marginal << "\n";
 
+        auto eval_end = std::chrono::high_resolution_clock::now();
+        double eval_time = std::chrono::duration<double>(eval_end - eval_start).count();
+        std::cout << "\n  Eval time: " << std::setprecision(2) << eval_time * 1000 << " ms\n";
+
         auto total_end = std::chrono::high_resolution_clock::now();
         double total_time = std::chrono::duration<double>(total_end - total_start).count();
-        std::cout << "\n  Total wall time: " << std::setprecision(2) << total_time * 1000 << " ms\n";
+        std::cout << "  Total wall time: " << std::setprecision(2) << total_time * 1000 << " ms\n";
         std::cout << "================================================================================\n";
 
     } else if (mode == "pretrade") {
