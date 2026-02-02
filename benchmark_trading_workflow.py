@@ -1536,15 +1536,11 @@ def _fmt_im(val):
     return f"${val:,.0f}"
 
 
-def print_cpp_vs_python_comparison(steps):
-    """Print per-step comparison of AADC Python vs C++ AADC key values."""
+def print_cpp_vs_python_comparison(steps, ctx):
+    """Reprint per-step results with all three backends (AADC Py, GPU, C++ AADC)."""
     has_any = any("cpp" in s.details for s in steps)
     if not has_any:
         return
-
-    print("\n" + "=" * 78)
-    print("  AADC PYTHON vs C++ AADC — VALUE COMPARISON")
-    print("=" * 78)
 
     s1, s2, s3, s4, s5 = steps
 
@@ -1555,73 +1551,141 @@ def print_cpp_vs_python_comparison(steps):
         ml = _match_label(py_val, cpp_val) if py_val is not None and cpp_val is not None else ""
         print(f"    {label:<16} Py {py_s:>22}  |  C++ {cpp_s:>22}  [{ml}]")
 
-    # Step 1 / Step 2: Attribution (Total IM, Euler ratio)
+    print("\n" + "=" * 78)
+    print("  STEP-BY-STEP RESULTS: AADC Py vs GPU vs C++ AADC")
+    print("=" * 78)
+
+    # --- Step 1: Portfolio Setup ---
+    cpp_attr = s1.details.get("cpp", {})
+    print(f"\n  7:00 AM - Portfolio Setup")
+    print(f"  {'-' * 72}")
+    print(f"     CRIF computation (shared):   {ctx['crif_time']:.3f} s")
+    if AADC_AVAILABLE:
+        print(f"     AADC Py kernel recording:    {ctx['rec_time']*1000:.2f} ms")
+    _print_step_times(s1)
+    print(f"     Total IM: ${s1.details['total_im']:,.2f}")
+    aadc_ims = s1.details.get("aadc_ims")
+    gpu_ims = s1.details.get("gpu_ims")
+    if aadc_ims is not None and gpu_ims is not None:
+        diff = np.max(np.abs(aadc_ims - gpu_ims))
+        rel = diff / max(np.max(np.abs(aadc_ims)), 1e-10)
+        print(f"     AADC vs GPU match: max rel diff = {rel:.2e}")
+
+    # --- Step 2: Margin Attribution ---
     cpp_attr = s2.details.get("cpp", {})
+    contribs = s2.details.get("contributions")
+    total_im = s2.details.get("total_im", 0)
+    print(f"\n  8:00 AM - Margin Attribution")
+    print(f"  {'-' * 72}")
+    _print_step_times(s2)
+    if contribs is not None:
+        trade_ids = ctx["trade_ids"]
+        tc = s2.details["top_consumers"][0]
+        tr = s2.details["top_reducers"][0]
+        euler_error_pct = s2.details.get("euler_error_pct", 0)
+        print(f"     Top consumer: {trade_ids[tc]} "
+              f"(${contribs[tc]:,.0f}, {contribs[tc]/total_im*100:.1f}%)")
+        print(f"     Top reducer:  {trade_ids[tr]} "
+              f"(${contribs[tr]:,.0f}, {contribs[tr]/total_im*100:.1f}%)")
+        print(f"     Euler check:  {euler_error_pct:.4f}% error")
     if cpp_attr:
-        print(f"\n  Step 1-2: Portfolio Setup / Margin Attribution")
-        print(f"  {'-' * 72}")
-        py_im = s1.details.get("total_im")
         cpp_im = cpp_attr.get("total_im")
-        _print_im_row("Total IM:", py_im, cpp_im)
-        # Note: C++ attribution runs on single-portfolio aggregation,
-        # Python sums per-portfolio IMs, so DIFF is expected here.
-        if py_im and cpp_im and abs(py_im - cpp_im) / max(abs(py_im), 1e-10) > 0.01:
-            print(f"    {'':>16} (C++ attribution uses single-portfolio view; see EOD for full match)")
-
-        py_euler_sum = s2.details.get("euler_sum", 0)
-        py_euler_ratio = py_euler_sum / py_im if py_im and py_im > 0 else None
         cpp_euler = cpp_attr.get("euler_ratio")
-        if py_euler_ratio is not None and cpp_euler is not None:
-            ml = _match_label(py_euler_ratio, cpp_euler)
-            print(f"    {'Euler ratio:':<16} Py {py_euler_ratio:>22.6f}  |  C++ {cpp_euler:>22.6f}  [{ml}]")
+        if cpp_im is not None:
+            _print_im_row("Total IM:", total_im, cpp_im)
+            if total_im and abs(total_im - cpp_im) / max(abs(total_im), 1e-10) > 0.01:
+                print(f"    {'':>16} (C++ attribution: single-portfolio; see EOD for full match)")
+        if cpp_euler is not None:
+            py_euler_sum = s2.details.get("euler_sum", 0)
+            py_euler_ratio = py_euler_sum / total_im if total_im and total_im > 0 else None
+            if py_euler_ratio is not None:
+                ml = _match_label(py_euler_ratio, cpp_euler)
+                print(f"    {'Euler ratio:':<16} Py {py_euler_ratio:>22.6f}  |  C++ {cpp_euler:>22.6f}  [{ml}]")
 
-    # Step 4: What-If Scenarios
+    # --- Step 3: Intraday Pre-Trade ---
+    print(f"\n  9AM-4PM - Intraday Pre-Trade")
+    print(f"  {'-' * 72}")
+    _print_step_times(s3)
+    d3 = s3.details
+    evals = s3.aadc_evals or s3.gpu_evals
+    print(f"     {d3.get('num_new_trades', 0)} trades routed ({evals} gradient refreshes)")
+    if "portfolio_counts" in d3:
+        counts_str = ", ".join(f"P{i}:{c}" for i, c in enumerate(d3["portfolio_counts"]) if c > 0)
+        print(f"     Distribution: {counts_str}")
+
+    # --- Step 4: What-If Scenarios ---
     cpp_wi = s4.details.get("cpp", {})
     py_scenarios = s4.details.get("scenarios", {})
-    if cpp_wi and py_scenarios:
-        print(f"\n  Step 4: What-If Scenarios")
-        print(f"  {'-' * 72}")
-        # Stress IR (Python stress_50bp == C++ stress_ir, both scale rates by 1.5)
-        py_stress = py_scenarios.get("stress_50bp", {})
-        cpp_stress = cpp_wi.get("scenarios", {}).get("stress_ir", {})
-        if py_stress and cpp_stress:
-            _print_im_row("Stress IR:", py_stress.get("im"), cpp_stress.get("scenario_im"))
-
-        # Unwind top 5
-        py_unwind = py_scenarios.get("unwind_top5", {})
-        cpp_unwind = cpp_wi.get("scenarios", {}).get("unwind", {})
-        if py_unwind and cpp_unwind:
-            _print_im_row("Unwind top5:", py_unwind.get("im"), cpp_unwind.get("scenario_im"))
-
-        # Stress Equity
+    print(f"\n  2:00 PM - What-If Scenarios")
+    print(f"  {'-' * 72}")
+    _print_step_times(s4)
+    evals = s4.aadc_evals or s4.gpu_evals
+    print(f"     {evals} scenario evaluations (kernel reuse, 0 re-recordings)")
+    if py_scenarios:
+        if "stress_50bp" in py_scenarios:
+            s = py_scenarios["stress_50bp"]
+            py_stress_im = s['im']
+            line = f"     Stress +50bp:  ${py_stress_im:,.0f} ({s['change_pct']:+.1f}%)"
+            cpp_stress = cpp_wi.get("scenarios", {}).get("stress_ir", {})
+            if cpp_stress:
+                cpp_v = cpp_stress.get("scenario_im")
+                ml = _match_label(py_stress_im, cpp_v)
+                line += f"    C++: ${cpp_v:,.0f} [{ml}]"
+            print(line)
+        if "unwind_top5" in py_scenarios:
+            s = py_scenarios["unwind_top5"]
+            py_unwind_im = s['im']
+            line = f"     Unwind top 5:  ${py_unwind_im:,.0f} ({s['change_pct']:+.1f}%)"
+            cpp_unwind = cpp_wi.get("scenarios", {}).get("unwind", {})
+            if cpp_unwind:
+                cpp_v = cpp_unwind.get("scenario_im")
+                ml = _match_label(py_unwind_im, cpp_v)
+                line += f"    C++: ${cpp_v:,.0f} [{ml}]"
+            print(line)
+        if "add_hedge" in py_scenarios:
+            s = py_scenarios["add_hedge"]
+            print(f"     Add hedge:     ${s['im']:,.0f} ({s['change_pct']:+.1f}%)")
+        if "im_ladder" in py_scenarios:
+            ladder = py_scenarios["im_ladder"]
+            ladder_str = ", ".join(f"${v:,.0f}" for v in ladder["im_values"])
+            print(f"     IM ladder:     [{ladder_str}]")
+    if cpp_wi:
         cpp_stress_eq = cpp_wi.get("scenarios", {}).get("stress_eq", {})
         if cpp_stress_eq:
-            print(f"    {'Stress Equity:':<16} {'':>25}  |  C++ {_fmt_im(cpp_stress_eq.get('scenario_im', 0)):>22}")
-
-        # Marginal IM
+            print(f"     Stress Equity: C++ ${cpp_stress_eq.get('scenario_im', 0):,.0f} "
+                  f"({cpp_stress_eq.get('change_pct', 0):+.1f}%)")
         cpp_marginal = cpp_wi.get("marginal_im")
         if cpp_marginal is not None:
-            print(f"    {'Marginal IM:':<16} {'':>25}  |  C++ {_fmt_im(cpp_marginal):>22}")
+            print(f"     Marginal IM:   C++ ${cpp_marginal:,.0f}")
 
-    # Step 5: EOD Optimization (apples-to-apples — both use same allocation matrix)
+    # --- Step 5: EOD Optimization ---
     cpp_opt = s5.details.get("cpp", {})
-    if cpp_opt and s5.details.get("initial_im") is not None:
-        print(f"\n  Step 5: EOD Optimization (same allocation — apples-to-apples)")
-        print(f"  {'-' * 72}")
-        _print_im_row("Initial IM:", s5.details.get("initial_im"), cpp_opt.get("initial_im"))
-        _print_im_row("Final IM:", s5.details.get("final_im"), cpp_opt.get("final_im"))
-
-        py_moved = s5.details.get("trades_moved")
-        cpp_moved = cpp_opt.get("trades_moved")
-        if py_moved is not None and cpp_moved is not None:
-            match = "MATCH" if py_moved == cpp_moved else f"DIFF (Py={py_moved}, C++={cpp_moved})"
-            print(f"    {'Trades moved:':<16} Py {py_moved:>22}  |  C++ {cpp_moved:>22}  [{match}]")
-
-        py_iters = s5.details.get("iterations")
-        cpp_iters = cpp_opt.get("iterations")
-        if py_iters is not None and cpp_iters is not None:
-            match = "MATCH" if py_iters == cpp_iters else f"Py={py_iters}, C++={cpp_iters}"
-            print(f"    {'Iterations:':<16} Py {py_iters:>22}  |  C++ {cpp_iters:>22}  [{match}]")
+    print(f"\n  5:00 PM - EOD Optimization")
+    print(f"  {'-' * 72}")
+    _print_step_times(s5)
+    d5 = s5.details
+    if "initial_im" in d5:
+        py_init = d5["initial_im"]
+        py_final = d5["final_im"]
+        reduction_pct = d5.get("reduction_pct", 0)
+        print(f"     Initial IM:  ${py_init:,.0f}")
+        print(f"     Final IM:    ${py_final:,.0f} "
+              f"(reduction: {reduction_pct:.1f}%)")
+        print(f"     Trades moved: {d5.get('trades_moved', 0)}, "
+              f"Iterations: {d5.get('iterations', 0)}")
+        if cpp_opt:
+            cpp_init = cpp_opt.get("initial_im")
+            cpp_final = cpp_opt.get("final_im")
+            if cpp_init is not None:
+                _print_im_row("Initial IM:", py_init, cpp_init)
+            if cpp_final is not None:
+                _print_im_row("Final IM:", py_final, cpp_final)
+            cpp_moved = cpp_opt.get("trades_moved")
+            if cpp_moved is not None:
+                match = "MATCH" if d5.get("trades_moved") == cpp_moved else \
+                    f"DIFF (Py={d5.get('trades_moved')}, C++={cpp_moved})"
+                print(f"    {'Trades moved:':<16} Py {d5.get('trades_moved', 0):>22}  "
+                      f"|  C++ {cpp_moved:>22}  [{match}]")
 
     print("\n" + "=" * 78)
 
@@ -1932,27 +1996,45 @@ def run_trading_workflow(
     }
 
     # Run steps
+    # When C++ is available, suppress per-step verbose output — it will be
+    # reprinted after C++ results are merged (so all 3 backends appear together).
+    step_verbose = verbose and not CPP_AVAILABLE
     steps = []
 
-    s1 = step1_portfolio_setup(ctx, verbose)
+    s1 = step1_portfolio_setup(ctx, step_verbose)
     economics.update(s1)
     steps.append(s1)
+    if CPP_AVAILABLE and verbose:
+        print(f"  Step 1 done: AADC Py {_fmt_time(s1.aadc_time_sec)}, "
+              f"GPU {_fmt_time(s1.gpu_time_sec)}")
 
-    s2 = step2_margin_attribution(ctx, s1, verbose)
+    s2 = step2_margin_attribution(ctx, s1, step_verbose)
     economics.update(s2)
     steps.append(s2)
+    if CPP_AVAILABLE and verbose:
+        print(f"  Step 2 done: AADC Py {_fmt_time(s2.aadc_time_sec)}, "
+              f"GPU {_fmt_time(s2.gpu_time_sec)}")
 
-    s3 = step3_intraday_trading(ctx, s1, num_new_trades, refresh_interval, verbose)
+    s3 = step3_intraday_trading(ctx, s1, num_new_trades, refresh_interval, step_verbose)
     economics.update(s3)
     steps.append(s3)
+    if CPP_AVAILABLE and verbose:
+        print(f"  Step 3 done: AADC Py {_fmt_time(s3.aadc_time_sec)}, "
+              f"GPU {_fmt_time(s3.gpu_time_sec)}")
 
-    s4 = step4_whatif_scenarios(ctx, s1, s2, verbose)
+    s4 = step4_whatif_scenarios(ctx, s1, s2, step_verbose)
     economics.update(s4)
     steps.append(s4)
+    if CPP_AVAILABLE and verbose:
+        print(f"  Step 4 done: AADC Py {_fmt_time(s4.aadc_time_sec)}, "
+              f"GPU {_fmt_time(s4.gpu_time_sec)}")
 
-    s5 = step5_eod_optimization(ctx, optimize_iters, verbose, method=method)
+    s5 = step5_eod_optimization(ctx, optimize_iters, step_verbose, method=method)
     economics.update(s5)
     steps.append(s5)
+    if CPP_AVAILABLE and verbose:
+        print(f"  Step 5 done: AADC Py {_fmt_time(s5.aadc_time_sec)}, "
+              f"GPU {_fmt_time(s5.gpu_time_sec)}")
 
     # C++ AADC backend (runs all modes on shared data for apples-to-apples)
     if CPP_AVAILABLE:
@@ -1970,9 +2052,9 @@ def run_trading_workflow(
         if economics.cpp_recording_time_sec > 0:
             print(f"  C++ AADC kernel recording:      {economics.cpp_recording_time_sec*1000:.2f} ms")
 
-    # C++ vs Python value comparison
+    # Reprint step results with all backends (including C++)
     if CPP_AVAILABLE and verbose:
-        print_cpp_vs_python_comparison(steps)
+        print_cpp_vs_python_comparison(steps, ctx)
 
     # Summary
     print_step_summary_table(steps)

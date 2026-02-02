@@ -303,7 +303,10 @@ def record_single_portfolio_simm_kernel_v2_full(
                 psi_ij = _PSI_MATRIX[i, j]
                 simm_sq = simm_sq + psi_ij * risk_class_total_margins[i] * risk_class_total_margins[j]
 
-        im_p = np.sqrt(simm_sq)
+        # Protect sqrt from negative/zero for AADC gradient stability
+        _EPS_TOP = 1.0
+        simm_sq_safe = (simm_sq + np.sqrt(simm_sq * simm_sq + _EPS_TOP)) * 0.5 + _EPS_TOP
+        im_p = np.sqrt(simm_sq_safe)
         im_output = im_p.mark_as_output()
 
     return funcs, sens_handles, im_output
@@ -388,7 +391,9 @@ def _compute_rc_margin_v2_full(
             k_sq = ws_list[0] * ws_list[0]
             ws_sum = ws_list[0]
 
-        bucket_K[bucket_key] = np.sqrt(k_sq)
+        _EPS_B = 1.0
+        k_sq_safe = (k_sq + np.sqrt(k_sq * k_sq + _EPS_B)) * 0.5 + _EPS_B
+        bucket_K[bucket_key] = np.sqrt(k_sq_safe)
         bucket_S[bucket_key] = ws_sum
 
     # Inter-bucket aggregation
@@ -398,21 +403,58 @@ def _compute_rc_margin_v2_full(
     for bucket_key in bucket_keys:
         k_rc_sq = k_rc_sq + bucket_K[bucket_key] * bucket_K[bucket_key]
 
-    # Cross-bucket gamma correlation for IR
-    if len(bucket_keys) > 1 and rc == "Rates":
-        gamma = ir_gamma_diff_ccy
+    # Inter-bucket gamma correlation for all risk classes
+    if len(bucket_keys) > 1 and rc != "FX":
         for i_b in range(len(bucket_keys)):
             for j_b in range(len(bucket_keys)):
                 if i_b == j_b:
                     continue
                 b_key = bucket_keys[i_b]
                 c_key = bucket_keys[j_b]
-                cr_b = bucket_CR.get(b_key, 1.0)
-                cr_c = bucket_CR.get(c_key, 1.0)
-                g_bc = min(cr_b, cr_c) / max(cr_b, cr_c) if max(cr_b, cr_c) > 0 else 1.0
-                k_rc_sq = k_rc_sq + gamma * bucket_S[b_key] * bucket_S[c_key] * g_bc
 
-    return np.sqrt(k_rc_sq)
+                # Look up gamma by risk class
+                gamma = 0.0
+                if rc == "Rates":
+                    gamma = ir_gamma_diff_ccy
+                elif rc == "CreditQ":
+                    try:
+                        b1, b2 = int(b_key), int(c_key)
+                        if 1 <= b1 <= 12 and 1 <= b2 <= 12:
+                            gamma = float(_CQ_INTER[b1 - 1, b2 - 1])
+                        else:
+                            gamma = 0.5
+                    except (ValueError, TypeError):
+                        gamma = 0.5
+                elif rc == "CreditNonQ":
+                    gamma = cr_gamma_diff_ccy
+                elif rc == "Equity":
+                    try:
+                        b1, b2 = int(b_key), int(c_key)
+                        if 1 <= b1 <= 12 and 1 <= b2 <= 12:
+                            gamma = float(_EQ_INTER[b1 - 1, b2 - 1])
+                    except (ValueError, TypeError):
+                        pass
+                elif rc == "Commodity":
+                    try:
+                        b1, b2 = int(b_key), int(c_key)
+                        if 1 <= b1 <= 17 and 1 <= b2 <= 17:
+                            gamma = float(_CM_INTER[b1 - 1, b2 - 1])
+                    except (ValueError, TypeError):
+                        pass
+
+                if gamma != 0.0:
+                    cr_b = bucket_CR.get(b_key, 1.0)
+                    cr_c = bucket_CR.get(c_key, 1.0)
+                    g_bc = min(cr_b, cr_c) / max(cr_b, cr_c) if max(cr_b, cr_c) > 0 else 1.0
+                    k_rc_sq = k_rc_sq + gamma * bucket_S[b_key] * bucket_S[c_key] * g_bc
+
+    # Smooth max(0, k_rc_sq) for AADC compatibility:
+    # (x + sqrt(x^2 + eps)) / 2 ≈ max(0, x), differentiable everywhere
+    # Floor of 1.0 (=$1 margin) is negligible vs IM of ~$1e15 but prevents
+    # gradient singularity at sqrt(0) that would produce NaN in adjoint
+    _EPS_RC = 1.0
+    k_rc_sq_clamped = (k_rc_sq + np.sqrt(k_rc_sq * k_rc_sq + _EPS_RC)) * 0.5 + _EPS_RC
+    return np.sqrt(k_rc_sq_clamped)
 
 
 def record_single_portfolio_simm_kernel_v2(
