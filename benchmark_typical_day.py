@@ -141,35 +141,31 @@ def measure_bf_throughput(ctx, warmup=5, n_evals=50):
 def measure_cpp_throughput(ctx, num_trades, num_portfolios, num_threads,
                            seed=42, timing_iters=50):
     """
-    Measure C++ AADC throughput via optimize mode.
-    Runs timing_iters iterations and derives per-eval rate.
+    Measure C++ AADC throughput via dedicated throughput mode.
+    Runs timing_iters kernel evaluations (with warmup) and reports median time.
     """
     input_dir = os.path.join(os.path.dirname(__file__), "data", "typical_day_cpp_input")
     _export_shared_data(ctx, input_dir)
 
     parsed = _run_cpp_mode(
-        "optimize", num_trades, num_portfolios, num_threads, seed,
+        "throughput", num_trades, num_portfolios, num_threads, seed,
         max_iters=timing_iters, input_dir=input_dir,
     )
     if parsed is None:
         return None
 
     rec_ms = parsed.get("recording_time_ms", parsed.get("kernel_recording_ms", 0))
-    eval_ms = parsed.get("optimization_eval_ms", 0)
-    iters = parsed.get("iterations", timing_iters)
+    median_ms = parsed.get("median_eval_ms", 0)
+    evals_per_sec = parsed.get("evals_per_sec", 0)
 
-    n_evals = iters + 1  # initial eval + each iteration
-    eval_sec = eval_ms / 1000.0
-
-    if eval_sec <= 0:
+    if evals_per_sec <= 0:
         return None
 
-    per_eval = eval_sec / n_evals
     return {
         "recording_time_sec": rec_ms / 1000.0,
-        "median_eval_sec": per_eval,
-        "evals_per_sec": n_evals / eval_sec,
-        "im_value": parsed.get("initial_im", 0),
+        "median_eval_sec": median_ms / 1000.0,
+        "evals_per_sec": evals_per_sec,
+        "im_value": 0,
     }
 
 

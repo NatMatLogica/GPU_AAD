@@ -319,6 +319,31 @@ def _run_cpp_mode(mode, num_trades, num_portfolios, num_threads, seed,
             if m:
                 parsed["kernel_recording_ms"] = float(m.group(1))
 
+        elif mode == "throughput":
+            # Kernel-only section
+            ks = re.search(r"AADC kernel only.*?Median:\s+([\d.]+)\s*ms.*?Evals/sec:\s+([\d.]+)",
+                           stdout, re.DOTALL)
+            if ks:
+                parsed["kernel_median_eval_ms"] = float(ks.group(1))
+                parsed["kernel_evals_per_sec"] = float(ks.group(2))
+            # Full eval section
+            fs = re.search(r"Full eval.*?Median:\s+([\d.]+)\s*ms.*?Evals/sec:\s+([\d.]+)",
+                           stdout, re.DOTALL)
+            if fs:
+                parsed["full_median_eval_ms"] = float(fs.group(1))
+                parsed["full_evals_per_sec"] = float(fs.group(2))
+            # Summary (kernel-only for backward compat)
+            m = re.search(r"Matmul overhead:\s+([\d.]+)%", stdout)
+            if m:
+                parsed["matmul_overhead_pct"] = float(m.group(1))
+            # Use kernel-only as primary metric
+            if ks:
+                parsed["median_eval_ms"] = float(ks.group(1))
+                parsed["evals_per_sec"] = float(ks.group(2))
+            m = re.search(r"Recording:\s+([\d.]+)\s*ms", stdout)
+            if m:
+                parsed["kernel_recording_ms"] = float(m.group(1))
+
         return parsed
 
     except subprocess.TimeoutExpired:

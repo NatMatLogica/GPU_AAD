@@ -18,6 +18,7 @@
 #include <fstream>
 #include <variant>
 #include <numeric>
+#include <algorithm>
 #include <sstream>
 #include <ctime>
 
@@ -360,7 +361,7 @@ int main(int argc, char* argv[]) {
                       << "  --max-iters N     Max optimizer iterations (default: 100)\n"
                       << "  --seed N          Random seed (default: 42)\n"
                       << "  --method M        Optimizer: gradient_descent, adam (default: adam)\n"
-                      << "  --mode M          Mode: optimize, attribution, whatif, pretrade (default: optimize)\n"
+                      << "  --mode M          Mode: optimize, attribution, whatif, pretrade, throughput (default: optimize)\n"
                       << "  --crif-method M   CRIF: aadc, bump (default: aadc)\n"
                       << "  --unwind-n N      Trades to unwind in whatif mode (default: 5)\n"
                       << "  --stress-factor F Shock multiplier in whatif mode (default: 1.5)\n"
@@ -753,6 +754,164 @@ int main(int argc, char* argv[]) {
                   init_eval.eval_time_sec, opt_result.total_eval_time_sec,
                   total_crif_rows, max_iters, converged);
         std::cout << "Logged to " << log_path << "\n";
+
+    } else if (mode == "throughput") {
+        // ---- Throughput Mode: Measure pure kernel evals/sec ----
+        std::cout << "--- Throughput Mode ---\n";
+
+        // Create allocation (round-robin or import)
+        AllocationMatrix alloc(0, 0);
+        if (!input_dir.empty()) {
+            alloc = loadAllocation(input_dir);
+            num_portfolios = alloc.P;
+        } else {
+            alloc = AllocationMatrix(num_trades, num_portfolios);
+            for (int t = 0; t < num_trades; ++t)
+                alloc(t, t % num_portfolios) = 1.0;
+        }
+
+        int K = kernel.K;
+        int T = S.T;
+        int P = num_portfolios;
+        int n_warmup = 5;
+        int n_timed = max_iters;  // Use --max-iters as number of timed evaluations
+        std::mt19937 rng(seed);
+        std::normal_distribution<double> noise(0.0, 0.001);
+
+        // Pre-compute agg_S once for warmup
+        std::vector<double> agg_S(K * P);
+        matmulATB(S.data.data(), alloc.data.data(), agg_S.data(), T, K, P);
+
+        // Create workspaces
+        int num_batches = (P + AVX_WIDTH - 1) / AVX_WIDTH;
+        int actual_threads = std::min(num_threads, num_batches);
+        std::vector<std::shared_ptr<AADCWorkSpace<mmType>>> workspaces(actual_threads);
+        for (int i = 0; i < actual_threads; ++i) {
+            workspaces[i] = kernel.funcs.createWorkSpace();
+        }
+
+        std::cout << "  Warmup: " << n_warmup << " evals\n";
+        std::cout << "  Timed:  " << n_timed << " evals\n";
+        std::cout << "  T=" << T << " K=" << K << " P=" << P
+                  << " threads=" << num_threads << "\n\n";
+
+        // Lambda: run AADC kernel only (no matrix muls)
+        auto run_kernel_only = [&](const std::vector<double>& agg) {
+            std::vector<double> ims(P, 0.0);
+            std::vector<double> grad_k(K * P, 0.0);
+
+            #pragma omp parallel for num_threads(actual_threads) schedule(dynamic)
+            for (int batch = 0; batch < num_batches; ++batch) {
+                #ifdef _OPENMP
+                int tid = omp_get_thread_num();
+                #else
+                int tid = 0;
+                #endif
+                auto& ws = *workspaces[tid];
+                int p_start = batch * AVX_WIDTH;
+
+                for (int k = 0; k < K; ++k) {
+                    mmType mm_val;
+                    double* ptr = reinterpret_cast<double*>(&mm_val);
+                    for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                        int p = p_start + lane;
+                        ptr[lane] = (p < P) ? agg[k * P + p] : 0.0;
+                    }
+                    ws.setVal(kernel.sens_handles[k], mm_val);
+                }
+                kernel.funcs.forward(ws);
+                {
+                    mmType mm_im = ws.val(kernel.im_output);
+                    double* im_ptr = reinterpret_cast<double*>(&mm_im);
+                    for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                        int p = p_start + lane;
+                        if (p < P) ims[p] = im_ptr[lane];
+                    }
+                }
+                ws.resetDiff();
+                ws.setDiff(kernel.im_output, 1.0);
+                kernel.funcs.reverse(ws);
+                for (int k = 0; k < K; ++k) {
+                    mmType mm_grad = ws.diff(kernel.sens_handles[k]);
+                    double* grad_ptr = reinterpret_cast<double*>(&mm_grad);
+                    for (int lane = 0; lane < AVX_WIDTH; ++lane) {
+                        int p = p_start + lane;
+                        if (p < P) grad_k[k * P + p] = grad_ptr[lane];
+                    }
+                }
+            }
+            return std::make_pair(ims, grad_k);
+        };
+
+        // Warmup (kernel only)
+        for (int i = 0; i < n_warmup; ++i) {
+            run_kernel_only(agg_S);
+        }
+
+        // ----- Measure kernel-only times -----
+        std::vector<double> kernel_times(n_timed);
+        std::vector<double> agg_S_noisy(K * P);
+        for (int i = 0; i < n_timed; ++i) {
+            // Add tiny noise to aggregated inputs
+            for (int j = 0; j < K * P; ++j)
+                agg_S_noisy[j] = agg_S[j] * (1.0 + noise(rng));
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            run_kernel_only(agg_S_noisy);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            kernel_times[i] = std::chrono::duration<double>(t1 - t0).count();
+        }
+
+        // ----- Measure full eval (matmul + kernel + chain rule) -----
+        SensitivityMatrix S_noisy;
+        S_noisy.T = S.T; S_noisy.K = S.K;
+        S_noisy.risk_factors = S.risk_factors;
+        S_noisy.trade_ids = S.trade_ids;
+        S_noisy.data = S.data;
+
+        // Warmup full
+        for (int i = 0; i < n_warmup; ++i)
+            evaluateAllPortfoliosMT(kernel, S_noisy, alloc, num_threads);
+
+        std::vector<double> full_times(n_timed);
+        for (int i = 0; i < n_timed; ++i) {
+            for (size_t j = 0; j < S_noisy.data.size(); ++j)
+                S_noisy.data[j] = S.data[j] * (1.0 + noise(rng));
+            auto result = evaluateAllPortfoliosMT(kernel, S_noisy, alloc, num_threads);
+            full_times[i] = result.eval_time_sec;
+        }
+
+        // Statistics
+        auto stats = [](std::vector<double>& times) {
+            std::sort(times.begin(), times.end());
+            int n = times.size();
+            double median = times[n / 2];
+            double total = 0; for (double t : times) total += t;
+            return std::make_tuple(median, total / n, times[0], times.back());
+        };
+
+        auto [k_med, k_mean, k_min, k_max] = stats(kernel_times);
+        auto [f_med, f_mean, f_min, f_max] = stats(full_times);
+
+        std::cout << std::fixed;
+        std::cout << "  AADC kernel only (forward+reverse, no matmul):\n";
+        std::cout << "    Median:      " << std::setprecision(3) << k_med * 1000 << " ms\n";
+        std::cout << "    Mean:        " << std::setprecision(3) << k_mean * 1000 << " ms\n";
+        std::cout << "    Evals/sec:   " << std::setprecision(1) << 1.0 / k_med << "\n";
+        std::cout << "\n  Full eval (matmul + kernel + chain rule):\n";
+        std::cout << "    Median:      " << std::setprecision(3) << f_med * 1000 << " ms\n";
+        std::cout << "    Mean:        " << std::setprecision(3) << f_mean * 1000 << " ms\n";
+        std::cout << "    Evals/sec:   " << std::setprecision(1) << 1.0 / f_med << "\n";
+        std::cout << "    Matmul overhead: " << std::setprecision(1)
+                  << (f_med - k_med) / f_med * 100 << "%\n";
+        std::cout << "\n  Median eval:   " << std::setprecision(3) << k_med * 1000 << " ms\n";
+        std::cout << "  Evals/sec:     " << std::setprecision(1) << 1.0 / k_med << "\n";
+        std::cout << "  Recording:     " << std::setprecision(2) << kernel.recording_time_sec * 1000 << " ms\n";
+
+        auto total_end = std::chrono::high_resolution_clock::now();
+        double total_time = std::chrono::duration<double>(total_end - total_start).count();
+        std::cout << "  Total wall:    " << std::setprecision(2) << total_time * 1000 << " ms\n";
+        std::cout << "================================================================================\n";
 
     } else if (mode == "all") {
         // ================================================================

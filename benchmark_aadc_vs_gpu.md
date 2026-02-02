@@ -409,6 +409,10 @@ The C++ Adam implementation (lines 604-733) uses:
 - Simplex projection per row (sum=1, all≥0)
 - Greedy refinement on integer allocation (top-k gradient-guided moves)
 
+### Note: Trade Count vs `--trades` Argument
+
+The number of trades in the sensitivity matrix S may be slightly less than the `--trades` value. This is expected behavior: during CRIF computation (`precompute_all_trade_crifs()`), each trade's sensitivities are evaluated via the AADC kernel, and any sensitivity with `abs(value) <= 1e-10` is dropped. If **all** of a trade's sensitivities fall below this threshold, the trade is excluded from the S matrix entirely since it contributes nothing to SIMM margin. For example, `--trades 1000` might produce `S.shape = (987, K)` if 13 trades have near-zero risk.
+
 ### Usage
 
 ```bash
