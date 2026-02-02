@@ -16,6 +16,7 @@ Usage:
 Version: 1.0.0
 """
 
+import math
 import os
 import sys
 import time
@@ -105,8 +106,6 @@ if CUDA_AVAILABLE:
         CUDA kernel for SIMM + gradient computation.
         One thread per portfolio, computes both IM and dIM/dS.
         """
-        import math
-
         p = cuda.grid(1)
         if p >= sensitivities.shape[0]:
             return

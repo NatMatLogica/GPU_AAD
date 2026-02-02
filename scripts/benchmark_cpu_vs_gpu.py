@@ -52,9 +52,18 @@ except ImportError:
 # Check for MKL
 try:
     import numpy as np
-    # Check if NumPy is using MKL
+    # Check if NumPy is using MKL (without printing config to stdout)
     np_config = np.__config__
-    MKL_AVAILABLE = 'mkl' in str(np_config.show()).lower() if hasattr(np_config, 'show') else False
+    if hasattr(np_config, 'blas_mkl_info'):
+        MKL_AVAILABLE = True
+    elif hasattr(np_config, 'show'):
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            np_config.show()
+        MKL_AVAILABLE = 'mkl' in buf.getvalue().lower()
+    else:
+        MKL_AVAILABLE = False
 except:
     MKL_AVAILABLE = False
 

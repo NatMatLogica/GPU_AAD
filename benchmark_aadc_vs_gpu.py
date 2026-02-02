@@ -17,7 +17,7 @@ Usage:
     python benchmark_aadc_vs_gpu.py --trades 100 --portfolios 5 --threads 8
     python benchmark_aadc_vs_gpu.py --trades 500 --portfolios 5 --threads 8 --optimize --max-iters 100
 
-Version: 1.0.0
+Version: 1.1.0
 """
 
 import sys
@@ -27,6 +27,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -50,6 +51,7 @@ except ImportError:
     CUDA_AVAILABLE = False
     cuda = None
 
+from common.portfolio import write_log
 from model.simm_portfolio_aadc import (
     precompute_all_trade_crifs,
     _get_ir_risk_weight_v26,
@@ -64,6 +66,79 @@ from model.simm_allocation_optimizer import (
     _get_unique_risk_factors,
     _build_sensitivity_matrix,
 )
+
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+def _build_benchmark_log_row(
+    timestamp, model_name, model_version, trade_types_str,
+    num_trades, num_simm_buckets, num_portfolios, num_threads,
+    im_result, num_risk_factors, eval_time_sec,
+    kernel_recording_sec=None, crif_time_sec=None,
+    optimize_result=None,
+):
+    """Build a single log row matching execution_log_portfolio.csv schema."""
+    row = {
+        "timestamp": timestamp,
+        "model_name": model_name,
+        "model_version": model_version,
+        "trade_types": trade_types_str,
+        "num_trades": num_trades,
+        "num_simm_buckets": num_simm_buckets,
+        "num_portfolios": num_portfolios,
+        "num_threads": num_threads,
+        "crif_time_sec": crif_time_sec if crif_time_sec is not None else "",
+        "crif_kernel_recording_sec": "",
+        "simm_time_sec": eval_time_sec,
+        "im_sens_time_sec": eval_time_sec,
+        "im_kernel_recording_sec": kernel_recording_sec if kernel_recording_sec is not None else "",
+        "group_id": "ALL",
+        "num_group_trades": num_trades,
+        "im_result": im_result,
+        "num_im_sensitivities": num_risk_factors * num_portfolios,
+        "reallocate_n": "",
+        "reallocate_time_sec": "",
+        "im_before_realloc": "",
+        "im_after_realloc": "",
+        "realloc_trades_moved": "",
+        "realloc_im_reduction": "",
+        "realloc_im_reduction_pct": "",
+        "im_realloc_estimate": "",
+        "realloc_estimate_matches": "",
+        "status": "success",
+    }
+
+    if optimize_result:
+        initial_im = optimize_result['initial_im']
+        final_im = optimize_result['final_im']
+        reduction_pct = (initial_im - final_im) / initial_im * 100 if initial_im > 0 else 0
+        row.update({
+            "optimize_method": "gradient_descent",
+            "optimize_time_sec": optimize_result['eval_time'],
+            "optimize_initial_im": initial_im,
+            "optimize_final_im": final_im,
+            "optimize_trades_moved": optimize_result['trades_moved'],
+            "optimize_iterations": optimize_result['num_iterations'],
+            "optimize_im_reduction_pct": reduction_pct,
+            "optimize_converged": optimize_result['num_iterations'] < optimize_result.get('max_iters', 100),
+            "optimize_max_iters": optimize_result.get('max_iters', 100),
+        })
+    else:
+        row.update({
+            "optimize_method": "",
+            "optimize_time_sec": "",
+            "optimize_initial_im": "",
+            "optimize_final_im": "",
+            "optimize_trades_moved": "",
+            "optimize_iterations": "",
+            "optimize_im_reduction_pct": "",
+            "optimize_converged": "",
+            "optimize_max_iters": "",
+        })
+
+    return row
 
 
 # =============================================================================
@@ -418,6 +493,7 @@ def run_comparison(
     aadc_im_values = None
     aadc_gradients = None
     aadc_time = None
+    rec_time = None
     if AADC_AVAILABLE:
         print("\n  --- AADC (AAD) ---")
         rec_start = time.perf_counter()
@@ -441,6 +517,14 @@ def run_comparison(
     gpu_im_values = None
     gpu_gradients = None
     gpu_time = None
+    # Full ISDA reference
+    full_im = None
+    full_time = None
+    # Optimization results
+    aadc_opt = None
+    gpu_opt = None
+
+
     if CUDA_AVAILABLE:
         print("\n  --- GPU (CUDA) ---")
         eval_start = time.perf_counter()
@@ -597,6 +681,70 @@ def run_comparison(
             print(f"  This portfolio: K={K} factors ({n_ir_factors} IR + {n_other} other)")
             print(f"  Estimated GPU slowdown for full ISDA: 3-8x")
             print(f"  GPU with full ISDA would still be faster than CPU for large portfolios")
+
+    # =========================================================================
+    # Log results to execution_log_portfolio.csv
+    # =========================================================================
+    timestamp = datetime.now().isoformat()
+    trade_types_str = ",".join(trade_types)
+    log_rows = []
+
+    common_kwargs = dict(
+        timestamp=timestamp,
+        trade_types_str=trade_types_str,
+        num_trades=T,
+        num_simm_buckets=num_simm_buckets,
+        num_portfolios=P,
+        num_risk_factors=K,
+        crif_time_sec=crif_time,
+    )
+
+    # AADC simplified row
+    if AADC_AVAILABLE and aadc_im_values is not None:
+        aadc_opt_result = aadc_opt if (optimize and AADC_AVAILABLE) else None
+        if aadc_opt_result:
+            aadc_opt_result['max_iters'] = max_iters
+        log_rows.append(_build_benchmark_log_row(
+            model_name="benchmark_aadc_simplified",
+            model_version="1.0.0",
+            num_threads=num_threads,
+            im_result=float(np.sum(aadc_im_values)),
+            eval_time_sec=aadc_time,
+            kernel_recording_sec=rec_time,
+            optimize_result=aadc_opt_result,
+            **common_kwargs,
+        ))
+
+    # GPU row
+    if CUDA_AVAILABLE and gpu_im_values is not None:
+        gpu_opt_result = gpu_opt if (optimize and CUDA_AVAILABLE) else None
+        if gpu_opt_result:
+            gpu_opt_result['max_iters'] = max_iters
+        log_rows.append(_build_benchmark_log_row(
+            model_name="benchmark_gpu_cuda",
+            model_version="1.0.0",
+            num_threads=1,
+            im_result=float(np.sum(gpu_im_values)),
+            eval_time_sec=gpu_time,
+            optimize_result=gpu_opt_result,
+            **common_kwargs,
+        ))
+
+    # Full ISDA AADC row (reference)
+    if AADC_AVAILABLE and full_im is not None:
+        log_rows.append(_build_benchmark_log_row(
+            model_name="benchmark_aadc_full_isda",
+            model_version="1.0.0",
+            num_threads=num_threads,
+            im_result=full_im,
+            eval_time_sec=full_time,
+            kernel_recording_sec=None,
+            **common_kwargs,
+        ))
+
+    if log_rows:
+        write_log(log_rows)
+        print(f"\n  Logged {len(log_rows)} rows to data/execution_log_portfolio.csv")
 
     print("\n" + "=" * 80)
     print("Done.")
