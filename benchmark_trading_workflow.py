@@ -22,10 +22,10 @@ Usage:
     python benchmark_trading_workflow.py --trades 5000 --portfolios 10 \\
         --new-trades 50 --optimize-iters 100 --refresh-interval 10
 
-Version: 3.0.0
+Version: 3.1.0
 """
 
-MODEL_VERSION = "3.0.0"
+BENCHMARK_VERSION = "3.1.0"  # Benchmark script version
 
 import sys
 import os
@@ -121,8 +121,9 @@ from model.simm_portfolio_cuda import (
     compute_simm_and_gradient_cuda,
     compute_simm_im_only_cuda,
     preallocate_gpu_arrays,
+    MODEL_VERSION as GPU_CUDA_VERSION,
 )
-from model.pure_gpu_ir import PureGPUIRBackend, CUDA_AVAILABLE as PURE_GPU_CUDA_CHECK
+from model.pure_gpu_ir import PureGPUIRBackend, CUDA_AVAILABLE as PURE_GPU_CUDA_CHECK, MODEL_VERSION as PURE_GPU_VERSION
 from benchmark_aadc_vs_gpu import _build_benchmark_log_row
 
 MD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmark_trading_workflow.md")
@@ -2597,7 +2598,7 @@ def log_workflow_results(steps, economics, config):
         if AADC_AVAILABLE and (s.aadc_time_sec or s.aadc_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_aadc_full",
-                model_version=MODEL_VERSION,
+                model_version=BENCHMARK_VERSION,
                 num_threads=config["num_threads"],
                 im_result=im_result,
                 eval_time_sec=s.aadc_time_sec or 0,
@@ -2610,7 +2611,7 @@ def log_workflow_results(steps, economics, config):
         if GPU_FULL_ENABLED and (s.gpu_time_sec or s.gpu_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_gpu_full",
-                model_version=MODEL_VERSION,
+                model_version=GPU_CUDA_VERSION,
                 num_threads=1,
                 im_result=im_result,
                 eval_time_sec=s.gpu_time_sec or 0,
@@ -2622,7 +2623,7 @@ def log_workflow_results(steps, economics, config):
         if GPU_FULL_ENABLED and (s.bf_time_sec or s.bf_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_bf_gpu",
-                model_version=MODEL_VERSION,
+                model_version=GPU_CUDA_VERSION,
                 num_threads=1,
                 im_result=im_result,
                 eval_time_sec=s.bf_time_sec or 0,
@@ -2634,7 +2635,7 @@ def log_workflow_results(steps, economics, config):
         if CPP_AVAILABLE and (s.cpp_time_sec or s.cpp_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_cpp_aadc",
-                model_version=MODEL_VERSION,
+                model_version=BENCHMARK_VERSION,
                 num_threads=config["num_threads"],
                 im_result=im_result,
                 eval_time_sec=s.cpp_time_sec or 0,
@@ -2647,7 +2648,7 @@ def log_workflow_results(steps, economics, config):
         if PURE_GPU_AVAILABLE and (s.pure_gpu_time_sec or s.pure_gpu_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_pure_gpu_ir",
-                model_version=MODEL_VERSION,
+                model_version=PURE_GPU_VERSION,
                 num_threads=1,  # GPU doesn't use CPU threads
                 im_result=im_result,
                 eval_time_sec=s.pure_gpu_time_sec or 0,
