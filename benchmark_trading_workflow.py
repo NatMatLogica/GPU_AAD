@@ -25,7 +25,7 @@ Usage:
 Version: 3.1.0
 """
 
-BENCHMARK_VERSION = "3.1.0"  # Benchmark script version
+BENCHMARK_VERSION = "3.3.0"  # Benchmark script version - added memory benchmarking
 
 import sys
 import os
@@ -34,12 +34,20 @@ import io
 import time
 import argparse
 import subprocess
+import tracemalloc
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict
+
+# Optional psutil for more detailed memory tracking
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 
 
 class TeeWriter:
@@ -59,6 +67,90 @@ class TeeWriter:
     def close(self):
         self._file.close()
         sys.stdout = self._stdout
+
+
+# =============================================================================
+# Memory Tracking Utilities
+# =============================================================================
+
+class MemoryTracker:
+    """Track CPU and GPU memory usage."""
+
+    def __init__(self):
+        self.cpu_baseline_mb = 0.0
+        self.gpu_baseline_mb = 0.0
+        self._tracemalloc_started = False
+
+    def start(self):
+        """Start tracking memory."""
+        # CPU memory via tracemalloc
+        if not self._tracemalloc_started:
+            tracemalloc.start()
+            self._tracemalloc_started = True
+
+        # Record baseline
+        self.cpu_baseline_mb = self._get_cpu_memory_mb()
+        self.gpu_baseline_mb = self._get_gpu_memory_mb()
+
+    def _get_cpu_memory_mb(self) -> float:
+        """Get current CPU memory usage in MB."""
+        if PSUTIL_AVAILABLE:
+            process = psutil.Process(os.getpid())
+            return process.memory_info().rss / (1024 * 1024)
+        elif self._tracemalloc_started:
+            current, _ = tracemalloc.get_traced_memory()
+            return current / (1024 * 1024)
+        return 0.0
+
+    def _get_gpu_memory_mb(self) -> float:
+        """Get current GPU memory usage in MB."""
+        try:
+            if CUDA_AVAILABLE and not CUDA_SIMULATOR:
+                from numba import cuda
+                # Get memory info for current device
+                device = cuda.get_current_device()
+                ctx = device.get_primary_context()
+                # Use nvidia-smi for more accurate reading
+                result = subprocess.run(
+                    ['nvidia-smi', '--query-gpu=memory.used', '--format=csv,noheader,nounits'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    return float(result.stdout.strip().split('\n')[0])
+        except Exception:
+            pass
+        return 0.0
+
+    def get_snapshot(self) -> dict:
+        """Get current memory snapshot."""
+        cpu_mb = self._get_cpu_memory_mb()
+        gpu_mb = self._get_gpu_memory_mb()
+        return {
+            'cpu_mb': cpu_mb,
+            'cpu_delta_mb': cpu_mb - self.cpu_baseline_mb,
+            'gpu_mb': gpu_mb,
+            'gpu_delta_mb': gpu_mb - self.gpu_baseline_mb,
+        }
+
+    def stop(self) -> dict:
+        """Stop tracking and return final snapshot."""
+        snapshot = self.get_snapshot()
+        if self._tracemalloc_started:
+            current, peak = tracemalloc.get_traced_memory()
+            snapshot['cpu_peak_mb'] = peak / (1024 * 1024)
+            tracemalloc.stop()
+            self._tracemalloc_started = False
+        return snapshot
+
+
+# Global memory tracker
+_memory_tracker = MemoryTracker()
+
+
+def get_memory_usage() -> dict:
+    """Get current memory usage snapshot."""
+    return _memory_tracker.get_snapshot()
+
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -151,6 +243,9 @@ class StepResult:
     pure_gpu_evals: int = 0
     aadc_kernel_recordings: int = 0   # Number of kernel recordings (AADC only)
     aadc_kernel_reuses: int = 0       # Evaluations that reused existing kernel
+    # Memory tracking (MB)
+    cpu_memory_mb: float = 0.0
+    gpu_memory_mb: float = 0.0
     details: dict = field(default_factory=dict)
 
 
@@ -170,6 +265,9 @@ class KernelEconomics:
     cpp_recording_time_sec: float = 0.0
     total_cpp_evals: int = 0
     cumulative_cpp_time: float = 0.0
+    # Memory tracking (MB)
+    peak_cpu_memory_mb: float = 0.0
+    peak_gpu_memory_mb: float = 0.0
 
     def update(self, step: StepResult):
         self.total_aadc_evals += step.aadc_evals
@@ -189,6 +287,9 @@ class KernelEconomics:
             self.cumulative_bf_time += step.bf_time_sec
         if step.pure_gpu_time_sec is not None:
             self.cumulative_pure_gpu_time += step.pure_gpu_time_sec
+        # Track peak memory
+        self.peak_cpu_memory_mb = max(self.peak_cpu_memory_mb, step.cpu_memory_mb)
+        self.peak_gpu_memory_mb = max(self.peak_gpu_memory_mb, step.gpu_memory_mb)
 
     @property
     def amortized_recording_ms(self) -> float:
@@ -1016,6 +1117,149 @@ def _make_aadc_im_only_fn(ctx):
     return fn
 
 
+def _make_pure_gpu_im_only_fn(ctx):
+    """Closure for forward-only Pure GPU IR IM evaluation (no gradients)."""
+    backend = ctx.get("pure_gpu_backend")
+
+    def fn(agg_S_T):
+        # Pure GPU compute_im_batched takes (N, K) pre-aggregated sensitivities
+        return backend.compute_im_batched(agg_S_T)
+    return fn
+
+
+def optimize_allocation_pure_gpu(
+    S, initial_allocation, backend,
+    max_iters=100, lr=None, tol=1e-6, verbose=False, label="",
+    method="gradient_descent",
+):
+    """
+    Allocation optimizer for Pure GPU IR backend.
+
+    Uses the allocation-based API directly instead of aggregated sensitivities.
+    """
+    T, P = initial_allocation.shape
+
+    x = initial_allocation.copy()
+    im_history = []
+    eval_start = time.perf_counter()
+    total_grad_time = 0.0
+    num_evals = 0
+
+    # Adam moment estimates
+    use_adam = (method == "adam")
+    m = np.zeros_like(x)
+    v = np.zeros_like(x)
+    beta1, beta2, eps = 0.9, 0.999, 1e-8
+
+    # First evaluation using Pure GPU backend
+    grad_start = time.perf_counter()
+    im_values, gradient = backend.compute_im_and_gradient(x)
+    total_grad_time += time.perf_counter() - grad_start
+    num_evals += 1
+
+    total_im = float(np.sum(im_values))
+    im_history.append(total_im)
+
+    grad_max = np.abs(gradient).max()
+    if lr is None:
+        if grad_max > 1e-10:
+            lr = 1.0 / grad_max if use_adam else 0.3 / grad_max
+        else:
+            lr = 1e-12
+
+    best_im = total_im
+    best_x = x.copy()
+    stalled_count = 0
+
+    LS_BETA = 0.5
+    LS_MAX_TRIES = 10
+
+    for iteration in range(max_iters):
+        if iteration > 0:
+            grad_start = time.perf_counter()
+            im_values, gradient = backend.compute_im_and_gradient(x)
+            total_grad_time += time.perf_counter() - grad_start
+            num_evals += 1
+
+            total_im = float(np.sum(im_values))
+            im_history.append(total_im)
+
+        if total_im < best_im:
+            best_im = total_im
+            best_x = x.copy()
+            stalled_count = 0
+        else:
+            stalled_count += 1
+            if stalled_count > 10:
+                break
+
+        # Compute update direction
+        if use_adam:
+            m = beta1 * m + (1 - beta1) * gradient
+            v = beta2 * v + (1 - beta2) * (gradient ** 2)
+            m_hat = m / (1 - beta1 ** (iteration + 1))
+            v_hat = v / (1 - beta2 ** (iteration + 1))
+            direction = -m_hat / (np.sqrt(v_hat) + eps)
+        else:
+            direction = -gradient
+
+        # Line search
+        step = lr
+        for _ in range(LS_MAX_TRIES):
+            x_new = _project_to_simplex(x + step * direction)
+            im_new, _ = backend.compute_im_and_gradient(x_new)
+            num_evals += 1
+            im_total_new = float(np.sum(im_new))
+            if im_total_new < total_im:
+                x = x_new
+                gradient = _  # Use gradient from line search eval
+                break
+            step *= LS_BETA
+        else:
+            x = x_new
+
+        # Convergence check
+        if iteration > 0 and len(im_history) > 1:
+            rel_change = abs(im_history[-1] - im_history[-2]) / max(abs(im_history[-2]), 1e-10)
+            if rel_change < tol:
+                break
+
+    # Final assignment to integer allocation
+    final_allocation = np.zeros_like(x)
+    for t in range(T):
+        best_p = np.argmax(x[t, :])
+        final_allocation[t, best_p] = 1.0
+
+    # Final IM
+    final_ims, _ = backend.compute_im_and_gradient(final_allocation)
+    num_evals += 1
+    final_im = float(np.sum(final_ims))
+
+    trades_moved = int(np.sum(np.any(final_allocation != initial_allocation, axis=1)))
+
+    return {
+        "initial_im": im_history[0],
+        "final_im": final_im,
+        "final_allocation": final_allocation,
+        "trades_moved": trades_moved,
+        "num_iterations": iteration + 1,
+        "num_evals": num_evals,
+        "im_history": im_history,
+        "converged": stalled_count <= 10,
+    }
+
+
+def _make_pure_gpu_im_only_fn(ctx):
+    """Closure for forward-only Pure GPU IR IM evaluation (no gradients)."""
+    backend = ctx.get("pure_gpu_backend")
+
+    def fn(agg_S_T):
+        # Pure GPU expects allocation, but for IM-only we can use batched eval
+        # agg_S_T is (P, K) or (N, K) aggregated sensitivities
+        return backend.compute_im_batched(agg_S_T)
+    return fn
+
+
 # =============================================================================
 # Optimization (shared logic, different gradient backends)
 # =============================================================================
@@ -1480,6 +1724,11 @@ def step1_portfolio_setup(ctx, verbose=True):
 
     result = StepResult("Portfolio Setup", "7:00 AM")
 
+    # Track memory at start of step
+    mem_snapshot = get_memory_usage()
+    result.cpu_memory_mb = mem_snapshot['cpu_mb']
+    result.gpu_memory_mb = mem_snapshot['gpu_mb']
+
     # AADC: first evaluation (reuses recorded kernel)
     aadc_ims = aadc_grads = None
     if AADC_AVAILABLE:
@@ -1572,6 +1821,11 @@ def step2_margin_attribution(ctx, prev_result, verbose=True):
     assignments = np.argmax(allocation, axis=1)
 
     result = StepResult("Margin Attribution", "8:00 AM")
+
+    # Track memory
+    mem_snapshot = get_memory_usage()
+    result.cpu_memory_mb = mem_snapshot['cpu_mb']
+    result.gpu_memory_mb = mem_snapshot['gpu_mb']
 
     def _compute_attribution(grad_S):
         """Euler decomposition: contribution[t] = S[t,:] . grad_S[p(t),:]"""
@@ -1679,6 +1933,11 @@ def step3_intraday_trading(ctx, prev_step1, num_new_trades=50,
     T = ctx["T"]
 
     result = StepResult("Intraday Pre-Trade", "9AM-4PM")
+
+    # Track memory
+    mem_snapshot = get_memory_usage()
+    result.cpu_memory_mb = mem_snapshot['cpu_mb']
+    result.gpu_memory_mb = mem_snapshot['gpu_mb']
 
     # Generate new trades with different seed
     new_trades = generate_trades_by_type(
@@ -1791,11 +2050,48 @@ def step3_intraday_trading(ctx, prev_step1, num_new_trades=50,
         result.bf_time_sec = bf_time
         result.bf_evals = bf_evals
 
-    # Pure GPU IR: skip for intraday trading (backend is fixed to initial trade set)
-    # Adding new trades dynamically would require re-setup of the backend
-    if ctx.get("pure_gpu_available"):
-        result.pure_gpu_time_sec = None  # N/A - backend can't handle dynamic trades
-        result.pure_gpu_evals = 0
+    # Pure GPU IR: Use BF-style routing with compute_im_batched
+    # The backend's S matrix is fixed, but we can extend on host and use batched IM
+    pure_gpu_routing = None
+    if ctx.get("pure_gpu_available") and ctx.get("pure_gpu_backend"):
+        backend = ctx["pure_gpu_backend"]
+        local_S = S.copy()
+        local_alloc = allocation.copy()
+        local_S = np.vstack([local_S, np.zeros((num_new_trades, K))])
+        local_alloc = np.vstack([local_alloc, np.zeros((num_new_trades, P))])
+
+        pure_gpu_routing = []
+        pure_gpu_evals = 0
+        pure_gpu_time = 0.0
+
+        for i, s_new in enumerate(new_trade_sens):
+            # Compute current agg_S
+            agg_S = np.dot(local_S.T, local_alloc).T  # (P, K)
+
+            # Build P candidate rows: agg_S[p] + s_new for each p
+            candidates = agg_S + s_new[np.newaxis, :]  # (P, K)
+
+            start = time.perf_counter()
+            cand_ims = backend.compute_im_batched(candidates)  # (P,)
+            pure_gpu_time += time.perf_counter() - start
+            pure_gpu_evals += 1
+
+            # Current portfolio IMs
+            start = time.perf_counter()
+            base_ims = backend.compute_im_batched(agg_S)  # (P,)
+            pure_gpu_time += time.perf_counter() - start
+            pure_gpu_evals += 1
+
+            marginal_ims = cand_ims - base_ims
+            best_p = int(np.argmin(marginal_ims))
+
+            t_new = T + i
+            local_S[t_new, :] = s_new
+            local_alloc[t_new, best_p] = 1.0
+            pure_gpu_routing.append((i, best_p, float(marginal_ims[best_p])))
+
+        result.pure_gpu_time_sec = pure_gpu_time
+        result.pure_gpu_evals = pure_gpu_evals
 
     routing = aadc_routing if aadc_routing is not None else gpu_routing
     if routing is None:
@@ -1840,6 +2136,11 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
     total_im = step1_result.details["total_im"]
 
     result = StepResult("What-If Scenarios", "2:00 PM")
+
+    # Track memory
+    mem_snapshot = get_memory_usage()
+    result.cpu_memory_mb = mem_snapshot['cpu_mb']
+    result.gpu_memory_mb = mem_snapshot['gpu_mb']
 
     def _run_scenarios(grad_fn, label):
         scenarios = {}
@@ -1942,12 +2243,15 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
         result.bf_time_sec = bf_time
         result.bf_evals = bf_evals
 
-    # Pure GPU IR: can't run what-if scenarios easily since it uses trade-level allocation
-    # Skip Pure GPU for this step (would require re-implementing scenario logic with allocation matrix)
-    # Just log that it was skipped
-    if ctx.get("pure_gpu_available"):
-        result.pure_gpu_time_sec = None  # N/A for this step
-        result.pure_gpu_evals = 0
+    # Pure GPU IR: use compute_im_batched for forward-only scenario evaluation
+    pure_gpu_scenarios = None
+    if ctx.get("pure_gpu_available") and ctx.get("pure_gpu_backend"):
+        backend = ctx["pure_gpu_backend"]
+        im_fn = lambda agg: backend.compute_im_batched(agg)
+        pure_gpu_grad_fn = lambda agg: (im_fn(agg), None)  # wrap as grad_fn shape
+        pure_gpu_scenarios, pure_gpu_evals, pure_gpu_time = _run_scenarios(pure_gpu_grad_fn, "Pure GPU")
+        result.pure_gpu_time_sec = pure_gpu_time
+        result.pure_gpu_evals = pure_gpu_evals
 
     scenarios = aadc_scenarios if aadc_scenarios is not None else gpu_scenarios
     if scenarios is None:
@@ -1999,6 +2303,12 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
             continue
 
         result = StepResult(step_name, "5:00 PM")
+        pure_gpu_opt = None  # Initialize for all methods
+
+        # Track memory
+        mem_snapshot = get_memory_usage()
+        result.cpu_memory_mb = mem_snapshot['cpu_mb']
+        result.gpu_memory_mb = mem_snapshot['gpu_mb']
 
         if method == "gpu_brute_force":
             # GPU brute-force: forward-only kernel, no gradients
@@ -2068,7 +2378,26 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
                 result.gpu_time_sec = time.perf_counter() - start
                 result.gpu_evals = gpu_opt["num_evals"]
 
+            # Pure GPU IR: Phase 1 only (no greedy - dimension mismatch with unified S matrix)
+            # Pure GPU uses K=12 IR tenors while unified S has K=30+ risk factors
+            pure_gpu_opt = None
+            if ctx.get("pure_gpu_available") and ctx.get("pure_gpu_backend"):
+                backend = ctx["pure_gpu_backend"]
+                start = time.perf_counter()
+                pure_gpu_opt = optimize_allocation_pure_gpu(
+                    S, allocation, backend,
+                    max_iters=max_iters, verbose=False, label="Pure GPU",
+                    method=method,
+                )
+                # Skip greedy search for Pure GPU - gradient dimensions don't match unified S
+                # Pure GPU backend has K=12 while S has K=30+ from multi-bucket aggregation
+                result.pure_gpu_time_sec = time.perf_counter() - start
+                result.pure_gpu_evals = pure_gpu_opt["num_evals"]
+
+        # Select best result for reporting (prefer AADC > GPU > Pure GPU)
         opt = aadc_opt if aadc_opt is not None else gpu_opt
+        if opt is None:
+            opt = pure_gpu_opt
         if opt:
             reduction_pct = (opt["initial_im"] - opt["final_im"]) / opt["initial_im"] * 100
             result.details = {
@@ -2079,6 +2408,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
                 "iterations": opt["num_iterations"],
                 "aadc_opt": aadc_opt,
                 "gpu_opt": gpu_opt,
+                "pure_gpu_opt": pure_gpu_opt,
                 "method": method,
             }
         else:
@@ -2356,6 +2686,11 @@ def print_workflow_summary(steps, economics, config):
         print(f"  C++ AADC total (rec + eval):      {_fmt_time(cpp_total)}")
         if economics.cumulative_aadc_time > 0:
             print(f"  C++/Py AADC speedup (eval):       {economics.cumulative_aadc_time/economics.cumulative_cpp_time:.1f}x")
+    # Memory summary
+    print(f"  --- Memory Usage ---")
+    print(f"  Peak CPU memory:                  {economics.peak_cpu_memory_mb:.1f} MB")
+    if economics.peak_gpu_memory_mb > 0:
+        print(f"  Peak GPU memory:                  {economics.peak_gpu_memory_mb:.1f} MB")
     print("=" * 70)
 
 
@@ -2706,6 +3041,12 @@ def run_trading_workflow(
     if not AADC_AVAILABLE and not GPU_FULL_ENABLED and not CPP_AVAILABLE and not PURE_GPU_AVAILABLE:
         print("\nERROR: No backends available. Cannot run benchmark.")
         return None
+
+    # Start memory tracking
+    _memory_tracker.start()
+    initial_memory = get_memory_usage()
+    print(f"  Memory tracking: {'psutil' if PSUTIL_AVAILABLE else 'tracemalloc'}")
+    print(f"  Initial CPU memory: {initial_memory['cpu_mb']:.1f} MB")
 
     # Setup (generates portfolio, CRIFs, builds corr/conc, records AADC kernel)
     print("\n  Setting up portfolio, correlations, kernel...")

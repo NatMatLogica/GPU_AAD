@@ -47,7 +47,7 @@ except ImportError:
     cuda = None
     numba = None
 
-MODEL_VERSION = "1.1.0"  # v1.1: Optimized GPU kernels with shared memory and parallel reduction
+MODEL_VERSION = "1.2.0"  # v1.2: Added _last_grad_agg for optimization wrapper support
 
 # =============================================================================
 # Constants
@@ -513,6 +513,9 @@ class PureGPUIRBackend:
         # Timing
         self.last_timing = PureGPUTimingDetail()
 
+        # Gradient cache for optimization wrappers
+        self._last_grad_agg = None  # (P, K) dIM/dAggS from last compute_im_and_gradient
+
     def setup(self, trades: List[Any], market: Any, trade_types: List[str] = None):
         """
         Setup backend with trades and market data.
@@ -684,6 +687,10 @@ class PureGPUIRBackend:
         # Copy back
         d_im.copy_to_host(im_output)
         d_grad.copy_to_host(grad_agg)
+
+        # Store grad_agg for use by optimization wrappers (P, K)
+        # This is dIM/dAggS - the gradient w.r.t. aggregated sensitivities
+        self._last_grad_agg = grad_agg.copy()
 
         # Chain rule: gradient[t,p] = sum_k S[t,k] * dIM_p/dS_agg[p,k]
         # gradient = S @ grad_agg^T -> (T, P)
