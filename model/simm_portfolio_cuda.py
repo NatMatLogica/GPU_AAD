@@ -90,7 +90,7 @@ except ImportError as e:
     TRADE_GENERATORS_AVAILABLE = False
 
 # Version
-MODEL_VERSION = "3.4.0"  # v3.4: Add GPU bump-and-revalue CRIF generation for all 5 asset classes
+MODEL_VERSION = "3.5.0"  # v3.5: Optimized GPU kernels with shared memory and parallel reduction
 
 
 # =============================================================================
@@ -1365,14 +1365,37 @@ def compute_simm_and_gradient_cuda(
     d_im = cuda.to_device(im_output)
     d_grad = cuda.to_device(gradients_out)
 
-    threads_per_block = 256
-    blocks = (P + threads_per_block - 1) // threads_per_block
+    # Use v2 optimized kernel when K ≤ 64 (fits in shared memory)
+    use_v2 = K <= V2_MAX_K_SHARED
 
-    _simm_gradient_kernel_full[blocks, threads_per_block](
-        d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
-        d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
-        d_psi, d_num_buckets, d_im, d_grad
-    )
+    if use_v2:
+        # v2 kernel: 1 block per portfolio, 64 threads per block
+        # Uses shared memory for correlation matrix
+        blocks = P
+        threads_per_block = V2_THREADS_FULL
+
+        # Get 2D correlation matrix (either from gpu_arrays or create it)
+        if gpu_arrays is not None and 'intra_corr_2d' in gpu_arrays:
+            d_intra_corr_2d = gpu_arrays['intra_corr_2d']
+        else:
+            intra_corr_2d = intra_corr_flat.reshape(K, K)
+            d_intra_corr_2d = cuda.to_device(np.ascontiguousarray(intra_corr_2d, dtype=np.float64))
+
+        _simm_gradient_kernel_v2[blocks, threads_per_block](
+            d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+            d_bucket_rc, d_bucket_rm, d_intra_corr_2d, d_bucket_gamma,
+            d_psi, d_num_buckets, d_im, d_grad
+        )
+    else:
+        # v1 kernel: 1 thread per portfolio
+        threads_per_block = 256
+        blocks = (P + threads_per_block - 1) // threads_per_block
+
+        _simm_gradient_kernel_full[blocks, threads_per_block](
+            d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+            d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
+            d_psi, d_num_buckets, d_im, d_grad
+        )
 
     if not CUDA_SIMULATOR:
         cuda.synchronize()
@@ -1391,6 +1414,11 @@ def preallocate_gpu_arrays(
     """Pre-allocate constant GPU arrays for reuse during optimization loop."""
     if not CUDA_SIMULATOR:
         cuda.select_device(device)
+
+    K = len(risk_weights)
+    # Reshape flat correlation to 2D for v2 kernels
+    intra_corr_2d = intra_corr_flat.reshape(K, K)
+
     return {
         'weights': cuda.to_device(np.ascontiguousarray(risk_weights, dtype=np.float64)),
         'concentration': cuda.to_device(np.ascontiguousarray(concentration, dtype=np.float64)),
@@ -1399,9 +1427,11 @@ def preallocate_gpu_arrays(
         'bucket_rc': cuda.to_device(np.ascontiguousarray(bucket_rc, dtype=np.int32)),
         'bucket_rm': cuda.to_device(np.ascontiguousarray(bucket_rm, dtype=np.int32)),
         'intra_corr': cuda.to_device(np.ascontiguousarray(intra_corr_flat, dtype=np.float64)),
+        'intra_corr_2d': cuda.to_device(np.ascontiguousarray(intra_corr_2d, dtype=np.float64)),
         'bucket_gamma': cuda.to_device(np.ascontiguousarray(bucket_gamma_flat, dtype=np.float64)),
         'psi': cuda.to_device(PSI_MATRIX),
         'num_buckets': cuda.to_device(np.array([num_buckets], dtype=np.int32)),
+        'K': K,  # Store K for v2 kernel selection
     }
 
 
@@ -1490,6 +1520,299 @@ if CUDA_AVAILABLE:
         im_output[p] = math.sqrt(im_sq) if im_sq > 0.0 else 0.0
 
 
+# =============================================================================
+# Optimized CUDA Kernels v2 - Shared Memory + Parallel Reduction
+# =============================================================================
+#
+# Optimization strategy for variable K (12-200):
+#   - 1 thread-block per portfolio, 64 threads per block
+#   - Shared memory for correlation matrix tiles (up to 32KB)
+#   - Parallel reduction for K×K correlation computation
+#   - For K ≤ 64: Load full correlation matrix to shared memory
+#   - For K > 64: Use tiled approach or fall back to v1
+#
+# Occupancy analysis (H100):
+#   - 64 threads/block, ~35KB shared memory for K=64
+#   - Theoretical: ~2 blocks/SM (96KB shared limit)
+#   - Better than v1 which uses large local arrays
+# =============================================================================
+
+# Configuration for v2 kernels
+V2_THREADS_FULL = 64    # Threads per block for full SIMM kernel
+V2_MAX_K_SHARED = 64    # Max K that fits in shared memory (64×64×8 = 32KB)
+
+if CUDA_AVAILABLE:
+    @cuda.jit
+    def _simm_gradient_kernel_v2(
+        sensitivities,        # (P, K)
+        risk_weights,         # (K,)
+        concentration,        # (K,)
+        bucket_id,            # (K,) int32
+        risk_measure_idx,     # (K,) int32
+        bucket_rc,            # (B,) int32
+        bucket_rm,            # (B,) int32
+        intra_corr_2d,        # (K, K) 2D correlation matrix
+        bucket_gamma_flat,    # (B*B,)
+        psi_matrix,           # (6, 6)
+        num_buckets,          # (1,) int32
+        im_output,            # (P,)
+        gradients,            # (P, K)
+    ):
+        """
+        Optimized SIMM gradient kernel using shared memory.
+
+        Grid: P blocks (1 per portfolio)
+        Block: 64 threads
+
+        For K ≤ V2_MAX_K_SHARED: Uses shared memory for correlation matrix
+        Note: This kernel requires K ≤ 64. For K > 64, use v1 kernel.
+        """
+        p = cuda.blockIdx.x
+        tid = cuda.threadIdx.x
+
+        if p >= sensitivities.shape[0]:
+            return
+
+        K = sensitivities.shape[1]
+        B = num_buckets[0]
+
+        # Shared memory for correlation matrix tile (K×K), ws, bucket accumulators
+        # For K=64: 64×64×8 = 32KB correlation + 64×8 = 512B ws + misc = ~33KB
+        shared_corr = cuda.shared.array((V2_MAX_K_SHARED, V2_MAX_K_SHARED), dtype=numba.float64)
+        shared_ws = cuda.shared.array(V2_MAX_K_SHARED, dtype=numba.float64)
+        shared_K_b_sq = cuda.shared.array(MAX_B, dtype=numba.float64)
+        shared_S_b = cuda.shared.array(MAX_B, dtype=numba.float64)
+        shared_margin = cuda.shared.array(12, dtype=numba.float64)
+        shared_rc_margin = cuda.shared.array(6, dtype=numba.float64)
+        shared_im = cuda.shared.array(1, dtype=numba.float64)
+
+        Kc = min(K, V2_MAX_K_SHARED)
+        Bc = min(B, MAX_B)
+
+        # Step 0: Initialize shared arrays (cooperative)
+        for b in range(tid, Bc, V2_THREADS_FULL):
+            shared_K_b_sq[b] = 0.0
+            shared_S_b[b] = 0.0
+        for i in range(tid, 12, V2_THREADS_FULL):
+            shared_margin[i] = 0.0
+        cuda.syncthreads()
+
+        # Step 1: Cooperative load of correlation matrix (64 threads load K×K elements)
+        total_corr = Kc * Kc
+        for idx in range(tid, total_corr, V2_THREADS_FULL):
+            i = idx // Kc
+            j = idx % Kc
+            if i < K and j < K:
+                shared_corr[i, j] = intra_corr_2d[i, j]
+        cuda.syncthreads()
+
+        # Step 2: Compute weighted sensitivities (threads 0..K-1)
+        if tid < Kc:
+            shared_ws[tid] = sensitivities[p, tid] * risk_weights[tid] * concentration[tid]
+        cuda.syncthreads()
+
+        # Step 3: Compute bucket sums S_b (parallel)
+        # Each thread handles subset of factors
+        for k in range(tid, Kc, V2_THREADS_FULL):
+            b = bucket_id[k]
+            cuda.atomic.add(shared_S_b, b, shared_ws[k])
+        cuda.syncthreads()
+
+        # Step 4: Intra-bucket K_b^2 computation (parallel reduction)
+        # Each thread computes partial sum of correlation terms
+        # Then atomic add to shared bucket accumulator
+        for k in range(Kc):
+            b_k = bucket_id[k]
+            # Each thread handles a subset of l values
+            partial_sum = 0.0
+            for l in range(tid, Kc, V2_THREADS_FULL):
+                b_l = bucket_id[l]
+                if b_k == b_l:  # Only add intra-bucket terms
+                    partial_sum += shared_corr[k, l] * shared_ws[k] * shared_ws[l]
+            if partial_sum != 0.0:
+                cuda.atomic.add(shared_K_b_sq, b_k, partial_sum)
+        cuda.syncthreads()
+
+        # Step 5: Per (RC, RM) margin with inter-bucket gamma (thread 0)
+        if tid == 0:
+            for b in range(Bc):
+                rc_b = bucket_rc[b]
+                rm_b = bucket_rm[b]
+                rcrm = rc_b * 2 + rm_b
+                shared_margin[rcrm] += shared_K_b_sq[b]
+
+                for c in range(Bc):
+                    if c != b and bucket_rc[c] == rc_b and bucket_rm[c] == rm_b:
+                        shared_margin[rcrm] += bucket_gamma_flat[b * B + c] * shared_S_b[b] * shared_S_b[c]
+
+            # sqrt each margin
+            for i in range(12):
+                shared_margin[i] = math.sqrt(shared_margin[i]) if shared_margin[i] > 0.0 else 0.0
+
+            # Per risk class total = Delta + Vega
+            for r in range(6):
+                shared_rc_margin[r] = shared_margin[r * 2] + shared_margin[r * 2 + 1]
+
+            # Cross-RC aggregation: IM = sqrt(Σ ψ_rs × M_r × M_s)
+            im_sq = 0.0
+            for r in range(6):
+                for s in range(6):
+                    im_sq += psi_matrix[r, s] * shared_rc_margin[r] * shared_rc_margin[s]
+
+            im_p = math.sqrt(im_sq) if im_sq > 0.0 else 0.0
+            im_output[p] = im_p
+            shared_im[0] = im_p
+        cuda.syncthreads()
+
+        im_p = shared_im[0]
+
+        # Step 6: Gradient computation (parallel across K factors)
+        if tid < Kc:
+            if im_p < 1e-30:
+                gradients[p, tid] = 0.0
+            else:
+                k = tid
+                b_k = bucket_id[k]
+                rc_k = bucket_rc[b_k]
+                rm_k = bucket_rm[b_k]
+                rcrm_k = rc_k * 2 + rm_k
+                margin_rcrm = shared_margin[rcrm_k]
+
+                if margin_rcrm < 1e-30:
+                    gradients[p, k] = 0.0
+                else:
+                    # dIM/d(rc_margin_r) = Σ_s ψ_rs × rc_margin_s / IM
+                    dim_drcm = 0.0
+                    for s in range(6):
+                        dim_drcm += psi_matrix[rc_k, s] * shared_rc_margin[s]
+                    dim_drcm /= im_p
+
+                    # Intra-bucket derivative
+                    intra_deriv = 0.0
+                    for l in range(Kc):
+                        if bucket_id[l] == b_k:
+                            intra_deriv += shared_corr[k, l] * shared_ws[l]
+                    intra_deriv *= 2.0
+
+                    # Inter-bucket derivative
+                    inter_deriv = 0.0
+                    for c in range(Bc):
+                        if c != b_k and bucket_rc[c] == rc_k and bucket_rm[c] == rm_k:
+                            inter_deriv += bucket_gamma_flat[b_k * B + c] * shared_S_b[c]
+                    inter_deriv *= 2.0
+
+                    dmargin_dws = (intra_deriv + inter_deriv) / (2.0 * margin_rcrm)
+                    gradients[p, k] = dim_drcm * dmargin_dws * risk_weights[k] * concentration[k]
+
+        # Zero out factors beyond Kc
+        for k in range(Kc + tid, K, V2_THREADS_FULL):
+            gradients[p, k] = 0.0
+
+    @cuda.jit
+    def _simm_forward_kernel_v2(
+        sensitivities,        # (N, K)
+        risk_weights,         # (K,)
+        concentration,        # (K,)
+        bucket_id,            # (K,) int32
+        risk_measure_idx,     # (K,) int32
+        bucket_rc,            # (B,) int32
+        bucket_rm,            # (B,) int32
+        intra_corr_2d,        # (K, K) 2D correlation matrix
+        bucket_gamma_flat,    # (B*B,)
+        psi_matrix,           # (6, 6)
+        num_buckets,          # (1,) int32
+        im_output,            # (N,)
+    ):
+        """
+        Optimized forward-only SIMM kernel using shared memory.
+        ~50% less work than gradient version.
+        """
+        p = cuda.blockIdx.x
+        tid = cuda.threadIdx.x
+
+        if p >= sensitivities.shape[0]:
+            return
+
+        K = sensitivities.shape[1]
+        B = num_buckets[0]
+
+        # Shared memory
+        shared_corr = cuda.shared.array((V2_MAX_K_SHARED, V2_MAX_K_SHARED), dtype=numba.float64)
+        shared_ws = cuda.shared.array(V2_MAX_K_SHARED, dtype=numba.float64)
+        shared_K_b_sq = cuda.shared.array(MAX_B, dtype=numba.float64)
+        shared_S_b = cuda.shared.array(MAX_B, dtype=numba.float64)
+        shared_margin = cuda.shared.array(12, dtype=numba.float64)
+        shared_rc_margin = cuda.shared.array(6, dtype=numba.float64)
+
+        Kc = min(K, V2_MAX_K_SHARED)
+        Bc = min(B, MAX_B)
+
+        # Initialize
+        for b in range(tid, Bc, V2_THREADS_FULL):
+            shared_K_b_sq[b] = 0.0
+            shared_S_b[b] = 0.0
+        for i in range(tid, 12, V2_THREADS_FULL):
+            shared_margin[i] = 0.0
+        cuda.syncthreads()
+
+        # Load correlation matrix
+        total_corr = Kc * Kc
+        for idx in range(tid, total_corr, V2_THREADS_FULL):
+            i = idx // Kc
+            j = idx % Kc
+            if i < K and j < K:
+                shared_corr[i, j] = intra_corr_2d[i, j]
+        cuda.syncthreads()
+
+        # Compute ws
+        if tid < Kc:
+            shared_ws[tid] = sensitivities[p, tid] * risk_weights[tid] * concentration[tid]
+        cuda.syncthreads()
+
+        # Bucket sums
+        for k in range(tid, Kc, V2_THREADS_FULL):
+            b = bucket_id[k]
+            cuda.atomic.add(shared_S_b, b, shared_ws[k])
+        cuda.syncthreads()
+
+        # Intra-bucket K_b^2
+        for k in range(Kc):
+            b_k = bucket_id[k]
+            partial_sum = 0.0
+            for l in range(tid, Kc, V2_THREADS_FULL):
+                b_l = bucket_id[l]
+                if b_k == b_l:
+                    partial_sum += shared_corr[k, l] * shared_ws[k] * shared_ws[l]
+            if partial_sum != 0.0:
+                cuda.atomic.add(shared_K_b_sq, b_k, partial_sum)
+        cuda.syncthreads()
+
+        # Final aggregation (thread 0)
+        if tid == 0:
+            for b in range(Bc):
+                rc_b = bucket_rc[b]
+                rm_b = bucket_rm[b]
+                rcrm = rc_b * 2 + rm_b
+                shared_margin[rcrm] += shared_K_b_sq[b]
+
+                for c in range(Bc):
+                    if c != b and bucket_rc[c] == rc_b and bucket_rm[c] == rm_b:
+                        shared_margin[rcrm] += bucket_gamma_flat[b * B + c] * shared_S_b[b] * shared_S_b[c]
+
+            for i in range(12):
+                shared_margin[i] = math.sqrt(shared_margin[i]) if shared_margin[i] > 0.0 else 0.0
+
+            for r in range(6):
+                shared_rc_margin[r] = shared_margin[r * 2] + shared_margin[r * 2 + 1]
+
+            im_sq = 0.0
+            for r in range(6):
+                for s in range(6):
+                    im_sq += psi_matrix[r, s] * shared_rc_margin[r] * shared_rc_margin[s]
+
+            im_output[p] = math.sqrt(im_sq) if im_sq > 0.0 else 0.0
+
+
 def compute_simm_im_only_cuda(
     sensitivities: np.ndarray,
     risk_weights: np.ndarray,
@@ -1534,6 +1857,7 @@ def compute_simm_im_only_cuda(
         d_bucket_gamma = gpu_arrays['bucket_gamma']
         d_psi = gpu_arrays['psi']
         d_num_buckets = gpu_arrays['num_buckets']
+        d_intra_corr_2d = gpu_arrays.get('intra_corr_2d')
     else:
         d_weights = cuda.to_device(np.ascontiguousarray(risk_weights, dtype=np.float64))
         d_conc = cuda.to_device(np.ascontiguousarray(concentration, dtype=np.float64))
@@ -1545,21 +1869,42 @@ def compute_simm_im_only_cuda(
         d_bucket_gamma = cuda.to_device(np.ascontiguousarray(bucket_gamma_flat, dtype=np.float64))
         d_psi = cuda.to_device(PSI_MATRIX)
         d_num_buckets = cuda.to_device(np.array([num_buckets], dtype=np.int32))
+        d_intra_corr_2d = None
 
-    threads_per_block = 256
+    # Use v2 optimized kernel when K ≤ 64 (fits in shared memory)
+    use_v2 = K <= V2_MAX_K_SHARED
+
+    # Prepare 2D correlation for v2 kernel if needed
+    if use_v2 and d_intra_corr_2d is None:
+        intra_corr_2d = intra_corr_flat.reshape(K, K)
+        d_intra_corr_2d = cuda.to_device(np.ascontiguousarray(intra_corr_2d, dtype=np.float64))
 
     # Chunked evaluation for large N
     if N <= max_batch:
         im_output = np.zeros(N, dtype=np.float64)
         d_sens = cuda.to_device(sensitivities)
         d_im = cuda.to_device(im_output)
-        blocks = (N + threads_per_block - 1) // threads_per_block
 
-        _simm_forward_kernel[blocks, threads_per_block](
-            d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
-            d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
-            d_psi, d_num_buckets, d_im
-        )
+        if use_v2:
+            # v2 kernel: 1 block per scenario, 64 threads per block
+            blocks = N
+            threads_per_block = V2_THREADS_FULL
+
+            _simm_forward_kernel_v2[blocks, threads_per_block](
+                d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+                d_bucket_rc, d_bucket_rm, d_intra_corr_2d, d_bucket_gamma,
+                d_psi, d_num_buckets, d_im
+            )
+        else:
+            # v1 kernel: 1 thread per scenario
+            threads_per_block = 256
+            blocks = (N + threads_per_block - 1) // threads_per_block
+
+            _simm_forward_kernel[blocks, threads_per_block](
+                d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+                d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
+                d_psi, d_num_buckets, d_im
+            )
 
         if not CUDA_SIMULATOR:
             cuda.synchronize()
@@ -1575,13 +1920,25 @@ def compute_simm_im_only_cuda(
             im_chunk = np.zeros(chunk_n, dtype=np.float64)
             d_sens = cuda.to_device(chunk)
             d_im = cuda.to_device(im_chunk)
-            blocks = (chunk_n + threads_per_block - 1) // threads_per_block
 
-            _simm_forward_kernel[blocks, threads_per_block](
-                d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
-                d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
-                d_psi, d_num_buckets, d_im
-            )
+            if use_v2:
+                blocks = chunk_n
+                threads_per_block = V2_THREADS_FULL
+
+                _simm_forward_kernel_v2[blocks, threads_per_block](
+                    d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+                    d_bucket_rc, d_bucket_rm, d_intra_corr_2d, d_bucket_gamma,
+                    d_psi, d_num_buckets, d_im
+                )
+            else:
+                threads_per_block = 256
+                blocks = (chunk_n + threads_per_block - 1) // threads_per_block
+
+                _simm_forward_kernel[blocks, threads_per_block](
+                    d_sens, d_weights, d_conc, d_bucket_id, d_rm_idx,
+                    d_bucket_rc, d_bucket_rm, d_intra_corr, d_bucket_gamma,
+                    d_psi, d_num_buckets, d_im
+                )
 
             if not CUDA_SIMULATOR:
                 cuda.synchronize()

@@ -2837,6 +2837,8 @@ def main():
                         help='Disable GPU backends (CUDA and BF). Run AADC Python + C++ only.')
     parser.add_argument('--no-gpu-full', action='store_true',
                         help='Disable GPU full and BF backends, but keep Pure GPU IR.')
+    parser.add_argument('--no-aadc', action='store_true',
+                        help='Disable AADC backends (Python and C++). Run GPU only.')
 
     args = parser.parse_args()
 
@@ -2846,6 +2848,10 @@ def main():
     if args.no_gpu_full:
         global GPU_FULL_ENABLED
         GPU_FULL_ENABLED = False
+    if args.no_aadc:
+        global AADC_AVAILABLE, CPP_AVAILABLE
+        AADC_AVAILABLE = False
+        CPP_AVAILABLE = False
     trade_types = [t.strip() for t in args.trade_types.split(',')]
 
     # Resolve output file

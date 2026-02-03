@@ -47,7 +47,7 @@ except ImportError:
     cuda = None
     numba = None
 
-MODEL_VERSION = "1.0.0"
+MODEL_VERSION = "1.1.0"  # v1.1: Optimized GPU kernels with shared memory and parallel reduction
 
 # =============================================================================
 # Constants
@@ -296,6 +296,166 @@ if CUDA_AVAILABLE:
 
 
 # =============================================================================
+# Optimized CUDA Kernels v2 - Shared Memory + Parallel Reduction
+# =============================================================================
+#
+# Optimization strategy for K=12 IR-only SIMM:
+#   - 1 thread-block per portfolio (32 threads = 1 warp)
+#   - Shared memory for correlation matrix (12×12 = 144 floats = 1.2KB)
+#   - Parallel reduction for K×K correlation computation
+#   - Warp-level primitives for fast reduction
+#
+# Occupancy analysis (H100):
+#   - 32 threads/block, ~1.5KB shared memory
+#   - Theoretical: 64 blocks/SM (2048 threads / 32)
+#   - Actual limited by number of portfolios P
+#   - For P=100: 100 blocks → ~0.75 blocks/SM average
+#   - For P=1000: 1000 blocks → ~7.6 blocks/SM average
+# =============================================================================
+
+if CUDA_AVAILABLE:
+    # Thread block size for v2 kernels (1 warp minimum for efficiency)
+    V2_THREADS_PER_BLOCK = 32
+
+    @cuda.jit
+    def _simm_im_gradient_kernel_v2(
+        # Aggregated sensitivities (P, K=12)
+        agg_sens,
+        # SIMM parameters
+        risk_weights, correlations, concentration_factors,
+        # Outputs
+        im_output, gradients,
+    ):
+        """
+        Optimized SIMM IM + gradient kernel using shared memory.
+
+        Grid: P blocks (1 per portfolio)
+        Block: 32 threads (1 warp)
+
+        Shared memory layout:
+        - correlations: 12×12 = 144 floats (1152 bytes)
+        - ws: 12 floats (96 bytes)
+        - k_ir_broadcast: 1 float (8 bytes)
+        Total: ~1.3KB per block
+        """
+        K = 12
+
+        # Shared memory allocations
+        shared_corr = cuda.shared.array((12, 12), dtype=numba.float64)
+        shared_ws = cuda.shared.array(12, dtype=numba.float64)
+        shared_k_ir = cuda.shared.array(1, dtype=numba.float64)
+
+        p = cuda.blockIdx.x  # Portfolio index
+        tid = cuda.threadIdx.x  # Thread within block (0-31)
+
+        if p >= agg_sens.shape[0]:
+            return
+
+        # Step 1: Cooperative load of correlation matrix
+        # 32 threads load 144 elements → each thread loads ~5 elements
+        for idx in range(tid, 144, 32):
+            i = idx // 12
+            j = idx % 12
+            shared_corr[i, j] = correlations[i, j]
+        cuda.syncthreads()
+
+        # Step 2: Compute weighted sensitivities (threads 0-11)
+        if tid < K:
+            shared_ws[tid] = agg_sens[p, tid] * risk_weights[tid] * concentration_factors[tid]
+        cuda.syncthreads()
+
+        # Step 3: Parallel K_ir² computation
+        # Each thread computes a subset of the 144 correlation terms
+        my_sum = 0.0
+        for idx in range(tid, 144, 32):
+            i = idx // 12
+            j = idx % 12
+            my_sum += shared_corr[i, j] * shared_ws[i] * shared_ws[j]
+
+        # Warp-level reduction using shuffle
+        # All 32 threads participate in the reduction
+        mask = 0xFFFFFFFF
+        for offset in (16, 8, 4, 2, 1):
+            my_sum += cuda.shfl_down_sync(mask, my_sum, offset)
+
+        # Thread 0 has the final sum
+        if tid == 0:
+            k_ir = math.sqrt(my_sum) if my_sum > 0.0 else 0.0
+            im_output[p] = k_ir
+            shared_k_ir[0] = k_ir
+        cuda.syncthreads()
+
+        # Broadcast k_ir to all threads
+        k_ir = shared_k_ir[0]
+
+        # Step 4: Gradient computation (threads 0-11)
+        if tid < K:
+            if k_ir > 1e-12:
+                dK_dWS = 0.0
+                for j in range(K):
+                    dK_dWS += shared_corr[tid, j] * shared_ws[j]
+                dK_dWS /= k_ir
+                gradients[p, tid] = dK_dWS * risk_weights[tid] * concentration_factors[tid]
+            else:
+                gradients[p, tid] = 0.0
+
+    @cuda.jit
+    def _simm_im_only_kernel_v2(
+        # Aggregated sensitivities (N, K=12)
+        agg_sens,
+        # SIMM parameters
+        risk_weights, correlations, concentration_factors,
+        # Output
+        im_output,
+    ):
+        """
+        Optimized forward-only SIMM kernel using shared memory.
+        No gradient computation (~50% less work than gradient version).
+
+        Grid: N blocks (1 per scenario/portfolio)
+        Block: 32 threads (1 warp)
+        """
+        K = 12
+
+        # Shared memory allocations
+        shared_corr = cuda.shared.array((12, 12), dtype=numba.float64)
+        shared_ws = cuda.shared.array(12, dtype=numba.float64)
+
+        p = cuda.blockIdx.x
+        tid = cuda.threadIdx.x
+
+        if p >= agg_sens.shape[0]:
+            return
+
+        # Cooperative load of correlation matrix
+        for idx in range(tid, 144, 32):
+            i = idx // 12
+            j = idx % 12
+            shared_corr[i, j] = correlations[i, j]
+        cuda.syncthreads()
+
+        # Compute weighted sensitivities
+        if tid < K:
+            shared_ws[tid] = agg_sens[p, tid] * risk_weights[tid] * concentration_factors[tid]
+        cuda.syncthreads()
+
+        # Parallel K_ir² computation
+        my_sum = 0.0
+        for idx in range(tid, 144, 32):
+            i = idx // 12
+            j = idx % 12
+            my_sum += shared_corr[i, j] * shared_ws[i] * shared_ws[j]
+
+        # Warp reduction
+        mask = 0xFFFFFFFF
+        for offset in (16, 8, 4, 2, 1):
+            my_sum += cuda.shfl_down_sync(mask, my_sum, offset)
+
+        if tid == 0:
+            im_output[p] = math.sqrt(my_sum) if my_sum > 0.0 else 0.0
+
+
+# =============================================================================
 # Pure GPU Backend Class
 # =============================================================================
 
@@ -339,7 +499,8 @@ class PureGPUIRBackend:
         self.d_tenors = None
         self.d_sensitivities = None  # (T, K)
         self.d_risk_weights = None
-        self.d_correlations = None
+        self.d_correlations = None      # Flattened for v1 kernels
+        self.d_correlations_2d = None   # 2D for v2 optimized kernels
         self.d_concentration = None
 
         # Dimensions
@@ -416,7 +577,8 @@ class PureGPUIRBackend:
         self.d_curve_rates = cuda.to_device(curve_rates)
         self.d_tenors = cuda.to_device(tenors)
         self.d_risk_weights = cuda.to_device(IR_RISK_WEIGHTS)
-        self.d_correlations = cuda.to_device(IR_CORRELATIONS.flatten())
+        self.d_correlations = cuda.to_device(IR_CORRELATIONS.flatten())  # v1 kernels
+        self.d_correlations_2d = cuda.to_device(IR_CORRELATIONS)          # v2 optimized kernels
         self.d_concentration = cuda.to_device(concentration)
 
         # Allocate sensitivity matrix on device
@@ -504,13 +666,15 @@ class PureGPUIRBackend:
         d_im = cuda.to_device(im_output)
         d_grad = cuda.to_device(grad_agg)
 
-        # Launch kernel
-        threads_per_block = 256
-        blocks = (P + threads_per_block - 1) // threads_per_block
+        # Launch optimized v2 kernel
+        # 1 block per portfolio, 32 threads per block (1 warp)
+        # Uses shared memory for correlation matrix
+        blocks = P
+        threads_per_block = V2_THREADS_PER_BLOCK
 
-        _simm_im_gradient_kernel[blocks, threads_per_block](
+        _simm_im_gradient_kernel_v2[blocks, threads_per_block](
             d_agg_S,
-            self.d_risk_weights, self.d_correlations, self.d_concentration,
+            self.d_risk_weights, self.d_correlations_2d, self.d_concentration,
             d_im, d_grad,
         )
 
@@ -564,12 +728,13 @@ class PureGPUIRBackend:
         d_agg_S = cuda.to_device(agg_S)
         d_im = cuda.to_device(im_output)
 
-        threads_per_block = 256
-        blocks = (P + threads_per_block - 1) // threads_per_block
+        # Launch optimized v2 kernel
+        blocks = P
+        threads_per_block = V2_THREADS_PER_BLOCK
 
-        _simm_im_only_kernel[blocks, threads_per_block](
+        _simm_im_only_kernel_v2[blocks, threads_per_block](
             d_agg_S,
-            self.d_risk_weights, self.d_correlations, self.d_concentration,
+            self.d_risk_weights, self.d_correlations_2d, self.d_concentration,
             d_im,
         )
 
@@ -603,12 +768,13 @@ class PureGPUIRBackend:
         d_agg_S = cuda.to_device(agg_S)
         d_im = cuda.to_device(im_output)
 
-        threads_per_block = 256
-        blocks = (N + threads_per_block - 1) // threads_per_block
+        # Launch optimized v2 kernel
+        blocks = N
+        threads_per_block = V2_THREADS_PER_BLOCK
 
-        _simm_im_only_kernel[blocks, threads_per_block](
+        _simm_im_only_kernel_v2[blocks, threads_per_block](
             d_agg_S,
-            self.d_risk_weights, self.d_correlations, self.d_concentration,
+            self.d_risk_weights, self.d_correlations_2d, self.d_concentration,
             d_im,
         )
 
@@ -626,7 +792,7 @@ class PureGPUIRBackend:
 # =============================================================================
 
 def create_pure_gpu_grad_fn(backend: PureGPUIRBackend, S: np.ndarray):
-    """Create gradient function closure for optimizer."""
+    """Create gradient function closure for optimizer using v2 kernels."""
     def grad_fn(agg_S: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Args:
@@ -648,12 +814,13 @@ def create_pure_gpu_grad_fn(backend: PureGPUIRBackend, S: np.ndarray):
         d_im = cuda.to_device(im_output)
         d_grad = cuda.to_device(grad_agg)
 
-        threads_per_block = 256
-        blocks = (P + threads_per_block - 1) // threads_per_block
+        # Launch optimized v2 kernel
+        blocks = P
+        threads_per_block = V2_THREADS_PER_BLOCK
 
-        _simm_im_gradient_kernel[blocks, threads_per_block](
+        _simm_im_gradient_kernel_v2[blocks, threads_per_block](
             d_agg_S,
-            backend.d_risk_weights, backend.d_correlations, backend.d_concentration,
+            backend.d_risk_weights, backend.d_correlations_2d, backend.d_concentration,
             d_im, d_grad,
         )
 
