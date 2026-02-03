@@ -1,6 +1,6 @@
 // Allocation Optimizer with Batched AADC Evaluation
 // Ported from model/simm_portfolio_aadc_v2.py + simm_allocation_optimizer_v2.py
-// Version: 2.1.0
+// Version: 2.1.1
 #pragma once
 
 #include <vector>
@@ -661,8 +661,9 @@ inline OptimizationResult optimizeGradientDescent(
     }
 
     int phase1_evals = static_cast<int>(im_history.size());  // 1 per iter + initial
+    int num_iters = phase1_evals - 1;  // Exclude initial evaluation from iteration count
     return {std::move(best_x), initial_im, best_im, std::move(im_history),
-            static_cast<int>(im_history.size()), trades_moved,
+            num_iters, trades_moved,
             total_eval_time, kernel.recording_time_sec,
             phase1_evals, 0};
 }
@@ -797,8 +798,9 @@ inline OptimizationResult optimizeAdam(
     }
 
     int phase1_evals = static_cast<int>(im_history.size());
+    int num_iters = phase1_evals - 1;  // Exclude initial evaluation from iteration count
     return {std::move(best_x), initial_im, best_im, std::move(im_history),
-            static_cast<int>(im_history.size()), trades_moved,
+            num_iters, trades_moved,
             total_eval_time, kernel.recording_time_sec,
             phase1_evals, 0};
 }
@@ -971,8 +973,9 @@ inline OptimizationResult greedyLocalSearch(
                   << total_evals << " evals, " << greedy_rounds << " rounds)\n";
     }
 
+    int num_iters = static_cast<int>(im_history.size()) - 1;  // Exclude initial evaluation
     return {std::move(best_x), initial_im, best_im, std::move(im_history),
-            static_cast<int>(im_history.size()), trades_moved,
+            num_iters, trades_moved,
             total_eval_time, kernel.recording_time_sec,
             total_evals, greedy_rounds};
 }

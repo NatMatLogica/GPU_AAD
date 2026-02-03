@@ -31,7 +31,7 @@ from benchmark_trading_workflow import (
     AADC_AVAILABLE,
     CUDA_AVAILABLE,
     CPP_AVAILABLE,
-    MODEL_VERSION as WORKFLOW_VERSION,
+    BENCHMARK_VERSION as WORKFLOW_VERSION,
 )
 from model.simm_portfolio_cuda import (
     compute_simm_im_only_cuda,
