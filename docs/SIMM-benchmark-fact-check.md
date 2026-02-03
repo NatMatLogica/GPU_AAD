@@ -6,7 +6,7 @@
 |---------|----------|-----------------|
 | Headline Results | ✅ Verified | Minor updates needed |
 | Pre-Trade (1.1) | ⚠️ Needs clarification | 0.16ms valid for T=50; T=5000 kernel=0.029ms |
-| What-If (1.2) | ⚠️ Partially correct | cpp_aadc shows 14,815/sec not 15,000 |
+| What-If (1.2) | ⚠️ Partially correct | aadc_cpp shows 14,815/sec not 15,000 |
 | EOD Optimization (1.3) | ✅ Verified | "0 iters" bug now fixed |
 | Continuous Monitoring (1.4) | ✅ Correct | Data exists in Step 4 What-If |
 | Implementation (2.x) | ⚠️ Needs additions | Missing model descriptions |
@@ -20,10 +20,10 @@
 
 | Claim | Actual Data | Status |
 |-------|-------------|--------|
-| cpp_aadc: 34,144 evals/sec, 0.27s | 34,144 evals/sec, 0.27s | ✅ Match |
-| aadc_full: 1,311 evals/sec, 6.95s | 1,311 evals/sec, 6.95s | ✅ Match |
-| gpu_full: 727 evals/sec, 12.54s | 727 evals/sec, 12.54s | ✅ Match |
-| bf_gpu: 33 evals/sec, 3.10s, 101 evals | 33 evals/sec, 3.10s, 101 evals | ✅ Match |
+| aadc_cpp: 34,144 evals/sec, 0.27s | 34,144 evals/sec, 0.27s | ✅ Match |
+| aadc_python: 1,311 evals/sec, 6.95s | 1,311 evals/sec, 6.95s | ✅ Match |
+| gpu_pathwise: 727 evals/sec, 12.54s | 727 evals/sec, 12.54s | ✅ Match |
+| gpu_bruteforce: 33 evals/sec, 3.10s, 101 evals | 33 evals/sec, 3.10s, 101 evals | ✅ Match |
 
 ### Pre-Trade Margin Checks (1.1) — ⚠️ NEEDS CLARIFICATION
 
@@ -47,10 +47,10 @@ The document claims 0.16ms at "5,000 trades" but this number is from a different
 
 | Claim | Actual Data | Status |
 |-------|-------------|--------|
-| cpp_aadc: 0.16ms | 2.44ms workflow / 0.029ms kernel | ⚠️ See clarification below |
-| aadc_full: 5.7ms, 5 evals | 5.69ms, 5 evals | ✅ Match |
-| gpu_full: 10.7ms, 5 evals | 10.75ms, 5 evals | ✅ Match |
-| bf_gpu: 136ms, 100 evals | 136.15ms, 100 evals | ✅ Match |
+| aadc_cpp: 0.16ms | 2.44ms workflow / 0.029ms kernel | ⚠️ See clarification below |
+| aadc_python: 5.7ms, 5 evals | 5.69ms, 5 evals | ✅ Match |
+| gpu_pathwise: 10.7ms, 5 evals | 10.75ms, 5 evals | ✅ Match |
+| gpu_bruteforce: 136ms, 100 evals | 136.15ms, 100 evals | ✅ Match |
 
 **Recommendation:** The document mixes trade counts. Either:
 1. **Option A**: Use T=50-100 throughout → 0.16ms is correct
@@ -65,19 +65,19 @@ The document claims 0.16ms at "5,000 trades" but this number is from a different
 
 | Claim | Actual Data | Status |
 |-------|-------------|--------|
-| cpp_aadc: 15,000 evals/sec | **14,815 evals/sec** | ⚠️ Close |
-| gpu_full: 230 evals/sec | 230 evals/sec | ✅ Match |
+| aadc_cpp: 15,000 evals/sec | **14,815 evals/sec** | ⚠️ Close |
+| gpu_pathwise: 230 evals/sec | 230 evals/sec | ✅ Match |
 | 65× ratio | 64× actual | ⚠️ Close |
 
 ### EOD Optimization (1.3) — ✅ VERIFIED (with fix)
 
 | Claim | Actual Data | Status |
 |-------|-------------|--------|
-| cpp_aadc: 0 iterations | **Now shows 1-2 iterations** | ✅ Fixed |
-| bf_gpu never converges | converged=False | ✅ Match |
+| aadc_cpp: 0 iterations | **Now shows 1-2 iterations** | ✅ Fixed |
+| gpu_bruteforce never converges | converged=False | ✅ Match |
 | IM reduction ~7% | Verified | ✅ Match |
 
-**Note:** The "cpp_aadc zero-iteration mystery" is **RESOLVED**. It was a use-after-move bug in allocation_optimizer.h that has been fixed. cpp_aadc now correctly reports 1-2 iterations.
+**Note:** The "aadc_cpp zero-iteration mystery" is **RESOLVED**. It was a use-after-move bug in allocation_optimizer.h that has been fixed. aadc_cpp now correctly reports 1-2 iterations.
 
 ### Continuous Monitoring (1.4) — ✅ DATA EXISTS
 
@@ -98,11 +98,11 @@ The document doesn't explain what each backend actually does:
 
 | Backend | Description Needed |
 |---------|-------------------|
-| **cpp_aadc** | C++ AADC SDK, OpenMP threading, batched evaluation |
-| **aadc_full** | Python wrapper around AADC, NumPy aggregation |
-| **gpu_full** | Numba CUDA, analytical gradients, GPU memory |
-| **bf_gpu** | Brute-force enumeration, forward-only, no gradients |
-| **pure_gpu_ir** | IR-only CUDA kernel, K=12 tenors only |
+| **aadc_cpp** | C++ AADC SDK, OpenMP threading, batched evaluation |
+| **aadc_python** | Python wrapper around AADC, NumPy aggregation |
+| **gpu_pathwise** | Numba CUDA, analytical gradients, GPU memory |
+| **gpu_bruteforce** | Brute-force enumeration, forward-only, no gradients |
+| **gpu_ir_native** | IR-only CUDA kernel, K=12 tenors only |
 
 ### 2. Methodology Section (REQUIRED)
 
@@ -138,10 +138,10 @@ Need:
 
 | Location | Current | Correct | Change |
 |----------|---------|---------|--------|
-| Pre-trade cpp_aadc | 0.16ms | **Depends on metric** — see below | Clarify context |
+| Pre-trade aadc_cpp | 0.16ms | **Depends on metric** — see below | Clarify context |
 | Counterparty routing | 3.2ms total | 0.58ms (kernel) or 48.8ms (workflow) | Clarify metric |
-| What-if cpp_aadc | 15,000/sec | 14,815/sec | Minor |
-| cpp_aadc iterations | 0 | 1-2 | Bug fixed |
+| What-if aadc_cpp | 15,000/sec | 14,815/sec | Minor |
+| aadc_cpp iterations | 0 | 1-2 | Bug fixed |
 
 **Pre-trade timing clarification needed:**
 - 0.16ms is valid for T=50-100 trades workflow time
@@ -158,7 +158,7 @@ Need:
 
 ### Claims to Revise
 
-1. "cpp_aadc zero-iteration mystery" → Explain it now shows 1-2 iterations (bug fixed)
+1. "aadc_cpp zero-iteration mystery" → Explain it now shows 1-2 iterations (bug fixed)
 2. "Continuous monitoring not benchmarked" → Reference What-If Step 4
 3. "Sub-ms interactive" for pre-trade → **Actually correct!** Pure kernel at T=5000: 0.029ms × 20 = 0.58ms
 4. Clarify workflow time vs pure kernel time throughout document

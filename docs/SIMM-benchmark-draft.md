@@ -14,18 +14,18 @@ All results measured on Supermicro JumpStart H100 system. Portfolio: IR swaps, I
 
 | Backend | Evals/sec | Total Time | Eval Count | Converged? |
 |---------|----------:|------------|------------|------------|
-| cpp_aadc (C++) | 34,144 | 0.27s | 9,114 | Yes (1-2 iters) |
-| aadc_full (Python) | 1,311 | 6.95s | 9,116 | Yes (2 iters) |
-| gpu_full (pathwise) | 727 | 12.54s | 9,116 | Yes (2 iters) |
-| bf_gpu (brute-force) | 33 | 3.10s | 101 only | NEVER |
+| aadc_cpp (C++) | 34,144 | 0.27s | 9,114 | Yes (1-2 iters) |
+| aadc_python (Python) | 1,311 | 6.95s | 9,116 | Yes (2 iters) |
+| gpu_pathwise (pathwise) | 727 | 12.54s | 9,116 | Yes (2 iters) |
+| gpu_bruteforce (brute-force) | 33 | 3.10s | 101 only | NEVER |
 
-*At 5,000 trades, EOD ADAM optimization. bf_gpu stuck at max_iters=100 without converging.*
+*At 5,000 trades, EOD ADAM optimization. gpu_bruteforce stuck at max_iters=100 without converging.*
 
 ### Speedup Ratios
 
-- **cpp_aadc vs gpu_full (pathwise):** 47× faster
-- **cpp_aadc vs bf_gpu (brute-force):** 1,047× faster
-- **cpp_aadc vs aadc_full (Python wrapper):** 26× faster (Python overhead, not AAD computation)
+- **aadc_cpp vs gpu_pathwise (pathwise):** 47× faster
+- **aadc_cpp vs gpu_bruteforce (brute-force):** 1,047× faster
+- **aadc_cpp vs aadc_python (Python wrapper):** 26× faster (Python overhead, not AAD computation)
 
 ### Data Quality Validation
 
@@ -43,10 +43,10 @@ A trader needs the margin impact of a new trade before execution. This is the hi
 
 | Backend | Kernel Evals/sec | Per-Eval Latency | Note |
 |---------|-----------------|------------------|------|
-| cpp_aadc | 34,013 | 0.029ms | Sub-ms, interactive |
-| aadc_full | 1,320 | 0.76ms | Python wrapper overhead |
-| gpu_full | 721 | 1.39ms | CUDA pathwise gradients |
-| bf_gpu | 31 | 31.9ms | Brute-force, no gradients |
+| aadc_cpp | 34,013 | 0.029ms | Sub-ms, interactive |
+| aadc_python | 1,320 | 0.76ms | Python wrapper overhead |
+| gpu_pathwise | 721 | 1.39ms | CUDA pathwise gradients |
+| gpu_bruteforce | 31 | 31.9ms | Brute-force, no gradients |
 
 *At 5,000 trades. Per-evaluation latency from throughput benchmarks (re-evaluation only, no recording).*
 
@@ -54,10 +54,10 @@ A trader needs the margin impact of a new trade before execution. This is the hi
 
 Trader checking 20 counterparties for lowest marginal IM (sequential checks):
 
-- **cpp_aadc:** 20 × 0.029ms = 0.58ms total — sub-millisecond, instant exploration
-- **aadc_full:** 20 × 0.76ms = 15.2ms total — interactive
-- **gpu_full:** 20 × 1.39ms = 27.8ms — noticeable but survivable
-- **bf_gpu:** 20 × 31.9ms = 638ms — not feasible for interactive use
+- **aadc_cpp:** 20 × 0.029ms = 0.58ms total — sub-millisecond, instant exploration
+- **aadc_python:** 20 × 0.76ms = 15.2ms total — interactive
+- **gpu_pathwise:** 20 × 1.39ms = 27.8ms — noticeable but survivable
+- **gpu_bruteforce:** 20 × 31.9ms = 638ms — not feasible for interactive use
 
 **Key message:** At C++ AADC speeds, desks can explore 50+ counterparties in under 2ms. At GPU pathwise speeds, routing requires batch processing. Brute-force GPU is batch-only.
 
@@ -65,7 +65,7 @@ Trader checking 20 counterparties for lowest marginal IM (sequential checks):
 
 ### 1.2 What-If Scenarios — Interactive Exploration
 
-At 5,000 trades: cpp_aadc delivers 34,000 evals/sec vs gpu_full at 721 evals/sec — a 47× ratio.
+At 5,000 trades: aadc_cpp delivers 34,000 evals/sec vs gpu_pathwise at 721 evals/sec — a 47× ratio.
 
 Risk manager exploring intraday stress ("rates spike 50bp, credit spreads blow out, FX moves 5%") can sweep parameter grids in real time with AADC. GPU kernel launch overhead per scenario forces a batch-all-at-once workflow — fundamentally less exploratory.
 
@@ -80,20 +80,20 @@ This is the most striking result. When thousands of SIMM evaluations are needed 
 
 | Backend | Eval Count | Converged? | IM Reduction |
 |---------|------------|------------|--------------|
-| cpp_aadc | 9,114 | Yes (1-2 iters) | 7.00% |
-| aadc_full | 9,116 | Yes (2 iters) | 7.00% |
-| bf_gpu | 101 | NEVER | 7.04% |
+| aadc_cpp | 9,114 | Yes (1-2 iters) | 7.00% |
+| aadc_python | 9,116 | Yes (2 iters) | 7.00% |
+| gpu_bruteforce | 101 | NEVER | 7.04% |
 
-> **Critic's Objection to Address:** bf_gpu ran only 101 evaluations vs AADC's 9,114. A critic will say "of course it didn't converge — 90× fewer evaluations." The benchmark should also show what happens if bf_gpu is allowed to run uncapped. If it literally cannot converge due to noisy gradients, that's the real story. If it just needs more iterations, different narrative.
+> **Critic's Objection to Address:** gpu_bruteforce ran only 101 evaluations vs AADC's 9,114. A critic will say "of course it didn't converge — 90× fewer evaluations." The benchmark should also show what happens if gpu_bruteforce is allowed to run uncapped. If it literally cannot converge due to noisy gradients, that's the real story. If it just needs more iterations, different narrative.
 
 ### 1.4 Continuous Intraday Monitoring (Not Yet Benchmarked)
 
 This is the strongest AADC case missing from the current benchmark. Recalculating SIMM for the full portfolio every time market data ticks, across all counterparties:
 
 - **Large desk:** 50 counterparties, data updating every ~5 seconds = 600 SIMM evals/minute
-- **cpp_aadc (34K evals/sec):** trivially feasible with massive capacity to spare
-- **gpu_full (727 evals/sec):** feasible but consuming significant GPU resources
-- **bf_gpu:** not achievable at scale — desk falls back to periodic batch recalculation, loses real-time visibility
+- **aadc_cpp (34K evals/sec):** trivially feasible with massive capacity to spare
+- **gpu_pathwise (727 evals/sec):** feasible but consuming significant GPU resources
+- **gpu_bruteforce:** not achievable at scale — desk falls back to periodic batch recalculation, loses real-time visibility
 
 **MVA connection:** If you can run SIMM fast enough to project forward IM along Monte Carlo paths, you can compute MVA in real time. This is the industry "holy grail." That workflow requires tens of thousands of SIMM evaluations per XVA time step, which only AADC can deliver.
 
@@ -111,13 +111,13 @@ This is the strongest AADC case missing from the current benchmark. Recalculatin
 
 The EOD optimisation results reveal a fundamental quality difference, not just speed:
 
-- **AADC:** exact analytic gradients → ADAM converges in 2 iterations (or 0 for cpp_aadc)
+- **AADC:** exact analytic gradients → ADAM converges in 2 iterations (or 0 for aadc_cpp)
 - **GPU brute-force:** noisy finite-difference approximations → optimiser wanders, hits iteration cap
 - Both achieve similar IM reduction (~7%), but only AADC converges reliably
 
-#### cpp_aadc Iteration Reporting — RESOLVED
+#### aadc_cpp Iteration Reporting — RESOLVED
 
-Previously cpp_aadc reported `optimize_iterations=0` due to a **use-after-move bug** in `allocation_optimizer.h`. The iteration count was being read from a container after it had been moved, returning 0 instead of the actual count. This bug has been fixed in v2.1.1, and cpp_aadc now correctly reports 1-2 iterations, consistent with aadc_full.
+Previously aadc_cpp reported `optimize_iterations=0` due to a **use-after-move bug** in `allocation_optimizer.h`. The iteration count was being read from a container after it had been moved, returning 0 instead of the actual count. This bug has been fixed in v2.1.1, and aadc_cpp now correctly reports 1-2 iterations, consistent with aadc_python.
 
 ### 2.2 Code Complexity & Maintainability
 
@@ -128,7 +128,7 @@ Previously cpp_aadc reported `optimize_iterations=0` due to a **use-after-move b
 
 ### 2.3 Integration & Python vs C++ Clarity
 
-> **Critical Positioning Decision:** The 26× gap between aadc_full (1,311 evals/sec) and cpp_aadc (34,144 evals/sec) is Python wrapper overhead, NOT AAD computation speed. A bank integrating the C++ library directly gets 34K evals/sec. For publication, clarify which is "the AADC number" — don't conflate wrapper penalty with AAD performance.
+> **Critical Positioning Decision:** The 26× gap between aadc_python (1,311 evals/sec) and aadc_cpp (34,144 evals/sec) is Python wrapper overhead, NOT AAD computation speed. A bank integrating the C++ library directly gets 34K evals/sec. For publication, clarify which is "the AADC number" — don't conflate wrapper penalty with AAD performance.
 
 ### 2.4 Accuracy
 
@@ -148,7 +148,7 @@ Previously cpp_aadc reported `optimize_iterations=0` due to a **use-after-move b
 
 #### GPU Setup Overhead Dominates
 
-Portfolio setup shows gpu_full taking ~1.28s regardless of 100 or 5,000 trades — almost entirely kernel recording/initialisation. The actual SIMM computation is trivial. This supports the argument that SIMM aggregation isn't a GPU workload: you pay a massive fixed cost that never amortises because the computation itself (matrix multiplications over ~50–100 buckets) is small.
+Portfolio setup shows gpu_pathwise taking ~1.28s regardless of 100 or 5,000 trades — almost entirely kernel recording/initialisation. The actual SIMM computation is trivial. This supports the argument that SIMM aggregation isn't a GPU workload: you pay a massive fixed cost that never amortises because the computation itself (matrix multiplications over ~50–100 buckets) is small.
 
 ### 3.2 Total Cost of Ownership
 
@@ -207,7 +207,7 @@ Don't lead with "AADC is 47× faster." Lead with "Pre-trade counterparty routing
 
 ### Normalise Comparisons
 
-Show per-evaluation latency for pre-trade checks. Show eval count for EOD optimisation. Make clear bf_gpu's 101 evals vs AADC's 9,114 evals, and that bf_gpu didn't converge despite similar IM reduction.
+Show per-evaluation latency for pre-trade checks. Show eval count for EOD optimisation. Make clear gpu_bruteforce's 101 evals vs AADC's 9,114 evals, and that gpu_bruteforce didn't converge despite similar IM reduction.
 
 ### GPU Setup Overhead
 
@@ -215,18 +215,18 @@ Show per-evaluation latency for pre-trade checks. Show eval count for EOD optimi
 
 ### Python vs C++ Clarity
 
-26× aadc_full vs cpp_aadc gap is Python overhead. Bank integrating C++ directly gets 34K evals/sec. Don't conflate wrapper penalty with AAD performance.
+26× aadc_python vs aadc_cpp gap is Python overhead. Bank integrating C++ directly gets 34K evals/sec. Don't conflate wrapper penalty with AAD performance.
 
 ---
 
 ## Pending Items Before Publication
 
-1. ~~Explain cpp_aadc zero-iteration convergence mechanism~~ — **RESOLVED:** Was use-after-move bug, now reports 1-2 iterations
-2. Run bf_gpu with uncapped iterations — determine if convergence is possible with more evaluations
+1. ~~Explain aadc_cpp zero-iteration convergence mechanism~~ — **RESOLVED:** Was use-after-move bug, now reports 1-2 iterations
+2. Run gpu_bruteforce with uncapped iterations — determine if convergence is possible with more evaluations
 3. ~~Add continuous intraday monitoring workflow to benchmark~~ — **RESOLVED:** What-If Step 4 already measures this
 4. ~~Normalise all pre-trade check comparisons (per-evaluation basis)~~ — **DONE:** Updated Section 1.1
 5. Document GPU optimisation attempts and profiling — occupancy, bandwidth analysis to prevent strawman criticism
-6. Clarify cpp_aadc vs aadc_full positioning — which is "the AADC number" for publication?
+6. Clarify aadc_cpp vs aadc_python positioning — which is "the AADC number" for publication?
 7. Add cost-per-Greek analysis
 8. Test at larger portfolio sizes (10K, 100K trades) to show scaling behaviour
 9. **Add memory requirements section**
@@ -241,8 +241,8 @@ Show per-evaluation latency for pre-trade checks. Show eval count for EOD optimi
 - Specific benchmark numbers and tables throughout all sections
 - Counterparty routing use case with quantified latency comparison
 - Continuous intraday monitoring workflow (covered by What-If Step 4)
-- EOD convergence failure story as centrepiece (bf_gpu never converges at 500+ trades)
-- cpp_aadc iteration reporting bug (now fixed)
+- EOD convergence failure story as centrepiece (gpu_bruteforce never converges at 500+ trades)
+- aadc_cpp iteration reporting bug (now fixed)
 - Per-evaluation normalisation for fair pre-trade comparison
 - GPU setup overhead analysis (1.28s constant cost supports "not a GPU workload")
 - Python vs C++ clarity for AADC positioning

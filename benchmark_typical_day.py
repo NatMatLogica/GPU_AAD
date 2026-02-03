@@ -321,10 +321,10 @@ def log_to_execution_log(results, timestamp, num_trades, num_simm_buckets,
                          trade_types_str):
     """Append summary rows to data/execution_log_portfolio.csv."""
     backend_model_map = {
-        "AADC Python": "typical_day_aadc_py",
-        "GPU (CUDA)": "typical_day_gpu",
-        "BF GPU (no grad)": "typical_day_bf_gpu",
-        "C++ AADC": "typical_day_cpp_aadc",
+        "AADC Python": "typical_day_aadc_python",
+        "GPU (CUDA)": "typical_day_gpu_pathwise",
+        "BF GPU (no grad)": "typical_day_gpu_bruteforce",
+        "C++ AADC": "typical_day_aadc_cpp",
     }
     log_rows = []
     for name, r in results.items():

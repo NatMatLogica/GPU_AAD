@@ -2976,7 +2976,7 @@ def log_workflow_results(steps, economics, config):
         # Emit a row per backend that actually ran (has timing or evals)
         if AADC_AVAILABLE and (s.aadc_time_sec or s.aadc_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{step_name}_aadc_full",
+                model_name=f"workflow_{step_name}_aadc_python",
                 model_version=BENCHMARK_VERSION,
                 num_threads=config["num_threads"],
                 im_result=im_result,
@@ -2991,7 +2991,7 @@ def log_workflow_results(steps, economics, config):
 
         if GPU_FULL_ENABLED and (s.gpu_time_sec or s.gpu_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{step_name}_gpu_full",
+                model_name=f"workflow_{step_name}_gpu_pathwise",
                 model_version=GPU_CUDA_VERSION,
                 num_threads=1,
                 im_result=im_result,
@@ -3005,7 +3005,7 @@ def log_workflow_results(steps, economics, config):
 
         if GPU_FULL_ENABLED and (s.bf_time_sec or s.bf_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{step_name}_bf_gpu",
+                model_name=f"workflow_{step_name}_gpu_bruteforce",
                 model_version=GPU_CUDA_VERSION,
                 num_threads=1,
                 im_result=im_result,
@@ -3019,7 +3019,7 @@ def log_workflow_results(steps, economics, config):
 
         if CPP_AVAILABLE and (s.cpp_time_sec or s.cpp_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{step_name}_cpp_aadc",
+                model_name=f"workflow_{step_name}_aadc_cpp",
                 model_version=BENCHMARK_VERSION,
                 num_threads=config["num_threads"],
                 im_result=im_result,
@@ -3034,7 +3034,7 @@ def log_workflow_results(steps, economics, config):
 
         if PURE_GPU_AVAILABLE and (s.pure_gpu_time_sec or s.pure_gpu_evals):
             log_rows.append(_build_benchmark_log_row(
-                model_name=f"workflow_{step_name}_pure_gpu_ir",
+                model_name=f"workflow_{step_name}_gpu_ir_native",
                 model_version=PURE_GPU_VERSION,
                 num_threads=1,  # GPU doesn't use CPU threads
                 im_result=im_result,
