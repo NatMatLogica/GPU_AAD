@@ -22,10 +22,10 @@ Usage:
     python benchmark_trading_workflow.py --trades 5000 --portfolios 10 \\
         --new-trades 50 --optimize-iters 100 --refresh-interval 10
 
-Version: 3.1.0
+Version: 3.4.0
 """
 
-BENCHMARK_VERSION = "3.3.0"  # Benchmark script version - added memory benchmarking
+BENCHMARK_VERSION = "3.4.0"  # Added per-eval latency metrics for fair comparison
 
 import sys
 import os
@@ -2481,6 +2481,38 @@ def _print_step_times(result: StepResult):
     print(line)
 
 
+def _print_per_eval_latency(result: StepResult):
+    """Print per-evaluation latency comparison for fair hardware comparison."""
+    rows = []
+
+    if result.aadc_time_sec and result.aadc_evals and result.aadc_evals > 0:
+        lat_ms = result.aadc_time_sec * 1000 / result.aadc_evals
+        rows.append(("AADC Py", result.aadc_evals, lat_ms))
+
+    if result.gpu_time_sec and result.gpu_evals and result.gpu_evals > 0:
+        lat_ms = result.gpu_time_sec * 1000 / result.gpu_evals
+        rows.append(("GPU", result.gpu_evals, lat_ms))
+
+    if result.bf_time_sec and result.bf_evals and result.bf_evals > 0:
+        lat_ms = result.bf_time_sec * 1000 / result.bf_evals
+        rows.append(("BF GPU", result.bf_evals, lat_ms))
+
+    if result.pure_gpu_time_sec and result.pure_gpu_evals and result.pure_gpu_evals > 0:
+        lat_ms = result.pure_gpu_time_sec * 1000 / result.pure_gpu_evals
+        rows.append(("Pure GPU IR", result.pure_gpu_evals, lat_ms))
+
+    if result.cpp_time_sec and result.cpp_evals and result.cpp_evals > 0:
+        lat_ms = result.cpp_time_sec * 1000 / result.cpp_evals
+        rows.append(("C++ AADC", result.cpp_evals, lat_ms))
+
+    if not rows:
+        return
+
+    print(f"     Per-eval latency (hardware comparison):")
+    for name, evals, lat_ms in rows:
+        print(f"       {name:<12}: {lat_ms:>8.3f} ms/eval  ({evals} evals)")
+
+
 def _match_label(py_val, cpp_val, tol_pct=1.0):
     """Return MATCH/DIFF label comparing two values. tol_pct is % tolerance."""
     if py_val is None or cpp_val is None:
@@ -2571,11 +2603,17 @@ def print_cpp_vs_python_comparison(steps, ctx):
     print(f"  {'-' * 72}")
     _print_step_times(s3)
     d3 = s3.details
-    evals = s3.aadc_evals or s3.gpu_evals
-    print(f"     {d3.get('num_new_trades', 0)} trades routed ({evals} gradient refreshes)")
+    gradient_evals = s3.aadc_evals or s3.gpu_evals
+    num_trades = d3.get('num_new_trades', 0)
+    print(f"     {num_trades} trades routed")
+    print(f"     Gradient methods: {gradient_evals} gradient evals (refresh every {num_trades // max(gradient_evals, 1)} trades)")
+    if s3.bf_evals:
+        print(f"     Brute-force:      {s3.bf_evals} forward evals (2 per trade: baseline + candidates)")
     if "portfolio_counts" in d3:
         counts_str = ", ".join(f"P{i}:{c}" for i, c in enumerate(d3["portfolio_counts"]) if c > 0)
         print(f"     Distribution: {counts_str}")
+    # Per-eval latency for hardware comparison
+    _print_per_eval_latency(s3)
 
     # --- Step 4: What-If Scenarios ---
     cpp_wi = s4.details.get("cpp", {})
@@ -2636,8 +2674,12 @@ def print_cpp_vs_python_comparison(steps, ctx):
             print(f"     Initial IM:  ${py_init:,.0f}")
             print(f"     Final IM:    ${py_final:,.0f} "
                   f"(reduction: {reduction_pct:.1f}%)")
-            print(f"     Trades moved: {d5.get('trades_moved', 0)}, "
-                  f"Iterations: {d5.get('iterations', 0)}")
+            py_iters = d5.get('iterations', 0)
+            cpp_iters = cpp_opt.get('iterations', 0) if cpp_opt else 0
+            iters_str = f"Iterations: {py_iters}"
+            if cpp_opt and cpp_iters != py_iters:
+                iters_str += f" (C++: {cpp_iters})"
+            print(f"     Trades moved: {d5.get('trades_moved', 0)}, {iters_str}")
             if cpp_opt:
                 cpp_init = cpp_opt.get("initial_im")
                 cpp_final = cpp_opt.get("final_im")
@@ -2651,6 +2693,8 @@ def print_cpp_vs_python_comparison(steps, ctx):
                         f"DIFF (Py={d5.get('trades_moved')}, C++={cpp_moved})"
                     print(f"    {'Trades moved:':<16} Py {d5.get('trades_moved', 0):>22}  "
                           f"|  C++ {cpp_moved:>22}  [{match}]")
+        # Per-eval latency comparison (outside the if block to always show)
+        _print_per_eval_latency(es)
 
     print("\n" + "=" * 78)
 
@@ -2940,6 +2984,8 @@ def log_workflow_results(steps, economics, config):
                 kernel_recording_sec=economics.recording_time_sec if s.step_name == "Portfolio Setup" else None,
                 optimize_result=aadc_opt or (canonical_opt if is_eod else None),
                 num_simm_evals=s.aadc_evals,
+                cpu_memory_mb=s.cpu_memory_mb,
+                gpu_memory_mb=s.gpu_memory_mb,
                 **common,
             ))
 
@@ -2952,6 +2998,8 @@ def log_workflow_results(steps, economics, config):
                 eval_time_sec=s.gpu_time_sec or 0,
                 optimize_result=gpu_opt or (canonical_opt if is_eod else None),
                 num_simm_evals=s.gpu_evals,
+                cpu_memory_mb=s.cpu_memory_mb,
+                gpu_memory_mb=s.gpu_memory_mb,
                 **common,
             ))
 
@@ -2964,6 +3012,8 @@ def log_workflow_results(steps, economics, config):
                 eval_time_sec=s.bf_time_sec or 0,
                 optimize_result=bf_opt if is_eod else None,
                 num_simm_evals=s.bf_evals,
+                cpu_memory_mb=s.cpu_memory_mb,
+                gpu_memory_mb=s.gpu_memory_mb,
                 **common,
             ))
 
@@ -2977,6 +3027,8 @@ def log_workflow_results(steps, economics, config):
                 kernel_recording_sec=economics.cpp_recording_time_sec if s.step_name == "Portfolio Setup" else None,
                 optimize_result=cpp_opt or (canonical_opt if is_eod else None),
                 num_simm_evals=s.cpp_evals,
+                cpu_memory_mb=s.cpu_memory_mb,
+                gpu_memory_mb=s.gpu_memory_mb,
                 **common,
             ))
 
@@ -2989,6 +3041,8 @@ def log_workflow_results(steps, economics, config):
                 eval_time_sec=s.pure_gpu_time_sec or 0,
                 optimize_result=None,  # Pure GPU doesn't have separate optimize result
                 num_simm_evals=s.pure_gpu_evals,
+                cpu_memory_mb=s.cpu_memory_mb,
+                gpu_memory_mb=s.gpu_memory_mb,
                 **common,
             ))
 

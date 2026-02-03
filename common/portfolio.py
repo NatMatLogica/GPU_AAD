@@ -71,6 +71,9 @@ LOG_COLUMNS = [
     # Throughput
     "num_simm_evals",
     "simm_evals_per_sec",
+    # Memory (MB)
+    "cpu_memory_mb",
+    "gpu_memory_mb",
     "status",
 ]
 

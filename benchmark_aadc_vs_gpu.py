@@ -79,6 +79,7 @@ def _build_benchmark_log_row(
     kernel_recording_sec=None, crif_time_sec=None,
     optimize_result=None,
     num_simm_evals=None,
+    cpu_memory_mb=None, gpu_memory_mb=None,
 ):
     """Build a single log row matching execution_log_portfolio.csv schema."""
     row = {
@@ -147,6 +148,10 @@ def _build_benchmark_log_row(
         evals_per_sec = ""
     row["num_simm_evals"] = n_evals
     row["simm_evals_per_sec"] = evals_per_sec
+
+    # Memory tracking
+    row["cpu_memory_mb"] = cpu_memory_mb if cpu_memory_mb is not None else ""
+    row["gpu_memory_mb"] = gpu_memory_mb if gpu_memory_mb is not None else ""
 
     return row
 
