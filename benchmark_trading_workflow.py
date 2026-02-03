@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Trading Day Workflow Benchmark: AADC Python vs GPU (CUDA) vs C++ AADC
+Trading Day Workflow Benchmark: AADC Python vs GPU (CUDA) vs C++ AADC vs Pure GPU
 
-Simulates a full trading day across 5 timed stages, comparing three backends:
-AADC Python, GPU CUDA, and C++ AADC. All backends use the FULL ISDA SIMM v2.6
+Simulates a full trading day across 5 timed stages, comparing up to 5 backends:
+AADC Python, GPU CUDA, GPU Brute-Force, C++ AADC, and Pure GPU IR. All backends use ISDA SIMM v2.6
 formula with intra-bucket correlations, concentration factors, and cross-risk-class
 aggregation.
 
@@ -22,10 +22,10 @@ Usage:
     python benchmark_trading_workflow.py --trades 5000 --portfolios 10 \\
         --new-trades 50 --optimize-iters 100 --refresh-interval 10
 
-Version: 2.9.0
+Version: 3.0.0
 """
 
-MODEL_VERSION = "2.9.0"
+MODEL_VERSION = "3.0.0"
 
 import sys
 import os
@@ -82,6 +82,9 @@ CPP_BINARY = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "build", "simm_optimizer")
 CPP_AVAILABLE = os.path.isfile(CPP_BINARY) and os.access(CPP_BINARY, os.X_OK)
 
+# Check Pure GPU IR (requires CUDA, but only supports IR swaps)
+PURE_GPU_AVAILABLE = CUDA_AVAILABLE  # Uses same CUDA backend
+
 # Project imports
 from common.portfolio import generate_portfolio, write_log
 from model.trade_types import generate_trades_by_type, compute_crif_for_trade, MarketEnvironment
@@ -116,6 +119,7 @@ from model.simm_portfolio_cuda import (
     compute_simm_im_only_cuda,
     preallocate_gpu_arrays,
 )
+from model.pure_gpu_ir import PureGPUIRBackend, CUDA_AVAILABLE as PURE_GPU_CUDA_CHECK
 from benchmark_aadc_vs_gpu import _build_benchmark_log_row
 
 MD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmark_trading_workflow.md")
@@ -135,10 +139,12 @@ class StepResult:
     gpu_time_sec: Optional[float] = None
     cpp_time_sec: Optional[float] = None
     bf_time_sec: Optional[float] = None   # Brute-force (forward-only GPU, no gradients)
+    pure_gpu_time_sec: Optional[float] = None  # Pure GPU IR (full pipeline on GPU)
     aadc_evals: int = 0
     gpu_evals: int = 0
     cpp_evals: int = 0
     bf_evals: int = 0
+    pure_gpu_evals: int = 0
     aadc_kernel_recordings: int = 0   # Number of kernel recordings (AADC only)
     aadc_kernel_reuses: int = 0       # Evaluations that reused existing kernel
     details: dict = field(default_factory=dict)
@@ -151,10 +157,12 @@ class KernelEconomics:
     total_aadc_evals: int = 0         # Total aadc.evaluate() calls
     total_gpu_evals: int = 0          # Total GPU kernel launches
     total_bf_evals: int = 0           # Total brute-force (forward-only) GPU evals
+    total_pure_gpu_evals: int = 0     # Total Pure GPU IR evals
     total_aadc_kernel_reuses: int = 0 # Evals that reused a recorded kernel
     cumulative_aadc_time: float = 0.0
     cumulative_gpu_time: float = 0.0
     cumulative_bf_time: float = 0.0
+    cumulative_pure_gpu_time: float = 0.0
     cpp_recording_time_sec: float = 0.0
     total_cpp_evals: int = 0
     cumulative_cpp_time: float = 0.0
@@ -164,6 +172,7 @@ class KernelEconomics:
         self.total_gpu_evals += step.gpu_evals
         self.total_cpp_evals += step.cpp_evals
         self.total_bf_evals += step.bf_evals
+        self.total_pure_gpu_evals += step.pure_gpu_evals
         self.total_recordings += step.aadc_kernel_recordings
         self.total_aadc_kernel_reuses += step.aadc_kernel_reuses
         if step.aadc_time_sec is not None:
@@ -174,6 +183,8 @@ class KernelEconomics:
             self.cumulative_cpp_time += step.cpp_time_sec
         if step.bf_time_sec is not None:
             self.cumulative_bf_time += step.bf_time_sec
+        if step.pure_gpu_time_sec is not None:
+            self.cumulative_pure_gpu_time += step.pure_gpu_time_sec
 
     @property
     def amortized_recording_ms(self) -> float:
@@ -796,6 +807,20 @@ def setup_portfolio_and_kernel(
             B,
         )
 
+    # =========================================================================
+    # Pure GPU IR: Setup (only for IR swaps)
+    # =========================================================================
+    pure_gpu_backend = None
+    pure_gpu_available_for_portfolio = False
+    if PURE_GPU_AVAILABLE:
+        # Check if all trades are IR swaps (Pure GPU IR only supports IR)
+        from model.trade_types import IRSwapTrade
+        ir_trades = [t for t in trades if isinstance(t, IRSwapTrade)]
+        if len(ir_trades) == len(trades) and len(trades) > 0:
+            pure_gpu_available_for_portfolio = True
+            pure_gpu_backend = PureGPUIRBackend()
+            pure_gpu_backend.setup(trades, market, trade_types=['ir_swap'])
+
     active_corrs = int(np.sum(intra_corr_flat != 0) - K) // 2  # Exclude diagonal
 
     return {
@@ -816,6 +841,9 @@ def setup_portfolio_and_kernel(
         "workers": workers, "rec_time": rec_time,
         # GPU constants
         "gpu_constants": gpu_constants,
+        # Pure GPU IR backend
+        "pure_gpu_backend": pure_gpu_backend,
+        "pure_gpu_available": pure_gpu_available_for_portfolio,
         # Dimensions
         "T": T, "P": P, "K": K, "B": B, "num_threads": num_threads,
         "crif_time": crif_time, "active_corrs": active_corrs,
@@ -1201,8 +1229,14 @@ def greedy_local_search(
 
         # Top-k most negative deltas
         n_try = min(top_k, len(predicted_deltas))
-        top_indices = np.argpartition(predicted_deltas, n_try)[:n_try]
-        top_indices = top_indices[np.argsort(predicted_deltas[top_indices])]
+        if n_try == 0:
+            break  # No candidates
+        if n_try >= len(predicted_deltas):
+            # argpartition requires kth < n, use argsort for small arrays
+            top_indices = np.argsort(predicted_deltas)[:n_try]
+        else:
+            top_indices = np.argpartition(predicted_deltas, n_try)[:n_try]
+            top_indices = top_indices[np.argsort(predicted_deltas[top_indices])]
 
         improved = False
         accepted = 0
@@ -1470,15 +1504,27 @@ def step1_portfolio_setup(ctx, verbose=True):
         result.bf_time_sec = time.perf_counter() - start
         result.bf_evals = 1
 
+    # Pure GPU IR (full pipeline on GPU - only for IR swaps)
+    pure_gpu_ims = pure_gpu_grads = None
+    if ctx.get("pure_gpu_available") and ctx.get("pure_gpu_backend"):
+        backend = ctx["pure_gpu_backend"]
+        start = time.perf_counter()
+        pure_gpu_ims, pure_gpu_grads = backend.compute_im_and_gradient(allocation)
+        result.pure_gpu_time_sec = time.perf_counter() - start
+        result.pure_gpu_evals = 1
+
     ims = aadc_ims if aadc_ims is not None else gpu_ims
     if ims is None:
         ims = bf_ims
+    if ims is None:
+        ims = pure_gpu_ims
     result.details = {
         "total_im": float(np.sum(ims)) if ims is not None else 0.0,
         "per_portfolio_im": list(ims) if ims is not None else [],
         "aadc_ims": aadc_ims, "aadc_grads": aadc_grads,
         "gpu_ims": gpu_ims, "gpu_grads": gpu_grads,
         "bf_ims": bf_ims,
+        "pure_gpu_ims": pure_gpu_ims, "pure_gpu_grads": pure_gpu_grads,
         "agg_S_T": agg_S_T,
     }
 
@@ -1497,6 +1543,16 @@ def step1_portfolio_setup(ctx, verbose=True):
             diff = np.max(np.abs(aadc_ims - gpu_ims))
             rel = diff / max(np.max(np.abs(aadc_ims)), 1e-10)
             print(f"     AADC vs GPU match: max rel diff = {rel:.2e}")
+        # Verify Pure GPU IR match (only for IR-only portfolios)
+        if pure_gpu_ims is not None:
+            ref_ims = aadc_ims if aadc_ims is not None else gpu_ims
+            if ref_ims is not None:
+                # Pure GPU uses different SIMM formula (IR-only), compare totals
+                pure_total = float(np.sum(pure_gpu_ims))
+                ref_total = float(np.sum(ref_ims))
+                rel_diff = abs(pure_total - ref_total) / max(ref_total, 1e-10)
+                status = "MATCH" if rel_diff < 0.01 else f"DIFF {rel_diff:.2%}"
+                print(f"     Pure GPU IR vs ref: {status} (IR-only SIMM)")
 
     return result
 
@@ -1551,6 +1607,17 @@ def step2_margin_attribution(ctx, prev_result, verbose=True):
             bf_contribs = base_ims[assignments] - removed_ims  # contribution per trade
             result.bf_time_sec = time.perf_counter() - start
             result.bf_evals = 1  # single batched GPU launch
+
+    # Pure GPU IR: reuses gradient from Step 1 (same as AADC/GPU approach)
+    pure_gpu_contribs = None
+    if ctx.get("pure_gpu_available") and prev_result.details.get("pure_gpu_grads") is not None:
+        # Pure GPU grads have shape (T, P) - need to extract per-trade contribution
+        pure_gpu_grads = prev_result.details["pure_gpu_grads"]  # (T, P)
+        start = time.perf_counter()
+        # For Pure GPU, gradient is dIM/dAllocation, contribution is gradient at assigned portfolio
+        pure_gpu_contribs = np.array([pure_gpu_grads[t, assignments[t]] for t in range(T)])
+        result.pure_gpu_time_sec = time.perf_counter() - start
+        result.pure_gpu_evals = 1
 
     contribs = aadc_contribs if aadc_contribs is not None else gpu_contribs
     if contribs is None:
@@ -1721,6 +1788,12 @@ def step3_intraday_trading(ctx, prev_step1, num_new_trades=50,
         result.bf_time_sec = bf_time
         result.bf_evals = bf_evals
 
+    # Pure GPU IR: skip for intraday trading (backend is fixed to initial trade set)
+    # Adding new trades dynamically would require re-setup of the backend
+    if ctx.get("pure_gpu_available"):
+        result.pure_gpu_time_sec = None  # N/A - backend can't handle dynamic trades
+        result.pure_gpu_evals = 0
+
     routing = aadc_routing if aadc_routing is not None else gpu_routing
     if routing is None:
         routing = bf_routing
@@ -1865,6 +1938,13 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
         bf_scenarios, bf_evals, bf_time = _run_scenarios(bf_grad_fn, "BF")
         result.bf_time_sec = bf_time
         result.bf_evals = bf_evals
+
+    # Pure GPU IR: can't run what-if scenarios easily since it uses trade-level allocation
+    # Skip Pure GPU for this step (would require re-implementing scenario logic with allocation matrix)
+    # Just log that it was skipped
+    if ctx.get("pure_gpu_available"):
+        result.pure_gpu_time_sec = None  # N/A for this step
+        result.pure_gpu_evals = 0
 
     scenarios = aadc_scenarios if aadc_scenarios is not None else gpu_scenarios
     if scenarios is None:
@@ -2049,6 +2129,7 @@ def _print_step_times(result: StepResult):
     gpu_str = _fmt_time(result.gpu_time_sec)
     cpp_str = _fmt_time(result.cpp_time_sec)
     bf_str = _fmt_time(result.bf_time_sec)
+    pure_gpu_str = _fmt_time(result.pure_gpu_time_sec)
     speedup = ""
     if result.aadc_time_sec and result.gpu_time_sec and result.gpu_time_sec > 0:
         ratio = result.aadc_time_sec / result.gpu_time_sec
@@ -2059,6 +2140,8 @@ def _print_step_times(result: StepResult):
     line = f"     AADC Py: {aadc_str:<12}  GPU: {gpu_str:<12}"
     if result.bf_time_sec is not None:
         line += f"  BF: {bf_str:<12}"
+    if result.pure_gpu_time_sec is not None:
+        line += f"  Pure GPU: {pure_gpu_str:<12}"
     if result.cpp_time_sec is not None:
         line += f"  C++ AADC: {cpp_str:<12}"
     line += speedup
@@ -2559,6 +2642,18 @@ def log_workflow_results(steps, economics, config):
                 **common,
             ))
 
+        if PURE_GPU_AVAILABLE and (s.pure_gpu_time_sec or s.pure_gpu_evals):
+            log_rows.append(_build_benchmark_log_row(
+                model_name=f"workflow_{step_name}_pure_gpu_ir",
+                model_version=MODEL_VERSION,
+                num_threads=1,  # GPU doesn't use CPU threads
+                im_result=im_result,
+                eval_time_sec=s.pure_gpu_time_sec or 0,
+                optimize_result=None,  # Pure GPU doesn't have separate optimize result
+                num_simm_evals=s.pure_gpu_evals,
+                **common,
+            ))
+
     if log_rows:
         write_log(log_rows)
         print(f"  Logged {len(log_rows)} rows to data/execution_log_portfolio.csv")
@@ -2597,11 +2692,14 @@ def run_trading_workflow(
     print(f"  AADC: {'Available' if AADC_AVAILABLE else 'NOT available':<12} "
           f"CUDA: {'Available' if CUDA_AVAILABLE else 'NOT available':<12} "
           f"C++: {'Available' if CPP_AVAILABLE else 'NOT available'}")
+    # Pure GPU is available if CUDA is available AND trade types are IR-only
+    pure_gpu_status = "Available (IR-only)" if PURE_GPU_AVAILABLE else "NOT available"
+    print(f"  Pure GPU IR: {pure_gpu_status}")
     if CUDA_AVAILABLE and CUDA_SIMULATOR:
         print(f"  CUDA mode: Simulator (timings not meaningful)")
     print(f"  Formula: Full ISDA v2.6 (correlations + concentration)")
 
-    if not AADC_AVAILABLE and not CUDA_AVAILABLE and not CPP_AVAILABLE:
+    if not AADC_AVAILABLE and not CUDA_AVAILABLE and not CPP_AVAILABLE and not PURE_GPU_AVAILABLE:
         print("\nERROR: No backends available. Cannot run benchmark.")
         return None
 
@@ -2612,6 +2710,10 @@ def run_trading_workflow(
     )
     print(f"  S matrix: {ctx['T']} trades x {ctx['K']} risk factors, {ctx['B']} buckets")
     print(f"  Intra-bucket correlations: {ctx['active_corrs']} non-trivial pairs")
+    if ctx.get("pure_gpu_available"):
+        print(f"  Pure GPU IR: Active (all trades are IR swaps)")
+    elif PURE_GPU_AVAILABLE:
+        print(f"  Pure GPU IR: Inactive (mixed trade types, IR-only required)")
 
     economics = KernelEconomics(recording_time_sec=ctx["rec_time"])
 

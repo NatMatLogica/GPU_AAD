@@ -171,6 +171,7 @@ def main():
             "num_group_trades": num_group_trades,
             "im_result": base_im,
             "crif_time_sec": crif_time,
+            "crif_sensies_time_sec": crif_time,  # For baseline, sensies = full CRIF time (bump-and-revalue)
             "simm_time_sec": simm_time,
             "im_sens_time_sec": grad_time,
             "num_im_sensitivities": num_sens,

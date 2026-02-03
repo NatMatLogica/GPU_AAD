@@ -40,7 +40,7 @@ LOG_COLUMNS = [
     "trade_types",
     "num_trades", "num_simm_buckets", "num_portfolios", "num_threads",
     # Timing
-    "crif_time_sec", "crif_kernel_recording_sec",
+    "crif_time_sec", "crif_kernel_recording_sec", "crif_sensies_time_sec",
     "simm_time_sec",
     "im_sens_time_sec", "im_kernel_recording_sec",
     # Group and results
@@ -292,6 +292,7 @@ def print_results_table(group_results: List[dict], num_trades_actual: int):
     total_im = 0.0
     total_crif_time = 0.0
     total_crif_kernel_recording = 0.0
+    total_crif_sensies_time = 0.0
     total_simm_time = 0.0
     total_grad_time = 0.0
     total_im_kernel_recording = 0.0
@@ -304,6 +305,7 @@ def print_results_table(group_results: List[dict], num_trades_actual: int):
         total_im += res["im_result"]
         total_crif_time += res["crif_time_sec"]
         total_crif_kernel_recording += res.get("crif_kernel_recording_sec", 0.0)
+        total_crif_sensies_time += res.get("crif_sensies_time_sec", 0.0)
         total_simm_time += res["simm_time_sec"]
         total_grad_time += res["im_sens_time_sec"]
         total_im_kernel_recording += res.get("im_kernel_recording_sec", 0.0)
@@ -319,6 +321,7 @@ def print_results_table(group_results: List[dict], num_trades_actual: int):
         "total_im": total_im,
         "total_crif_time": total_crif_time,
         "total_crif_kernel_recording": total_crif_kernel_recording,
+        "total_crif_sensies_time": total_crif_sensies_time,
         "total_simm_time": total_simm_time,
         "total_grad_time": total_grad_time,
         "total_im_kernel_recording": total_im_kernel_recording,
@@ -362,6 +365,7 @@ def build_log_rows(
             "im_result": res["im_result"],
             "crif_time_sec": res["crif_time_sec"],
             "crif_kernel_recording_sec": res.get("crif_kernel_recording_sec", ""),
+            "crif_sensies_time_sec": res.get("crif_sensies_time_sec", ""),
             "simm_time_sec": res["simm_time_sec"],
             "im_sens_time_sec": res["im_sens_time_sec"],
             "im_kernel_recording_sec": res.get("im_kernel_recording_sec", ""),
@@ -403,6 +407,7 @@ def build_log_rows(
         "im_result": totals["total_im"],
         "crif_time_sec": totals["total_crif_time"],
         "crif_kernel_recording_sec": totals.get("total_crif_kernel_recording", ""),
+        "crif_sensies_time_sec": totals.get("total_crif_sensies_time", ""),
         "simm_time_sec": totals["total_simm_time"],
         "im_sens_time_sec": totals["total_grad_time"],
         "im_kernel_recording_sec": totals.get("total_im_kernel_recording", ""),

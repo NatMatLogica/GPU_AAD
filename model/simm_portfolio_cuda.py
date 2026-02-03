@@ -90,7 +90,7 @@ except ImportError as e:
     TRADE_GENERATORS_AVAILABLE = False
 
 # Version
-MODEL_VERSION = "3.3.0"  # v3.3: Add forward-only kernel + brute-force optimizer
+MODEL_VERSION = "3.4.0"  # v3.4: Add GPU bump-and-revalue CRIF generation for all 5 asset classes
 
 
 # =============================================================================
@@ -111,6 +111,1040 @@ MODEL_VERSION = "3.3.0"  # v3.3: Add forward-only kernel + brute-force optimizer
 
 MAX_K = 200   # Max risk factors
 MAX_B = 128   # Max buckets (across all RC × RM combinations)
+
+# Constants for CRIF generation (matching trade_types.py)
+NUM_IR_TENORS = 12
+NUM_VEGA_EXPIRIES = 6
+BUMP_SIZE = 0.0001  # 1bp for IR/inflation
+SPOT_BUMP = 1.0     # 1 unit for spot
+VOL_BUMP = 0.01     # 1% for vol
+
+
+# =============================================================================
+# CUDA Device Functions for Pricing (GPU bump-and-revalue CRIF generation)
+# =============================================================================
+# These device functions mirror the Python pricing functions in trade_types.py
+# They are used by the bump-and-revalue kernel to compute sensitivities on GPU.
+# =============================================================================
+
+if CUDA_AVAILABLE:
+    # IR tenor fractions (years)
+    IR_TENORS_DEVICE = np.array([2/52, 1/12, 3/12, 6/12, 1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 20.0, 30.0], dtype=np.float64)
+    VEGA_EXPIRIES_DEVICE = np.array([0.5, 1.0, 3.0, 5.0, 10.0, 30.0], dtype=np.float64)
+
+    @cuda.jit(device=True)
+    def _interp_rate(t, tenors, rates, n_tenors):
+        """Linear interpolation for yield curve rate at time t."""
+        if t <= tenors[0]:
+            return rates[0]
+        if t >= tenors[n_tenors - 1]:
+            return rates[n_tenors - 1]
+        for i in range(n_tenors - 1):
+            if tenors[i] <= t < tenors[i + 1]:
+                alpha = (t - tenors[i]) / (tenors[i + 1] - tenors[i])
+                return rates[i] + alpha * (rates[i + 1] - rates[i])
+        return rates[n_tenors - 1]
+
+    @cuda.jit(device=True)
+    def _discount(t, tenors, rates, n_tenors):
+        """Discount factor at time t."""
+        if t <= 0.0:
+            return 1.0
+        r = _interp_rate(t, tenors, rates, n_tenors)
+        return math.exp(-r * t)
+
+    @cuda.jit(device=True)
+    def _forward_rate(t1, t2, tenors, rates, n_tenors):
+        """Forward rate from t1 to t2."""
+        if t2 <= t1:
+            return _interp_rate(t1, tenors, rates, n_tenors)
+        df1 = _discount(t1, tenors, rates, n_tenors)
+        df2 = _discount(t2, tenors, rates, n_tenors)
+        if df2 <= 0.0:
+            return 0.0
+        return math.log(df1 / df2) / (t2 - t1)
+
+    @cuda.jit(device=True)
+    def _normal_cdf(x):
+        """Standard normal CDF approximation."""
+        return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+    @cuda.jit(device=True)
+    def _price_irs_device(notional, fixed_rate, maturity, frequency, payer,
+                          tenors, rates, n_tenors):
+        """Price vanilla IRS on device."""
+        dt = 1.0 / frequency
+        num_periods = int(maturity * frequency)
+
+        fixed_leg = 0.0
+        floating_leg = 0.0
+
+        for i in range(1, num_periods + 1):
+            t = i * dt
+            df = _discount(t, tenors, rates, n_tenors)
+            fixed_leg += notional * fixed_rate * dt * df
+
+            t_prev = (i - 1) * dt
+            fwd = _forward_rate(t_prev, t, tenors, rates, n_tenors)
+            floating_leg += notional * dt * fwd * df
+
+        npv = floating_leg - fixed_leg
+        if not payer:
+            npv = fixed_leg - floating_leg
+        return npv
+
+    @cuda.jit(device=True)
+    def _price_equity_option_device(notional, strike, maturity, dividend_yield, is_call,
+                                     spot, vol, tenors, rates, n_tenors):
+        """Price equity option (Black-Scholes) on device."""
+        r = _interp_rate(maturity, tenors, rates, n_tenors)
+        q = dividend_yield
+        tau = maturity
+        sqrt_tau = math.sqrt(tau)
+
+        if vol <= 0.0 or tau <= 0.0:
+            return 0.0
+
+        d1 = (math.log(spot / strike) + (r - q + 0.5 * vol * vol) * tau) / (vol * sqrt_tau)
+        d2 = d1 - vol * sqrt_tau
+
+        df = math.exp(-r * tau)
+        dq = math.exp(-q * tau)
+
+        num_contracts = notional / strike
+
+        if is_call:
+            price = num_contracts * (spot * dq * _normal_cdf(d1) - strike * df * _normal_cdf(d2))
+        else:
+            price = num_contracts * (strike * df * _normal_cdf(-d2) - spot * dq * _normal_cdf(-d1))
+
+        return price
+
+    @cuda.jit(device=True)
+    def _price_fx_option_device(notional, strike, maturity, is_call,
+                                 spot, vol, dom_tenors, dom_rates, fgn_tenors, fgn_rates, n_tenors):
+        """Price FX option (Garman-Kohlhagen) on device."""
+        rd = _interp_rate(maturity, dom_tenors, dom_rates, n_tenors)
+        rf = _interp_rate(maturity, fgn_tenors, fgn_rates, n_tenors)
+        tau = maturity
+        sqrt_tau = math.sqrt(tau)
+
+        if vol <= 0.0 or tau <= 0.0:
+            return 0.0
+
+        d1 = (math.log(spot / strike) + (rd - rf + 0.5 * vol * vol) * tau) / (vol * sqrt_tau)
+        d2 = d1 - vol * sqrt_tau
+
+        df_dom = math.exp(-rd * tau)
+        df_fgn = math.exp(-rf * tau)
+
+        fgn_notional = notional / strike
+
+        if is_call:
+            price = fgn_notional * (spot * df_fgn * _normal_cdf(d1) - strike * df_dom * _normal_cdf(d2))
+        else:
+            price = fgn_notional * (strike * df_dom * _normal_cdf(-d2) - spot * df_fgn * _normal_cdf(-d1))
+
+        return price
+
+    @cuda.jit(device=True)
+    def _price_inflation_swap_device(notional, fixed_rate, maturity,
+                                      tenors, rates, inflation_rates, base_cpi, n_tenors):
+        """Price inflation swap on device."""
+        tau = maturity
+        df = _discount(tau, tenors, rates, n_tenors)
+
+        fixed_leg = notional * (math.exp(fixed_rate * tau) - 1.0) * df
+
+        infl_rate = _interp_rate(tau, tenors, inflation_rates, n_tenors)
+        cpi_ratio = math.exp(infl_rate * tau)  # projected_cpi / base_cpi
+        inflation_leg = notional * (cpi_ratio - 1.0) * df
+
+        return inflation_leg - fixed_leg
+
+    @cuda.jit(device=True)
+    def _price_xccy_swap_device(dom_notional, fgn_notional, dom_fixed_rate, fgn_fixed_rate,
+                                 maturity, frequency, exchange_notional, fx_spot,
+                                 dom_tenors, dom_rates, fgn_tenors, fgn_rates, n_tenors):
+        """Price cross-currency swap on device."""
+        dt = 1.0 / frequency
+        num_periods = int(maturity * frequency)
+
+        dom_leg = 0.0
+        for i in range(1, num_periods + 1):
+            t = i * dt
+            df = _discount(t, dom_tenors, dom_rates, n_tenors)
+            dom_leg += dom_notional * dom_fixed_rate * dt * df
+
+        fgn_leg = 0.0
+        for i in range(1, num_periods + 1):
+            t = i * dt
+            df = _discount(t, fgn_tenors, fgn_rates, n_tenors)
+            fgn_leg += fgn_notional * fgn_fixed_rate * dt * df
+
+        if exchange_notional:
+            dom_df_mat = _discount(maturity, dom_tenors, dom_rates, n_tenors)
+            fgn_df_mat = _discount(maturity, fgn_tenors, fgn_rates, n_tenors)
+            dom_leg += dom_notional * dom_df_mat - dom_notional
+            fgn_leg += fgn_notional * fgn_df_mat - fgn_notional
+
+        return dom_leg - fgn_leg * fx_spot
+
+
+# =============================================================================
+# CUDA Bump-and-Revalue Kernel for CRIF Generation
+# =============================================================================
+
+if CUDA_AVAILABLE:
+    @cuda.jit
+    def _bump_reval_irs_kernel(
+        # Trade parameters (T trades)
+        notionals, fixed_rates, maturities, frequencies, payers,
+        # Market data (12 tenors)
+        curve_rates, tenors,
+        # Output: sensitivities (T, 12)
+        sensitivities,
+    ):
+        """Compute IR sensitivities for IRS trades via bump-and-revalue."""
+        t_idx = cuda.grid(1)
+        if t_idx >= notionals.shape[0]:
+            return
+
+        n_tenors = 12
+
+        # Trade parameters
+        notional = notionals[t_idx]
+        fixed_rate = fixed_rates[t_idx]
+        maturity = maturities[t_idx]
+        frequency = frequencies[t_idx]
+        payer = payers[t_idx]
+
+        # Base price
+        base_pv = _price_irs_device(
+            notional, fixed_rate, maturity, frequency, payer,
+            tenors, curve_rates, n_tenors
+        )
+
+        # Local array for bumped rates
+        bumped_rates = cuda.local.array(12, dtype=numba.float64)
+
+        # Bump each tenor and compute delta
+        for i in range(n_tenors):
+            # Copy rates
+            for j in range(n_tenors):
+                bumped_rates[j] = curve_rates[j]
+
+            # Bump tenor i
+            bumped_rates[i] += BUMP_SIZE
+
+            # Bumped price
+            bumped_pv = _price_irs_device(
+                notional, fixed_rate, maturity, frequency, payer,
+                tenors, bumped_rates, n_tenors
+            )
+
+            # Delta = (bumped - base) / bump_size
+            delta = (bumped_pv - base_pv) / BUMP_SIZE
+            sensitivities[t_idx, i] = delta
+
+    @cuda.jit
+    def _bump_reval_equity_option_kernel(
+        # Trade parameters (T trades)
+        notionals, strikes, maturities, dividend_yields, is_calls, equity_buckets,
+        # Market data
+        curve_rates, tenors, spot, vol_surface, vega_expiries,
+        # Output: sensitivities (T, K) where K = 12 IR + 1 spot + 6 vega = 19
+        sensitivities,
+    ):
+        """Compute sensitivities for equity option trades via bump-and-revalue."""
+        t_idx = cuda.grid(1)
+        if t_idx >= notionals.shape[0]:
+            return
+
+        n_tenors = 12
+        n_vega = 6
+
+        # Trade parameters
+        notional = notionals[t_idx]
+        strike = strikes[t_idx]
+        maturity = maturities[t_idx]
+        div_yield = dividend_yields[t_idx]
+        is_call = is_calls[t_idx]
+
+        # Get vol at trade maturity
+        vol = _interp_rate(maturity, vega_expiries, vol_surface, n_vega)
+
+        # Base price
+        base_pv = _price_equity_option_device(
+            notional, strike, maturity, div_yield, is_call,
+            spot[0], vol, tenors, curve_rates, n_tenors
+        )
+
+        # Local arrays
+        bumped_rates = cuda.local.array(12, dtype=numba.float64)
+        bumped_vols = cuda.local.array(6, dtype=numba.float64)
+
+        # IR Delta (12 tenors)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_rates[j] = curve_rates[j]
+            bumped_rates[i] += BUMP_SIZE
+
+            bumped_pv = _price_equity_option_device(
+                notional, strike, maturity, div_yield, is_call,
+                spot[0], vol, tenors, bumped_rates, n_tenors
+            )
+            sensitivities[t_idx, i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+        # Equity spot delta (index 12)
+        bumped_spot = spot[0] + SPOT_BUMP
+        bumped_pv = _price_equity_option_device(
+            notional, strike, maturity, div_yield, is_call,
+            bumped_spot, vol, tenors, curve_rates, n_tenors
+        )
+        # Sensitivity in notional terms: (dPV/dS) * S
+        sensitivities[t_idx, 12] = (bumped_pv - base_pv) / SPOT_BUMP * spot[0]
+
+        # Equity vega (6 expiries, indices 13-18)
+        for i in range(n_vega):
+            for j in range(n_vega):
+                bumped_vols[j] = vol_surface[j]
+            bumped_vols[i] += VOL_BUMP
+
+            bumped_vol = _interp_rate(maturity, vega_expiries, bumped_vols, n_vega)
+            bumped_pv = _price_equity_option_device(
+                notional, strike, maturity, div_yield, is_call,
+                spot[0], bumped_vol, tenors, curve_rates, n_tenors
+            )
+            sensitivities[t_idx, 13 + i] = (bumped_pv - base_pv) / VOL_BUMP
+
+    @cuda.jit
+    def _bump_reval_fx_option_kernel(
+        # Trade parameters (T trades)
+        notionals, strikes, maturities, is_calls,
+        # Market data
+        dom_rates, fgn_rates, tenors, fx_spot, vol_surface, vega_expiries,
+        # Output: sensitivities (T, K) where K = 12 dom IR + 12 fgn IR + 1 FX + 6 vega = 31
+        sensitivities,
+    ):
+        """Compute sensitivities for FX option trades via bump-and-revalue."""
+        t_idx = cuda.grid(1)
+        if t_idx >= notionals.shape[0]:
+            return
+
+        n_tenors = 12
+        n_vega = 6
+
+        # Trade parameters
+        notional = notionals[t_idx]
+        strike = strikes[t_idx]
+        maturity = maturities[t_idx]
+        is_call = is_calls[t_idx]
+
+        spot = fx_spot[0]
+        vol = _interp_rate(maturity, vega_expiries, vol_surface, n_vega)
+
+        # Base price
+        base_pv = _price_fx_option_device(
+            notional, strike, maturity, is_call,
+            spot, vol, tenors, dom_rates, tenors, fgn_rates, n_tenors
+        )
+
+        # Local arrays
+        bumped_dom = cuda.local.array(12, dtype=numba.float64)
+        bumped_fgn = cuda.local.array(12, dtype=numba.float64)
+        bumped_vols = cuda.local.array(6, dtype=numba.float64)
+
+        # Domestic IR Delta (12 tenors, indices 0-11)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_dom[j] = dom_rates[j]
+            bumped_dom[i] += BUMP_SIZE
+
+            bumped_pv = _price_fx_option_device(
+                notional, strike, maturity, is_call,
+                spot, vol, tenors, bumped_dom, tenors, fgn_rates, n_tenors
+            )
+            sensitivities[t_idx, i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+        # Foreign IR Delta (12 tenors, indices 12-23)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_fgn[j] = fgn_rates[j]
+            bumped_fgn[i] += BUMP_SIZE
+
+            bumped_pv = _price_fx_option_device(
+                notional, strike, maturity, is_call,
+                spot, vol, tenors, dom_rates, tenors, bumped_fgn, n_tenors
+            )
+            sensitivities[t_idx, 12 + i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+        # FX spot delta (index 24)
+        bumped_spot = spot + SPOT_BUMP * 0.01
+        bumped_pv = _price_fx_option_device(
+            notional, strike, maturity, is_call,
+            bumped_spot, vol, tenors, dom_rates, tenors, fgn_rates, n_tenors
+        )
+        sensitivities[t_idx, 24] = (bumped_pv - base_pv) / (SPOT_BUMP * 0.01) * spot
+
+        # FX vega (6 expiries, indices 25-30)
+        for i in range(n_vega):
+            for j in range(n_vega):
+                bumped_vols[j] = vol_surface[j]
+            bumped_vols[i] += VOL_BUMP
+
+            bumped_vol = _interp_rate(maturity, vega_expiries, bumped_vols, n_vega)
+            bumped_pv = _price_fx_option_device(
+                notional, strike, maturity, is_call,
+                spot, bumped_vol, tenors, dom_rates, tenors, fgn_rates, n_tenors
+            )
+            sensitivities[t_idx, 25 + i] = (bumped_pv - base_pv) / VOL_BUMP
+
+    @cuda.jit
+    def _bump_reval_inflation_swap_kernel(
+        # Trade parameters (T trades)
+        notionals, fixed_rates, maturities,
+        # Market data
+        curve_rates, inflation_rates, base_cpi, tenors,
+        # Output: sensitivities (T, K) where K = 12 IR + 12 inflation = 24
+        sensitivities,
+    ):
+        """Compute sensitivities for inflation swap trades via bump-and-revalue."""
+        t_idx = cuda.grid(1)
+        if t_idx >= notionals.shape[0]:
+            return
+
+        n_tenors = 12
+
+        # Trade parameters
+        notional = notionals[t_idx]
+        fixed_rate = fixed_rates[t_idx]
+        maturity = maturities[t_idx]
+        cpi = base_cpi[0]
+
+        # Base price
+        base_pv = _price_inflation_swap_device(
+            notional, fixed_rate, maturity,
+            tenors, curve_rates, inflation_rates, cpi, n_tenors
+        )
+
+        # Local arrays
+        bumped_rates = cuda.local.array(12, dtype=numba.float64)
+        bumped_infl = cuda.local.array(12, dtype=numba.float64)
+
+        # IR Delta (12 tenors, indices 0-11)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_rates[j] = curve_rates[j]
+            bumped_rates[i] += BUMP_SIZE
+
+            bumped_pv = _price_inflation_swap_device(
+                notional, fixed_rate, maturity,
+                tenors, bumped_rates, inflation_rates, cpi, n_tenors
+            )
+            sensitivities[t_idx, i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+        # Inflation Delta (12 tenors, indices 12-23)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_infl[j] = inflation_rates[j]
+            bumped_infl[i] += BUMP_SIZE
+
+            bumped_pv = _price_inflation_swap_device(
+                notional, fixed_rate, maturity,
+                tenors, curve_rates, bumped_infl, cpi, n_tenors
+            )
+            sensitivities[t_idx, 12 + i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+    @cuda.jit
+    def _bump_reval_xccy_swap_kernel(
+        # Trade parameters (T trades)
+        dom_notionals, fgn_notionals, dom_fixed_rates, fgn_fixed_rates,
+        maturities, frequencies, exchange_notionals,
+        # Market data
+        dom_rates, fgn_rates, fx_spot, tenors,
+        # Output: sensitivities (T, K) where K = 12 dom IR + 12 fgn IR + 1 FX = 25
+        sensitivities,
+    ):
+        """Compute sensitivities for XCCY swap trades via bump-and-revalue."""
+        t_idx = cuda.grid(1)
+        if t_idx >= dom_notionals.shape[0]:
+            return
+
+        n_tenors = 12
+
+        # Trade parameters
+        dom_not = dom_notionals[t_idx]
+        fgn_not = fgn_notionals[t_idx]
+        dom_fixed = dom_fixed_rates[t_idx]
+        fgn_fixed = fgn_fixed_rates[t_idx]
+        maturity = maturities[t_idx]
+        freq = frequencies[t_idx]
+        exch_not = exchange_notionals[t_idx]
+        spot = fx_spot[0]
+
+        # Base price
+        base_pv = _price_xccy_swap_device(
+            dom_not, fgn_not, dom_fixed, fgn_fixed,
+            maturity, freq, exch_not, spot,
+            tenors, dom_rates, tenors, fgn_rates, n_tenors
+        )
+
+        # Local arrays
+        bumped_dom = cuda.local.array(12, dtype=numba.float64)
+        bumped_fgn = cuda.local.array(12, dtype=numba.float64)
+
+        # Domestic IR Delta (12 tenors, indices 0-11)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_dom[j] = dom_rates[j]
+            bumped_dom[i] += BUMP_SIZE
+
+            bumped_pv = _price_xccy_swap_device(
+                dom_not, fgn_not, dom_fixed, fgn_fixed,
+                maturity, freq, exch_not, spot,
+                tenors, bumped_dom, tenors, fgn_rates, n_tenors
+            )
+            sensitivities[t_idx, i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+        # Foreign IR Delta (12 tenors, indices 12-23)
+        for i in range(n_tenors):
+            for j in range(n_tenors):
+                bumped_fgn[j] = fgn_rates[j]
+            bumped_fgn[i] += BUMP_SIZE
+
+            bumped_pv = _price_xccy_swap_device(
+                dom_not, fgn_not, dom_fixed, fgn_fixed,
+                maturity, freq, exch_not, spot,
+                tenors, dom_rates, tenors, bumped_fgn, n_tenors
+            )
+            sensitivities[t_idx, 12 + i] = (bumped_pv - base_pv) / BUMP_SIZE
+
+        # FX spot delta (index 24)
+        bumped_spot = spot + SPOT_BUMP * 0.01
+        bumped_pv = _price_xccy_swap_device(
+            dom_not, fgn_not, dom_fixed, fgn_fixed,
+            maturity, freq, exch_not, bumped_spot,
+            tenors, dom_rates, tenors, fgn_rates, n_tenors
+        )
+        sensitivities[t_idx, 24] = (bumped_pv - base_pv) / (SPOT_BUMP * 0.01) * spot
+
+
+# =============================================================================
+# GPU CRIF Generation Functions
+# =============================================================================
+
+def compute_crif_gpu(trades: list, market, device: int = 0) -> Tuple[pd.DataFrame, float]:
+    """
+    Compute CRIF sensitivities using GPU bump-and-revalue for all trade types.
+
+    Returns:
+        (crif_df, sensies_time_sec) - CRIF DataFrame and sensitivity computation time
+    """
+    if not CUDA_AVAILABLE:
+        raise RuntimeError("CUDA not available for GPU CRIF generation")
+
+    if not CUDA_SIMULATOR:
+        cuda.select_device(device)
+
+    # Group trades by type
+    trades_by_type = {}
+    for i, trade in enumerate(trades):
+        tt = trade.trade_type
+        if tt not in trades_by_type:
+            trades_by_type[tt] = []
+        trades_by_type[tt].append((i, trade))
+
+    all_crif_rows = []
+    total_sensies_time = 0.0
+
+    tenors_d = cuda.to_device(IR_TENORS_DEVICE)
+    vega_exp_d = cuda.to_device(VEGA_EXPIRIES_DEVICE)
+
+    threads_per_block = 256
+
+    # Process each trade type
+    for trade_type, trade_list in trades_by_type.items():
+        n_trades = len(trade_list)
+        if n_trades == 0:
+            continue
+
+        sensies_start = time.perf_counter()
+
+        if trade_type == "ir_swap":
+            # Extract trade parameters
+            notionals = np.array([t.notional for _, t in trade_list], dtype=np.float64)
+            fixed_rates = np.array([t.fixed_rate for _, t in trade_list], dtype=np.float64)
+            maturities = np.array([t.maturity for _, t in trade_list], dtype=np.float64)
+            frequencies = np.array([t.frequency for _, t in trade_list], dtype=np.int32)
+            payers = np.array([1 if t.payer else 0 for _, t in trade_list], dtype=np.int32)
+
+            # Get curve for first trade's currency (simplified - assumes single currency)
+            ccy = trade_list[0][1].currency
+            curve = market.curves.get(ccy)
+            if curve is None:
+                continue
+            curve_rates = np.ascontiguousarray(curve.zero_rates, dtype=np.float64)
+
+            # Allocate output
+            sensitivities = np.zeros((n_trades, NUM_IR_TENORS), dtype=np.float64)
+
+            # Launch kernel
+            blocks = (n_trades + threads_per_block - 1) // threads_per_block
+            d_sensitivities = cuda.to_device(sensitivities)
+
+            _bump_reval_irs_kernel[blocks, threads_per_block](
+                cuda.to_device(notionals),
+                cuda.to_device(fixed_rates),
+                cuda.to_device(maturities),
+                cuda.to_device(frequencies),
+                cuda.to_device(payers),
+                cuda.to_device(curve_rates),
+                tenors_d,
+                d_sensitivities,
+            )
+
+            if not CUDA_SIMULATOR:
+                cuda.synchronize()
+            d_sensitivities.copy_to_host(sensitivities)
+
+            total_sensies_time += time.perf_counter() - sensies_start
+
+            # Convert to CRIF rows
+            tenor_labels = ["2w", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y", "15y", "20y", "30y"]
+            for idx, (orig_idx, trade) in enumerate(trade_list):
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.currency,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.currency,
+                            "AmountUSD": delta,
+                        })
+
+        elif trade_type == "equity_option":
+            # Extract trade parameters
+            notionals = np.array([t.notional for _, t in trade_list], dtype=np.float64)
+            strikes = np.array([t.strike for _, t in trade_list], dtype=np.float64)
+            maturities = np.array([t.maturity for _, t in trade_list], dtype=np.float64)
+            div_yields = np.array([t.dividend_yield for _, t in trade_list], dtype=np.float64)
+            is_calls = np.array([1 if t.is_call else 0 for _, t in trade_list], dtype=np.int32)
+            eq_buckets = np.array([t.equity_bucket for _, t in trade_list], dtype=np.int32)
+
+            # Market data
+            ccy = trade_list[0][1].currency
+            underlying = trade_list[0][1].underlying
+            curve = market.curves.get(ccy)
+            if curve is None:
+                continue
+            curve_rates = np.ascontiguousarray(curve.zero_rates, dtype=np.float64)
+
+            spot = np.array([market.equity_spots.get(underlying, 100.0)], dtype=np.float64)
+            vol_surf = market.vol_surfaces.get(underlying)
+            if vol_surf is None:
+                vol_surf_arr = np.full(NUM_VEGA_EXPIRIES, 0.2, dtype=np.float64)
+            else:
+                vol_surf_arr = np.ascontiguousarray(vol_surf.vols, dtype=np.float64)
+
+            # Allocate output (12 IR + 1 spot + 6 vega = 19)
+            sensitivities = np.zeros((n_trades, 19), dtype=np.float64)
+
+            blocks = (n_trades + threads_per_block - 1) // threads_per_block
+            d_sensitivities = cuda.to_device(sensitivities)
+
+            _bump_reval_equity_option_kernel[blocks, threads_per_block](
+                cuda.to_device(notionals),
+                cuda.to_device(strikes),
+                cuda.to_device(maturities),
+                cuda.to_device(div_yields),
+                cuda.to_device(is_calls),
+                cuda.to_device(eq_buckets),
+                cuda.to_device(curve_rates),
+                tenors_d,
+                cuda.to_device(spot),
+                cuda.to_device(vol_surf_arr),
+                vega_exp_d,
+                d_sensitivities,
+            )
+
+            if not CUDA_SIMULATOR:
+                cuda.synchronize()
+            d_sensitivities.copy_to_host(sensitivities)
+
+            total_sensies_time += time.perf_counter() - sensies_start
+
+            # Convert to CRIF rows
+            tenor_labels = ["2w", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y", "15y", "20y", "30y"]
+            vega_labels = ["0.5y", "1.0y", "3.0y", "5.0y", "10.0y", "30.0y"]
+            for idx, (orig_idx, trade) in enumerate(trade_list):
+                # IR deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.currency,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.currency,
+                            "AmountUSD": delta,
+                        })
+                # Equity delta
+                eq_delta = sensitivities[idx, 12]
+                if abs(eq_delta) > 1e-10:
+                    all_crif_rows.append({
+                        "TradeID": trade.trade_id,
+                        "ProductClass": "Equity",
+                        "RiskType": "Risk_Equity",
+                        "Qualifier": trade.underlying,
+                        "Bucket": str(trade.equity_bucket + 1),
+                        "Label1": "",
+                        "Label2": "spot",
+                        "Amount": eq_delta,
+                        "AmountCurrency": trade.currency,
+                        "AmountUSD": eq_delta,
+                    })
+                # Equity vega
+                for i in range(NUM_VEGA_EXPIRIES):
+                    vega = sensitivities[idx, 13 + i]
+                    if abs(vega) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "Equity",
+                            "RiskType": "Risk_EquityVol",
+                            "Qualifier": trade.underlying,
+                            "Bucket": str(trade.equity_bucket + 1),
+                            "Label1": vega_labels[i],
+                            "Label2": "",
+                            "Amount": vega,
+                            "AmountCurrency": trade.currency,
+                            "AmountUSD": vega,
+                        })
+
+        elif trade_type == "fx_option":
+            # Extract trade parameters
+            notionals = np.array([t.notional for _, t in trade_list], dtype=np.float64)
+            strikes = np.array([t.strike for _, t in trade_list], dtype=np.float64)
+            maturities = np.array([t.maturity for _, t in trade_list], dtype=np.float64)
+            is_calls = np.array([1 if t.is_call else 0 for _, t in trade_list], dtype=np.int32)
+
+            # Market data (use first trade's currencies for simplified implementation)
+            dom_ccy = trade_list[0][1].domestic_ccy
+            fgn_ccy = trade_list[0][1].foreign_ccy
+            pair = f"{fgn_ccy}{dom_ccy}"
+
+            dom_curve = market.curves.get(dom_ccy)
+            fgn_curve = market.curves.get(fgn_ccy)
+            if dom_curve is None:
+                continue
+            if fgn_curve is None:
+                fgn_rates = np.full(NUM_IR_TENORS, 0.02, dtype=np.float64)
+            else:
+                fgn_rates = np.ascontiguousarray(fgn_curve.zero_rates, dtype=np.float64)
+
+            dom_rates = np.ascontiguousarray(dom_curve.zero_rates, dtype=np.float64)
+            fx_spot = np.array([market.fx_spots.get(pair, trade_list[0][1].strike)], dtype=np.float64)
+
+            vol_surf = market.vol_surfaces.get(pair)
+            if vol_surf is None:
+                vol_surf_arr = np.full(NUM_VEGA_EXPIRIES, 0.1, dtype=np.float64)
+            else:
+                vol_surf_arr = np.ascontiguousarray(vol_surf.vols, dtype=np.float64)
+
+            # Allocate output (12 dom IR + 12 fgn IR + 1 FX + 6 vega = 31)
+            sensitivities = np.zeros((n_trades, 31), dtype=np.float64)
+
+            blocks = (n_trades + threads_per_block - 1) // threads_per_block
+            d_sensitivities = cuda.to_device(sensitivities)
+
+            _bump_reval_fx_option_kernel[blocks, threads_per_block](
+                cuda.to_device(notionals),
+                cuda.to_device(strikes),
+                cuda.to_device(maturities),
+                cuda.to_device(is_calls),
+                cuda.to_device(dom_rates),
+                cuda.to_device(fgn_rates),
+                tenors_d,
+                cuda.to_device(fx_spot),
+                cuda.to_device(vol_surf_arr),
+                vega_exp_d,
+                d_sensitivities,
+            )
+
+            if not CUDA_SIMULATOR:
+                cuda.synchronize()
+            d_sensitivities.copy_to_host(sensitivities)
+
+            total_sensies_time += time.perf_counter() - sensies_start
+
+            # Convert to CRIF rows
+            tenor_labels = ["2w", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y", "15y", "20y", "30y"]
+            vega_labels = ["0.5y", "1.0y", "3.0y", "5.0y", "10.0y", "30.0y"]
+            for idx, (orig_idx, trade) in enumerate(trade_list):
+                # Domestic IR deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.domestic_ccy,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.domestic_ccy,
+                            "AmountUSD": delta,
+                        })
+                # Foreign IR deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, 12 + i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.foreign_ccy,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.domestic_ccy,
+                            "AmountUSD": delta,
+                        })
+                # FX delta
+                fx_delta = sensitivities[idx, 24]
+                if abs(fx_delta) > 1e-10:
+                    all_crif_rows.append({
+                        "TradeID": trade.trade_id,
+                        "ProductClass": "RatesFX",
+                        "RiskType": "Risk_FX",
+                        "Qualifier": f"{trade.foreign_ccy}{trade.domestic_ccy}",
+                        "Bucket": "",
+                        "Label1": "",
+                        "Label2": "",
+                        "Amount": fx_delta,
+                        "AmountCurrency": trade.domestic_ccy,
+                        "AmountUSD": fx_delta,
+                    })
+                # FX vega
+                for i in range(NUM_VEGA_EXPIRIES):
+                    vega = sensitivities[idx, 25 + i]
+                    if abs(vega) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_FXVol",
+                            "Qualifier": f"{trade.foreign_ccy}{trade.domestic_ccy}",
+                            "Bucket": "",
+                            "Label1": vega_labels[i],
+                            "Label2": "",
+                            "Amount": vega,
+                            "AmountCurrency": trade.domestic_ccy,
+                            "AmountUSD": vega,
+                        })
+
+        elif trade_type == "inflation_swap":
+            # Extract trade parameters
+            notionals = np.array([t.notional for _, t in trade_list], dtype=np.float64)
+            fixed_rates = np.array([t.fixed_rate for _, t in trade_list], dtype=np.float64)
+            maturities = np.array([t.maturity for _, t in trade_list], dtype=np.float64)
+
+            # Market data
+            ccy = trade_list[0][1].currency
+            curve = market.curves.get(ccy)
+            if curve is None:
+                continue
+            curve_rates = np.ascontiguousarray(curve.zero_rates, dtype=np.float64)
+
+            inflation = market.inflation
+            if inflation is None:
+                infl_rates = np.full(NUM_IR_TENORS, 0.025, dtype=np.float64)
+                base_cpi = np.array([100.0], dtype=np.float64)
+            else:
+                infl_rates = np.ascontiguousarray(inflation.inflation_rates, dtype=np.float64)
+                base_cpi = np.array([inflation.base_cpi], dtype=np.float64)
+
+            # Allocate output (12 IR + 12 inflation = 24)
+            sensitivities = np.zeros((n_trades, 24), dtype=np.float64)
+
+            blocks = (n_trades + threads_per_block - 1) // threads_per_block
+            d_sensitivities = cuda.to_device(sensitivities)
+
+            _bump_reval_inflation_swap_kernel[blocks, threads_per_block](
+                cuda.to_device(notionals),
+                cuda.to_device(fixed_rates),
+                cuda.to_device(maturities),
+                cuda.to_device(curve_rates),
+                cuda.to_device(infl_rates),
+                cuda.to_device(base_cpi),
+                tenors_d,
+                d_sensitivities,
+            )
+
+            if not CUDA_SIMULATOR:
+                cuda.synchronize()
+            d_sensitivities.copy_to_host(sensitivities)
+
+            total_sensies_time += time.perf_counter() - sensies_start
+
+            # Convert to CRIF rows
+            tenor_labels = ["2w", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y", "15y", "20y", "30y"]
+            for idx, (orig_idx, trade) in enumerate(trade_list):
+                # IR deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.currency,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.currency,
+                            "AmountUSD": delta,
+                        })
+                # Inflation deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, 12 + i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_Inflation",
+                            "Qualifier": trade.currency,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "",
+                            "Amount": delta,
+                            "AmountCurrency": trade.currency,
+                            "AmountUSD": delta,
+                        })
+
+        elif trade_type == "xccy_swap":
+            # Extract trade parameters
+            dom_notionals = np.array([t.dom_notional for _, t in trade_list], dtype=np.float64)
+            fgn_notionals = np.array([t.fgn_notional for _, t in trade_list], dtype=np.float64)
+            dom_fixed_rates = np.array([t.dom_fixed_rate for _, t in trade_list], dtype=np.float64)
+            fgn_fixed_rates = np.array([t.fgn_fixed_rate for _, t in trade_list], dtype=np.float64)
+            maturities = np.array([t.maturity for _, t in trade_list], dtype=np.float64)
+            frequencies = np.array([t.frequency for _, t in trade_list], dtype=np.int32)
+            exch_notionals = np.array([1 if t.exchange_notional else 0 for _, t in trade_list], dtype=np.int32)
+
+            # Market data
+            dom_ccy = trade_list[0][1].domestic_ccy
+            fgn_ccy = trade_list[0][1].foreign_ccy
+            pair = f"{fgn_ccy}{dom_ccy}"
+
+            dom_curve = market.curves.get(dom_ccy)
+            fgn_curve = market.curves.get(fgn_ccy)
+            if dom_curve is None:
+                continue
+            if fgn_curve is None:
+                fgn_rates = np.full(NUM_IR_TENORS, 0.02, dtype=np.float64)
+            else:
+                fgn_rates = np.ascontiguousarray(fgn_curve.zero_rates, dtype=np.float64)
+
+            dom_rates = np.ascontiguousarray(dom_curve.zero_rates, dtype=np.float64)
+            t0 = trade_list[0][1]
+            fx_spot = np.array([market.fx_spots.get(pair, t0.dom_notional / t0.fgn_notional)], dtype=np.float64)
+
+            # Allocate output (12 dom IR + 12 fgn IR + 1 FX = 25)
+            sensitivities = np.zeros((n_trades, 25), dtype=np.float64)
+
+            blocks = (n_trades + threads_per_block - 1) // threads_per_block
+            d_sensitivities = cuda.to_device(sensitivities)
+
+            _bump_reval_xccy_swap_kernel[blocks, threads_per_block](
+                cuda.to_device(dom_notionals),
+                cuda.to_device(fgn_notionals),
+                cuda.to_device(dom_fixed_rates),
+                cuda.to_device(fgn_fixed_rates),
+                cuda.to_device(maturities),
+                cuda.to_device(frequencies),
+                cuda.to_device(exch_notionals),
+                cuda.to_device(dom_rates),
+                cuda.to_device(fgn_rates),
+                cuda.to_device(fx_spot),
+                tenors_d,
+                d_sensitivities,
+            )
+
+            if not CUDA_SIMULATOR:
+                cuda.synchronize()
+            d_sensitivities.copy_to_host(sensitivities)
+
+            total_sensies_time += time.perf_counter() - sensies_start
+
+            # Convert to CRIF rows
+            tenor_labels = ["2w", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y", "15y", "20y", "30y"]
+            for idx, (orig_idx, trade) in enumerate(trade_list):
+                # Domestic IR deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.domestic_ccy,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.domestic_ccy,
+                            "AmountUSD": delta,
+                        })
+                # Foreign IR deltas
+                for i in range(NUM_IR_TENORS):
+                    delta = sensitivities[idx, 12 + i]
+                    if abs(delta) > 1e-10:
+                        all_crif_rows.append({
+                            "TradeID": trade.trade_id,
+                            "ProductClass": "RatesFX",
+                            "RiskType": "Risk_IRCurve",
+                            "Qualifier": trade.foreign_ccy,
+                            "Bucket": str(i + 1),
+                            "Label1": tenor_labels[i],
+                            "Label2": "OIS",
+                            "Amount": delta,
+                            "AmountCurrency": trade.domestic_ccy,
+                            "AmountUSD": delta,
+                        })
+                # FX delta
+                fx_delta = sensitivities[idx, 24]
+                if abs(fx_delta) > 1e-10:
+                    all_crif_rows.append({
+                        "TradeID": trade.trade_id,
+                        "ProductClass": "RatesFX",
+                        "RiskType": "Risk_FX",
+                        "Qualifier": f"{trade.foreign_ccy}{trade.domestic_ccy}",
+                        "Bucket": "",
+                        "Label1": "",
+                        "Label2": "",
+                        "Amount": fx_delta,
+                        "AmountCurrency": trade.domestic_ccy,
+                        "AmountUSD": fx_delta,
+                    })
+
+    crif_df = pd.DataFrame(all_crif_rows) if all_crif_rows else pd.DataFrame()
+    return crif_df, total_sensies_time
+
 
 if CUDA_AVAILABLE:
     @cuda.jit
@@ -919,6 +1953,164 @@ def _round_to_integer(x: np.ndarray) -> np.ndarray:
 
 
 # =============================================================================
+# Pre-Trade Analytics: Counterparty Routing via Brute-Force
+# =============================================================================
+
+@dataclass
+class PreTradeRoutingResult:
+    """Result of pre-trade counterparty routing analysis."""
+    marginal_ims: np.ndarray      # Marginal IM for each portfolio (P,)
+    base_ims: np.ndarray          # Current IM for each portfolio before new trade (P,)
+    new_ims: np.ndarray           # IM after adding new trade to each portfolio (P,)
+    best_portfolio: int           # Portfolio index with lowest marginal IM
+    best_marginal_im: float       # Lowest marginal IM value
+    worst_portfolio: int          # Portfolio index with highest marginal IM
+    worst_marginal_im: float      # Highest marginal IM value
+    sensies_time_sec: float       # Time to compute new trade sensitivities
+    eval_time_sec: float          # Time to evaluate all 2P SIMM scenarios
+
+
+def pretrade_routing_gpu(
+    S: np.ndarray,                       # (T, K) sensitivity matrix
+    allocation: np.ndarray,              # (T, P) current allocation
+    new_trade_sens: np.ndarray,          # (K,) new trade sensitivities
+    risk_weights: np.ndarray,            # (K,)
+    concentration: np.ndarray,           # (K,)
+    bucket_id: np.ndarray,               # (K,)
+    risk_measure_idx: np.ndarray,        # (K,)
+    bucket_rc: np.ndarray,               # (B,)
+    bucket_rm: np.ndarray,               # (B,)
+    intra_corr_flat: np.ndarray,         # (K*K,)
+    bucket_gamma_flat: np.ndarray,       # (B*B,)
+    num_buckets: int,
+    device: int = 0,
+    gpu_arrays: dict = None,
+) -> PreTradeRoutingResult:
+    """
+    Compute marginal IM for routing a new trade to each portfolio using GPU brute-force.
+
+    For each portfolio p:
+      - base_im[p] = SIMM(current portfolio p)
+      - new_im[p] = SIMM(portfolio p + new trade)
+      - marginal_im[p] = new_im[p] - base_im[p]
+
+    Returns the portfolio with lowest marginal IM (best routing decision).
+
+    This is the GPU brute-force equivalent of AADC's gradient-based marginal IM:
+      AADC: marginal ≈ ∂IM/∂S · new_trade_sens (first-order approximation)
+      GPU:  marginal = IM(with) - IM(without) (exact, but 2P evaluations)
+    """
+    if not CUDA_AVAILABLE:
+        raise RuntimeError("CUDA not available for pre-trade routing")
+
+    T, K = S.shape
+    P = allocation.shape[1]
+
+    eval_start = time.perf_counter()
+
+    # Compute current aggregated sensitivities per portfolio
+    agg_S_base = (S.T @ allocation).T  # (P, K)
+
+    # Compute aggregated sensitivities with new trade added to each portfolio
+    # new_trade_sens is broadcast-added to each portfolio
+    agg_S_with_new = agg_S_base + new_trade_sens[np.newaxis, :]  # (P, K)
+
+    # Stack both scenarios for a single GPU kernel launch: [base_0, ..., base_P-1, new_0, ..., new_P-1]
+    all_scenarios = np.vstack([agg_S_base, agg_S_with_new])  # (2P, K)
+
+    # Evaluate all 2P scenarios in one kernel launch
+    all_ims = compute_simm_im_only_cuda(
+        all_scenarios, risk_weights, concentration, bucket_id, risk_measure_idx,
+        bucket_rc, bucket_rm, intra_corr_flat, bucket_gamma_flat, num_buckets,
+        device, gpu_arrays,
+    )
+
+    eval_time = time.perf_counter() - eval_start
+
+    # Split results
+    base_ims = all_ims[:P]
+    new_ims = all_ims[P:]
+    marginal_ims = new_ims - base_ims
+
+    # Find best and worst portfolios
+    best_p = int(np.argmin(marginal_ims))
+    worst_p = int(np.argmax(marginal_ims))
+
+    return PreTradeRoutingResult(
+        marginal_ims=marginal_ims,
+        base_ims=base_ims,
+        new_ims=new_ims,
+        best_portfolio=best_p,
+        best_marginal_im=float(marginal_ims[best_p]),
+        worst_portfolio=worst_p,
+        worst_marginal_im=float(marginal_ims[worst_p]),
+        sensies_time_sec=0.0,  # Will be set by caller if new trade CRIF was computed
+        eval_time_sec=eval_time,
+    )
+
+
+def pretrade_routing_with_crif_gpu(
+    trades: list,
+    market,
+    new_trade,
+    S: np.ndarray,
+    allocation: np.ndarray,
+    risk_weights: np.ndarray,
+    concentration: np.ndarray,
+    bucket_id: np.ndarray,
+    risk_measure_idx: np.ndarray,
+    bucket_rc: np.ndarray,
+    bucket_rm: np.ndarray,
+    intra_corr_flat: np.ndarray,
+    bucket_gamma_flat: np.ndarray,
+    num_buckets: int,
+    risk_factors: list,
+    device: int = 0,
+    gpu_arrays: dict = None,
+    crif_method: str = 'gpu',
+) -> PreTradeRoutingResult:
+    """
+    Full pre-trade routing: compute new trade CRIF, then route via brute-force.
+
+    This includes sensitivity computation time (crif_sensies) in the result.
+    """
+    K = S.shape[1]
+
+    # Step 1: Compute CRIF for new trade
+    sensies_start = time.perf_counter()
+
+    if crif_method == 'gpu':
+        crif_df, _ = compute_crif_gpu([new_trade], market, device)
+    else:
+        crif_df = compute_crif_for_trades([new_trade], market)
+
+    sensies_time = time.perf_counter() - sensies_start
+
+    # Step 2: Map CRIF to K-dimensional sensitivity vector
+    new_trade_sens = np.zeros(K, dtype=np.float64)
+    rf_to_idx = {rf: i for i, rf in enumerate(risk_factors)}
+
+    for _, row in crif_df.iterrows():
+        rf = (row['RiskType'], row['Qualifier'], row.get('Bucket', ''), row.get('Label1', ''))
+        k_idx = rf_to_idx.get(rf)
+        if k_idx is not None:
+            new_trade_sens[k_idx] += row['AmountUSD']
+
+    # Step 3: Run routing
+    result = pretrade_routing_gpu(
+        S, allocation, new_trade_sens,
+        risk_weights, concentration, bucket_id, risk_measure_idx,
+        bucket_rc, bucket_rm, intra_corr_flat, bucket_gamma_flat,
+        num_buckets, device, gpu_arrays,
+    )
+
+    # Add sensies time
+    result.sensies_time_sec = sensies_time
+
+    return result
+
+
+# =============================================================================
 # Main Pipeline
 # =============================================================================
 
@@ -933,6 +2125,8 @@ def run_portfolio_cuda(
     verbose: bool = True,
     device: int = 0,
     num_simm_buckets: int = 3,
+    crif_method: str = 'gpu',  # 'gpu' or 'cpu' - GPU uses CUDA bump-and-revalue
+    pretrade: bool = False,   # Run pre-trade routing analysis
 ) -> Dict:
     """
     Run SIMM portfolio calculation and optimization using CUDA.
@@ -947,6 +2141,8 @@ def run_portfolio_cuda(
         max_iters: Max optimization iterations
         verbose: Print progress
         device: GPU device ID
+        crif_method: 'gpu' for CUDA bump-and-revalue, 'cpu' for Python bump-and-revalue
+        pretrade: Run pre-trade routing analysis for a random new trade
 
     Returns:
         Dict with results and timing
@@ -997,19 +2193,32 @@ def run_portfolio_cuda(
     if verbose:
         print(f"  Generated {len(trades)} trades in {results['timings']['trade_generation']:.3f}s")
 
-    # Step 2: Compute CRIF (analytical bump-and-revalue, no AADC)
+    # Step 2: Compute CRIF (bump-and-revalue)
     if verbose:
-        print("\nStep 2: Computing CRIF sensitivities (analytical)...")
+        method_label = "GPU CUDA" if crif_method == 'gpu' else "CPU Python"
+        print(f"\nStep 2: Computing CRIF sensitivities ({method_label} bump-and-revalue)...")
     crif_start = time.perf_counter()
 
-    crif_df = compute_crif_for_trades(trades, market)
-    crif_records = crif_df.to_dict('records') if len(crif_df) > 0 else []
+    if crif_method == 'gpu':
+        # GPU bump-and-revalue - sensies_time tracked separately
+        crif_df, sensies_time = compute_crif_gpu(trades, market, device)
+        crif_records = crif_df.to_dict('records') if len(crif_df) > 0 else []
+        results['timings']['crif_sensies'] = sensies_time  # GPU kernel time for sensitivities
+    else:
+        # CPU bump-and-revalue (fallback)
+        sensies_start = time.perf_counter()
+        crif_df = compute_crif_for_trades(trades, market)
+        sensies_time = time.perf_counter() - sensies_start
+        crif_records = crif_df.to_dict('records') if len(crif_df) > 0 else []
+        results['timings']['crif_sensies'] = sensies_time  # CPU time for sensitivities
 
     results['timings']['crif_computation'] = time.perf_counter() - crif_start
     results['num_sensitivities'] = len(crif_records)
+    results['crif_method'] = crif_method
 
     if verbose:
         print(f"  Computed {len(crif_records)} sensitivities in {results['timings']['crif_computation']:.3f}s")
+        print(f"  Sensitivity kernel time: {results['timings']['crif_sensies']:.4f}s")
 
     # Step 3: Build sensitivity matrix and full SIMM v2.6 structure
     if verbose:
@@ -1265,6 +2474,60 @@ def run_portfolio_cuda(
     else:
         results['final_im'] = initial_im
 
+    # Step 7: Pre-trade routing (if requested)
+    if pretrade:
+        if verbose:
+            print(f"\nStep 6: Pre-trade routing (brute-force {2*P} SIMM evaluations)...")
+
+        # Generate a random new trade of the first type
+        new_trade_type = trade_types[0] if trade_types else 'ir_swap'
+        from model.trade_types import generate_trades_by_type
+        new_trades = generate_trades_by_type(new_trade_type, 1, currencies, seed=9999)
+        new_trade = new_trades[0]
+        new_trade.trade_id = "NEW_TRADE_001"
+
+        if verbose:
+            print(f"  New trade: {new_trade.trade_id} ({new_trade_type})")
+
+        # Pre-allocate GPU arrays for efficiency
+        gpu_arrays = preallocate_gpu_arrays(
+            risk_weights, concentration, bucket_id, risk_measure_idx,
+            bucket_rc, bucket_rm, intra_corr, bucket_gamma, B, device,
+        )
+
+        # Run pre-trade routing with CRIF computation
+        pt_result = pretrade_routing_with_crif_gpu(
+            trades, market, new_trade,
+            S, initial_allocation,
+            risk_weights, concentration, bucket_id, risk_measure_idx,
+            bucket_rc, bucket_rm, intra_corr, bucket_gamma, B,
+            risk_factors, device, gpu_arrays, crif_method,
+        )
+
+        results['pretrade'] = {
+            'best_portfolio': pt_result.best_portfolio,
+            'best_marginal_im': pt_result.best_marginal_im,
+            'worst_portfolio': pt_result.worst_portfolio,
+            'worst_marginal_im': pt_result.worst_marginal_im,
+            'sensies_time_sec': pt_result.sensies_time_sec,
+            'eval_time_sec': pt_result.eval_time_sec,
+            'marginal_ims': pt_result.marginal_ims.tolist(),
+        }
+        results['timings']['pretrade_sensies'] = pt_result.sensies_time_sec
+        results['timings']['pretrade_eval'] = pt_result.eval_time_sec
+
+        if verbose:
+            print(f"  Routing results:")
+            for p in range(P):
+                marker = " <-- BEST" if p == pt_result.best_portfolio else (" <-- WORST" if p == pt_result.worst_portfolio else "")
+                print(f"    Portfolio {p}: base=${pt_result.base_ims[p]:,.0f}, "
+                      f"with_new=${pt_result.new_ims[p]:,.0f}, "
+                      f"marginal=${pt_result.marginal_ims[p]:,.0f}{marker}")
+            print(f"  Recommendation: Route to portfolio {pt_result.best_portfolio} "
+                  f"(marginal IM: ${pt_result.best_marginal_im:,.0f})")
+            print(f"  Sensies time: {pt_result.sensies_time_sec*1000:.2f} ms")
+            print(f"  SIMM eval time: {pt_result.eval_time_sec*1000:.2f} ms")
+
     results['timings']['total'] = time.perf_counter() - total_start
 
     if verbose:
@@ -1328,6 +2591,10 @@ def main():
                         help='Number of currencies (SIMM buckets)')
     parser.add_argument('--device', type=int, default=0,
                         help='GPU device ID')
+    parser.add_argument('--crif-method', choices=['gpu', 'cpu'], default='gpu',
+                        help='CRIF generation method: gpu (CUDA bump-and-revalue) or cpu (Python)')
+    parser.add_argument('--pretrade', action='store_true',
+                        help='Run pre-trade routing analysis for a random new trade')
     parser.add_argument('--log', action='store_true',
                         help='Log results to execution_log.csv')
     parser.add_argument('--quiet', '-q', action='store_true',
@@ -1349,6 +2616,8 @@ def main():
             verbose=not args.quiet,
             device=args.device,
             num_simm_buckets=args.simm_buckets,
+            crif_method=args.crif_method,
+            pretrade=args.pretrade,
         )
 
         if args.log:
@@ -1361,6 +2630,13 @@ def main():
             print(f"  Final IM:    ${results['final_im']:,.2f}")
             print(f"  Reduction:   ${results['im_reduction']:,.2f} ({results['im_reduction_pct']:.2f}%)")
             print(f"  CUDA time:   {results['timings'].get('cuda_eval', 0)*1000:.2f} ms")
+        if 'pretrade' in results:
+            pt = results['pretrade']
+            print(f"\nPre-Trade Routing (brute-force):")
+            print(f"  Best portfolio:  {pt['best_portfolio']} (marginal IM: ${pt['best_marginal_im']:,.2f})")
+            print(f"  Worst portfolio: {pt['worst_portfolio']} (marginal IM: ${pt['worst_marginal_im']:,.2f})")
+            print(f"  Sensies time:    {pt['sensies_time_sec']*1000:.2f} ms")
+            print(f"  SIMM eval time:  {pt['eval_time_sec']*1000:.2f} ms (2×{args.portfolios} scenarios)")
 
     except Exception as e:
         print(f"Error: {e}")

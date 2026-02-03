@@ -2471,12 +2471,15 @@ def main():
             num_sens = 0
             group_im_kernel_rec = 0.0
 
+        # For AADC, sensies time = crif_time - kernel_recording (actual sensitivity computation)
+        crif_sensies = crif_time - crif_rec_time if crif_rec_time else crif_time
         group_results.append({
             "group_id": group,
             "num_group_trades": num_group_trades,
             "im_result": base_im,
             "crif_time_sec": crif_time,
             "crif_kernel_recording_sec": crif_rec_time,
+            "crif_sensies_time_sec": crif_sensies,
             "simm_time_sec": simm_time,
             "im_sens_time_sec": grad_time,
             "im_kernel_recording_sec": group_im_kernel_rec,
