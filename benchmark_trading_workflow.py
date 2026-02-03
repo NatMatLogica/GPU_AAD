@@ -85,6 +85,9 @@ CPP_AVAILABLE = os.path.isfile(CPP_BINARY) and os.access(CPP_BINARY, os.X_OK)
 # Check Pure GPU IR (requires CUDA, but only supports IR swaps)
 PURE_GPU_AVAILABLE = CUDA_AVAILABLE  # Uses same CUDA backend
 
+# GPU Full/BF can be disabled separately from Pure GPU IR
+GPU_FULL_ENABLED = CUDA_AVAILABLE
+
 # Project imports
 from common.portfolio import generate_portfolio, write_log
 from model.trade_types import generate_trades_by_type, compute_crif_for_trade, MarketEnvironment
@@ -211,7 +214,6 @@ def _run_cpp_mode(mode, num_trades, num_portfolios, num_threads, seed,
         "--seed", str(seed),
         "--mode", mode,
         "--max-iters", str(max_iters),
-        "--no-greedy",
     ]
     if input_dir:
         cmd.extend(["--input-dir", input_dir])
@@ -800,7 +802,7 @@ def setup_portfolio_and_kernel(
     # GPU: Pre-allocate constants on device (avoids repeated H2D transfers)
     # =========================================================================
     gpu_constants = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         gpu_constants = preallocate_gpu_arrays(
             risk_weights, concentration_factors, bucket_id, risk_measure_idx,
             bucket_rc, bucket_rm, intra_corr_flat, bucket_gamma_flat,
@@ -1489,7 +1491,7 @@ def step1_portfolio_setup(ctx, verbose=True):
 
     # GPU: first evaluation
     gpu_ims = gpu_grads = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         start = time.perf_counter()
         gpu_ims, gpu_grads = _eval_gpu(ctx, agg_S_T)
         result.gpu_time_sec = time.perf_counter() - start
@@ -1497,7 +1499,7 @@ def step1_portfolio_setup(ctx, verbose=True):
 
     # Brute-force (forward-only GPU, no gradients)
     bf_ims = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         im_fn = _make_gpu_im_only_fn(ctx)
         start = time.perf_counter()
         bf_ims = im_fn(agg_S_T)
@@ -1585,7 +1587,7 @@ def step2_margin_attribution(ctx, prev_result, verbose=True):
 
     # GPU: reuses gradient from Step 1
     gpu_contribs = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         start = time.perf_counter()
         gpu_contribs = _compute_attribution(prev_result.details["gpu_grads"])
         result.gpu_time_sec = time.perf_counter() - start
@@ -1593,7 +1595,7 @@ def step2_margin_attribution(ctx, prev_result, verbose=True):
 
     # Brute-force: bump-and-revalue (remove each trade, recompute IM)
     bf_contribs = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         agg_S_T = prev_result.details["agg_S_T"]   # (P, K)
         base_ims = prev_result.details.get("bf_ims")
         if base_ims is None:
@@ -1740,7 +1742,7 @@ def step3_intraday_trading(ctx, prev_step1, num_new_trades=50,
 
     # GPU
     gpu_routing = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         grad_fn = _make_gpu_grad_fn(ctx)
         gpu_routing, gpu_evals, gpu_time = _route_trades(grad_fn, "GPU")
         result.gpu_time_sec = gpu_time
@@ -1748,7 +1750,7 @@ def step3_intraday_trading(ctx, prev_step1, num_new_trades=50,
 
     # Brute-force: try all P portfolios per trade (forward-only GPU)
     bf_routing = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         im_fn = _make_gpu_im_only_fn(ctx)
         local_S = S.copy()
         local_alloc = allocation.copy()
@@ -1924,7 +1926,7 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
 
     # GPU
     gpu_scenarios = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         grad_fn = _make_gpu_grad_fn(ctx)
         gpu_scenarios, gpu_evals, gpu_time = _run_scenarios(grad_fn, "GPU")
         result.gpu_time_sec = gpu_time
@@ -1932,7 +1934,7 @@ def step4_whatif_scenarios(ctx, step1_result, step2_result, verbose=True):
 
     # Brute-force: forward-only GPU (same scenarios, no gradient computation)
     bf_scenarios = None
-    if CUDA_AVAILABLE:
+    if GPU_FULL_ENABLED:
         im_fn = _make_gpu_im_only_fn(ctx)
         bf_grad_fn = lambda agg: (im_fn(agg), None)  # wrap as grad_fn shape
         bf_scenarios, bf_evals, bf_time = _run_scenarios(bf_grad_fn, "BF")
@@ -2001,7 +2003,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
             # GPU brute-force: forward-only kernel, no gradients
             gpu_opt = None
             aadc_opt = None
-            if CUDA_AVAILABLE:
+            if GPU_FULL_ENABLED:
                 start = time.perf_counter()
                 gpu_opt = brute_force_gpu_search(
                     S, allocation, ctx,
@@ -2042,7 +2044,7 @@ def step5_eod_optimization(ctx, max_iters=100, verbose=True, exclude=None):
 
             # GPU: Phase 1 (continuous) + Phase 2 (greedy)
             gpu_opt = None
-            if CUDA_AVAILABLE:
+            if GPU_FULL_ENABLED:
                 grad_fn = _make_gpu_grad_fn(ctx)
                 gpu_im_only_fn = _make_gpu_im_only_fn(ctx)
                 start = time.perf_counter()
@@ -2605,7 +2607,7 @@ def log_workflow_results(steps, economics, config):
                 **common,
             ))
 
-        if CUDA_AVAILABLE and (s.gpu_time_sec or s.gpu_evals):
+        if GPU_FULL_ENABLED and (s.gpu_time_sec or s.gpu_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_gpu_full",
                 model_version=MODEL_VERSION,
@@ -2617,7 +2619,7 @@ def log_workflow_results(steps, economics, config):
                 **common,
             ))
 
-        if CUDA_AVAILABLE and (s.bf_time_sec or s.bf_evals):
+        if GPU_FULL_ENABLED and (s.bf_time_sec or s.bf_evals):
             log_rows.append(_build_benchmark_log_row(
                 model_name=f"workflow_{step_name}_bf_gpu",
                 model_version=MODEL_VERSION,
@@ -2694,12 +2696,13 @@ def run_trading_workflow(
           f"C++: {'Available' if CPP_AVAILABLE else 'NOT available'}")
     # Pure GPU is available if CUDA is available AND trade types are IR-only
     pure_gpu_status = "Available (IR-only)" if PURE_GPU_AVAILABLE else "NOT available"
-    print(f"  Pure GPU IR: {pure_gpu_status}")
+    gpu_full_status = "Enabled" if GPU_FULL_ENABLED else "Disabled"
+    print(f"  Pure GPU IR: {pure_gpu_status:<20} GPU Full/BF: {gpu_full_status}")
     if CUDA_AVAILABLE and CUDA_SIMULATOR:
         print(f"  CUDA mode: Simulator (timings not meaningful)")
     print(f"  Formula: Full ISDA v2.6 (correlations + concentration)")
 
-    if not AADC_AVAILABLE and not CUDA_AVAILABLE and not CPP_AVAILABLE and not PURE_GPU_AVAILABLE:
+    if not AADC_AVAILABLE and not GPU_FULL_ENABLED and not CPP_AVAILABLE and not PURE_GPU_AVAILABLE:
         print("\nERROR: No backends available. Cannot run benchmark.")
         return None
 
@@ -2832,12 +2835,17 @@ def main():
     parser.add_argument('--quiet', '-q', action='store_true')
     parser.add_argument('--no-gpu', action='store_true',
                         help='Disable GPU backends (CUDA and BF). Run AADC Python + C++ only.')
+    parser.add_argument('--no-gpu-full', action='store_true',
+                        help='Disable GPU full and BF backends, but keep Pure GPU IR.')
 
     args = parser.parse_args()
 
     if args.no_gpu:
         global CUDA_AVAILABLE
         CUDA_AVAILABLE = False
+    if args.no_gpu_full:
+        global GPU_FULL_ENABLED
+        GPU_FULL_ENABLED = False
     trade_types = [t.strip() for t in args.trade_types.split(',')]
 
     # Resolve output file
